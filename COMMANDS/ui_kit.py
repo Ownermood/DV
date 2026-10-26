@@ -243,3 +243,49 @@ def t(user_id, key, **fmt) -> str:
         fmt.setdefault("bot", BOT_TITLE)
         s = s.format(**fmt)
     return s
+
+
+# ---------------- selection buttons (every menu, legacy ones too) ----------------
+# Selected ("✅ AVC") -> green + premium tick; unselected ("☑️ AVC", "⚪ x") -> blue.
+# Works for single and multi select: each button is styled by its own marker.
+_SELECTED = ("✅", "✔️", "✔", "🟢")
+_UNSELECTED = ("☑️", "☑", "⚪", "⬜", "🔘")
+
+
+def style_selection(b) -> None:
+    text = getattr(b, "text", "") or ""
+    for mark in _SELECTED:
+        if text.startswith(mark):
+            if b.style in (None, enums.ButtonStyle.DEFAULT, BLUE):
+                b.style = GREEN
+            if premium_on() and not b.icon_custom_emoji_id:
+                b.text = text[len(mark):].lstrip() or text
+                b.icon_custom_emoji_id = E["ok"][1]
+            return
+    for mark in _UNSELECTED:
+        if text.startswith(mark):
+            if b.style in (None, enums.ButtonStyle.DEFAULT):
+                b.style = BLUE
+            if premium_on():
+                b.text = text[len(mark):].lstrip() or text
+            return
+
+
+def _install_selection_hook() -> None:
+    cls = InlineKeyboardButton
+    if getattr(cls, "_selection_hooked", False):
+        return
+    original = cls.write
+
+    async def write(self, client):
+        try:
+            style_selection(self)
+        except Exception as exc:
+            logger.debug(f"[ui] selection style skipped: {exc}")
+        return await original(self, client)
+
+    cls.write = write
+    cls._selection_hooked = True
+
+
+_install_selection_hook()

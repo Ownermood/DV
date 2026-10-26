@@ -132,3 +132,23 @@ def test_local_shared_cookie_source(tmp_path):
     ok, status, data, err = _download_content(str(f))
     assert ok and status == 200 and data.startswith(b"# Netscape")
     assert _download_content(str(tmp_path / "missing.txt"))[0] is False
+
+
+def test_selected_buttons_green_premium_single_and_multi(monkeypatch):
+    import asyncio
+    from pyrogram import enums
+    from pyrogram.types import InlineKeyboardButton
+    from COMMANDS import ui_kit
+    monkeypatch.setattr(ui_kit, "premium_on", lambda: True)
+    btns = [InlineKeyboardButton(t, callback_data="x") for t in ("✅ AVC", "✅ AV1", "☑️ VP9", "Close")]
+    raws = [asyncio.run(b.write(None)) for b in btns]
+    assert [b.style for b in btns] == [enums.ButtonStyle.SUCCESS, enums.ButtonStyle.SUCCESS,
+                                       enums.ButtonStyle.PRIMARY, enums.ButtonStyle.DEFAULT]
+    assert [b.text for b in btns] == ["AVC", "AV1", "VP9", "Close"]
+    assert raws[0].style.bg_success and raws[0].style.icon == int(ui_kit.E["ok"][1])
+    assert raws[2].style.bg_primary and raws[2].style.icon is None
+    # plain mode keeps the tick in the text, colour still applies
+    monkeypatch.setattr(ui_kit, "premium_on", lambda: False)
+    b = InlineKeyboardButton("✅ MP4", callback_data="x")
+    asyncio.run(b.write(None))
+    assert b.text == "✅ MP4" and b.style == enums.ButtonStyle.SUCCESS and not b.icon_custom_emoji_id
