@@ -433,12 +433,6 @@ def url_distractor(app, message):
         send_to_logger(message, LoggerMsg.ADD_BOT_TO_GROUP_SENT)
         return
 
-    # /lang Command - Allow for all users (no subscription check)
-    if text.startswith("/lang"):
-        from COMMANDS.lang_cmd import lang_command
-        lang_command(app, message)
-        return
-
     # For non-admin users, if they haven't Joined the Channel, Exit ImmediaTely.
     # This check applies to all user commands below, but not to basic commands above.
     if not is_admin and not is_user_in_channel(app, message):
@@ -1320,64 +1314,3 @@ def link_hint_callback(app, callback_query):
         send_to_logger(callback_query.message, LoggerMsg.URL_EXTRACTOR_LINK_HINT_CALLBACK_ERROR_LOG_MSG.format(e=e))
         callback_query.answer(safe_get_messages(user_id).URL_EXTRACTOR_ERROR_OCCURRED_MSG, show_alert=True)
 
-# Callback handler for language selection
-@app.on_callback_query(filters.regex(r"^lang_"))
-def lang_callback(app, callback_query):
-    """Handle language selection callback queries"""
-    from HELPERS.logger import send_to_logger, logger
-    try:
-        data = callback_query.data
-        user_id = callback_query.from_user.id
-        logger.info(f"Language callback triggered: {data} for user {user_id}")
-        
-        if data.startswith('lang_select_'):
-            # Extract language code
-            lang_code = data.replace('lang_select_', '')
-            
-            # Set user language
-            from CONFIG.LANGUAGES.language_router import set_user_language
-            logger.info(f"Setting language {lang_code} for user {user_id}")
-            success = set_user_language(user_id, lang_code)
-            logger.info(f"Language set result: {success}")
-            
-            if success:
-                # Get messages in new language for this user
-                from CONFIG.LANGUAGES.language_router import get_messages
-                new_messages = get_messages(user_id, lang_code)
-                
-                # Get language name
-                from CONFIG.LANGUAGES.language_router import language_router
-                available_languages = language_router.get_available_languages()
-                lang_name = available_languages.get(lang_code, lang_code)
-                
-                # Send confirmation message
-                confirmation_msg = getattr(new_messages, 'LANG_CHANGED_MSG', 
-                    f"✅ Language changed to {lang_name}"
-                )
-                
-                # Format the message with lang_name
-                if '{lang_name}' in confirmation_msg:
-                    confirmation_msg = confirmation_msg.format(lang_name=lang_name)
-                
-                callback_query.answer(confirmation_msg)
-                callback_query.edit_message_text(
-                    confirmation_msg,
-                    parse_mode=enums.ParseMode.HTML
-                )
-            else:
-                error_msg = safe_get_messages(user_id).LANG_ERROR_MSG if hasattr(safe_get_messages(user_id), 'LANG_ERROR_MSG') else "❌ Error changing language"
-                callback_query.answer(error_msg)
-                
-        elif data == 'lang_close':
-            # Close language selection
-            close_msg = safe_get_messages(user_id).LANG_CLOSED_MSG if hasattr(safe_get_messages(user_id), 'LANG_CLOSED_MSG') else "Language selection closed"
-            callback_query.answer(close_msg)
-            callback_query.edit_message_text(close_msg)
-            
-    except Exception as e:
-        # Log error and answer callback
-        from CONFIG.logger_msg import LoggerMsg
-        send_to_logger(callback_query.message, LoggerMsg.URL_EXTRACTOR_LANGUAGE_CALLBACK_ERROR_LOG_MSG.format(e=e))
-        callback_query.answer(safe_get_messages(user_id).URL_EXTRACTOR_ERROR_OCCURRED_MSG, show_alert=True)
-
-######################################################  

@@ -59,9 +59,6 @@ def settings_command(app, message):
     messages = safe_get_messages(user_id)
     keyboard = InlineKeyboardMarkup([
         [
-            InlineKeyboardButton(safe_get_messages(user_id).SETTINGS_LANGUAGE_BUTTON_MSG, callback_data="settings__menu__language"),
-        ],
-        [
             InlineKeyboardButton(safe_get_messages(user_id).SETTINGS_CLEAN_BUTTON_MSG, callback_data="settings__menu__clean"),
             InlineKeyboardButton(safe_get_messages(user_id).SETTINGS_COOKIES_BUTTON_MSG, callback_data="settings__menu__cookies"),
         ],
@@ -97,26 +94,6 @@ def settings_menu_callback(app, callback_query: CallbackQuery):
             callback_query.edit_message_reply_markup(reply_markup=None)
         try:
             callback_query.answer(safe_get_messages(user_id).SETTINGS_MENU_CLOSED_MSG)
-        except Exception:
-            pass
-        return
-    if data == "language":
-        # Import language command
-        from COMMANDS.lang_cmd import lang_command
-        try:
-            lang_command(app, fake_message("/lang", user_id))
-        except FloodWait as e:
-            user_dir = os.path.join("users", str(user_id))
-            os.makedirs(user_dir, exist_ok=True)
-            with open(os.path.join(user_dir, "flood_wait.txt"), 'w') as f:
-                f.write(str(e.value))
-            try:
-                callback_query.answer(safe_get_messages(user_id).SETTINGS_FLOOD_LIMIT_MSG, show_alert=False)
-            except Exception:
-                pass
-            return
-        try:
-            callback_query.answer(safe_get_messages(user_id).SETTINGS_COMMAND_EXECUTED_MSG)
         except Exception:
             pass
         return
@@ -252,9 +229,6 @@ safe_get_messages(user_id).SETTINGS_MORE_TITLE_MSG,
     if data == "back":
         # Return to main menu
         keyboard = InlineKeyboardMarkup([
-            [
-                InlineKeyboardButton(safe_get_messages(user_id).SETTINGS_LANGUAGE_BUTTON_MSG, callback_data="settings__menu__language"),
-            ],
             [
                 InlineKeyboardButton(safe_get_messages(user_id).SETTINGS_CLEAN_BUTTON_MSG, callback_data="settings__menu__clean"),
                 InlineKeyboardButton(safe_get_messages(user_id).SETTINGS_COOKIES_BUTTON_MSG, callback_data="settings__menu__cookies"),

@@ -175,13 +175,11 @@ def edit(client, msg, build):
                                                        reply_markup=m, disable_web_page_preview=True), build)
 
 
-# ---------------- i18n (UI strings only; legacy messages use CONFIG/LANGUAGES) ----------------
+# ---------------- UI strings (English only) ----------------
 T = {
     "en": {
         "welcome": "{wave} <b>Hey {name}!</b> Welcome to <b>{bot}</b>\n\n<blockquote>{bolt} Send any link and I'll download it in the <b>best quality</b>.\n{music} MP3 and {image} thumbnail on every link.</blockquote>",
-        "lang": "Language", "help": "Help", "admin": "Admin Panel", "back": "Back", "close": "Close",
-        "choose_lang": "{globe} <b>Choose your language</b>",
-        "lang_set": "Language updated",
+        "help": "Help", "admin": "Admin Panel", "back": "Back", "close": "Close",
         "help_text": ("{question} <b>What I can do</b>\n\n<blockquote expandable>"
                       "{bolt} Auto best quality, up to {max_gb} GB. If the best quality is too big, I step down "
                       "(1080p → 720p …) automatically.\n"
@@ -202,45 +200,11 @@ T = {
         "send_link": "Send me a link.",
         "cmd_na": "That command isn't available. Just send a link.",
     },
-    "in": {
-        "welcome": "{wave} <b>Hey {name}!</b> Welcome to <b>{bot}</b>\n\n<blockquote>{bolt} Koi bhi link bhejo, main <b>best quality</b> me download kar dunga.\n{music} Har link pe MP3 aur {image} thumbnail bhi.</blockquote>",
-        "lang": "Bhasha", "help": "Help", "admin": "Admin Panel", "back": "Back", "close": "Band karo",
-        "choose_lang": "{globe} <b>Apni bhasha chuno</b>",
-        "lang_set": "Bhasha badal di gayi",
-        "help_text": ("{question} <b>Main kya kar sakta hu</b>\n\n<blockquote expandable>"
-                      "{bolt} Auto best quality, {max_gb} GB tak. Best quality bahut badi ho to main khud "
-                      "neeche aata hu (1080p → 720p …).\n"
-                      "{play} YouTube: quality khud chuno. Badi ho to fit hone wali qualities dikhaunga.\n"
-                      "{music} Kisi bhi link se MP3.\n"
-                      "{image} Thumbnail download.\n"
-                      "{box} Badi file parts me aati hai (Telegram limit 2 GB per file).\n"
-                      "{chat} Private link: pehle /cookie bhejo.</blockquote>\n\n"
-                      "<b>Supported</b>\n<blockquote>{platforms}</blockquote>"),
-        "pick": "{down} <b>{platform}</b> link mila. Kya chahiye?",
-        "pick_yt": "{play} <b>{title}</b>\n\nQuality chuno ({max_gb} GB tak):",
-        "loading": "{search} Qualities la raha hu…",
-        "best": "Best Quality", "mp3": "MP3", "thumb": "Thumbnail",
-        "expired": "Ye menu expire ho gaya. Link dobara bhejo.",
-        "started": "Shuru",
-        "no_thumb": "Is link ka thumbnail nahi mila.",
-        "unsupported": "Ye link supported nahi hai.",
-        "send_link": "Mujhe link bhejo.",
-        "cmd_na": "Ye command available nahi hai. Bas link bhejo.",
-    },
 }
 
 
-def user_lang(user_id) -> str:
-    try:
-        from CONFIG.LANGUAGES.language_router import language_router
-        return language_router.get_user_language(int(user_id))
-    except Exception:
-        return "en"
-
-
 def t(user_id, key, **fmt) -> str:
-    table = T.get(user_lang(user_id), T["en"])
-    s = table.get(key, T["en"][key])
+    s = T["en"][key]
     if fmt or "{" in s:
         for k in E:
             fmt.setdefault(k, em(k))

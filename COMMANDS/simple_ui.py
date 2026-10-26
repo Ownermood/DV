@@ -35,12 +35,11 @@ PLATFORMS = {
                                        "freeterabox.com", "mirrobox.com", "nephobox.com", "4funbox.com", "momerybox.com", "tibibox.com")),
 }
 
-ALLOWED_USER_COMMANDS = {"start", "help", "lang", "cookie", "cookies", "check_cookie", "save_as_cookie", "cookies_from_browser"}
+ALLOWED_USER_COMMANDS = {"start", "help", "cookie", "cookies", "check_cookie", "save_as_cookie", "cookies_from_browser"}
 
 BOT_MENU = [
     ("start", "Start"),
     ("help", "What this bot can do"),
-    ("lang", "Language"),
 ]
 
 _URL_RE = re.compile(r"https?://[^\s<>\"']+", re.I)
@@ -105,8 +104,7 @@ def _is_admin(user_id: int) -> bool:
 
 
 def _start_markup(user_id) -> InlineKeyboardMarkup:
-    rows = [[btn("globe", t(user_id, "lang"), cb="ui|lang", style=BLUE),
-             btn("question", t(user_id, "help"), cb="ui|help", style=GREEN)]]
+    rows = [[btn("question", t(user_id, "help"), cb="ui|help", style=GREEN)]]
     if _is_admin(user_id):
         rows.append([btn("crown", t(user_id, "admin"), cb="ap|home", style=RED)])
     return InlineKeyboardMarkup(rows)
@@ -395,23 +393,6 @@ def _send_thumbnail(client, message) -> None:
             os.remove(path)
 
 
-def _lang_markup(user_id) -> InlineKeyboardMarkup:
-    from CONFIG.LANGUAGES.language_router import language_router
-    from COMMANDS.ui_kit import user_lang
-    cur = user_lang(user_id)
-    rows, row = [], []
-    for code, name in language_router.get_available_languages().items():
-        row.append(InlineKeyboardButton(("✅ " if code == cur else "") + name, callback_data=f"ui|L|{code}",
-                                        style=GREEN if code == cur else BLUE))
-        if len(row) == 2:
-            rows.append(row)
-            row = []
-    if row:
-        rows.append(row)
-    rows.append([btn("back", t(user_id, "back"), cb="ui|home", style=BLUE)])
-    return InlineKeyboardMarkup(rows)
-
-
 @app.on_message(filters.private & filters.text, group=-1)
 def front_door(client, message):
     _ensure_menu(client)
@@ -433,9 +414,6 @@ def front_door(client, message):
             message.stop_propagation()
         if cmd == "help":
             send(client, chat_id, lambda: (help_text(chat_id), _back_markup(chat_id)))
-            message.stop_propagation()
-        if cmd == "lang":
-            send(client, chat_id, lambda: (t(chat_id, "choose_lang"), _lang_markup(chat_id)))
             message.stop_propagation()
         if cmd in ("admin", "panel") and admin:
             from COMMANDS.admin_panel import open_panel
@@ -472,13 +450,6 @@ def ui_callbacks(client, cq):
     try:
         if action == "help":
             edit(client, msg, lambda: (help_text(uid), _back_markup(uid)))
-        elif action == "lang":
-            edit(client, msg, lambda: (t(uid, "choose_lang"), _lang_markup(uid)))
-        elif action == "L" and len(parts) == 3:
-            from CONFIG.LANGUAGES.language_router import language_router
-            if language_router.set_user_language(uid, parts[2]):
-                cq.answer(t(uid, "lang_set"))
-            edit(client, msg, lambda: (welcome_text(cq.from_user.first_name or "", uid), _start_markup(uid)))
         elif action == "home":
             edit(client, msg, lambda: (welcome_text(cq.from_user.first_name or "", uid), _start_markup(uid)))
         elif action == "close":

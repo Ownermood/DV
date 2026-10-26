@@ -17,12 +17,7 @@ class LanguageRouter:
     def __init__(self):
         self.languages_dir = os.path.dirname(os.path.abspath(__file__))
         self.available_languages = {
-            'en': 'messages_EN.py',
-            'ru': 'messages_RU.py', 
-            'ar': 'messages_AR.py',
-            'in': 'messages_IN.py',
-            'zh': 'messages_ZH.py',
-            'ja': 'messages_JA.py'
+            'en': 'messages_EN.py',  # English only
         }
         self.default_language = 'en'
         self._cached_messages = {}
@@ -122,18 +117,9 @@ class LanguageRouter:
         return messages.get(message_key, f"[{message_key}]")
     
     def get_available_languages(self) -> Dict[str, str]:
-        """
-        Get list of available languages with their display names
-        """
-        return {
-            'en': '🇺🇸 English',
-            'ru': '🇷🇺 Русский', 
-            'ar': '🇸🇦 العربية',
-            'in': '🇮🇳 हिन्दी',
-            'zh': '🇨🇳 中文',
-            'ja': '🇯🇵 日本語'
-        }
-    
+        """Only English is shipped."""
+        return {'en': '🇺🇸 English'}
+
     def _load_messages_with_ast(self, messages_path: str) -> Dict[str, Any]:
         """
         Load messages using AST parsing to get all variables including duplicates

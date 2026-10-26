@@ -28,7 +28,7 @@ Send a link and the bot shows a menu:
 Best quality stays under `MAX_FILE_SIZE_GB` (default 4). If it's too big, the bot picks the next lower quality (1080p -> 720p).
 Telegram bots upload max 2 GB per file, so bigger files arrive in parts.
 
-Users only see `/start` (Language + Help).
+Users only see `/start` and Help. The bot is English only.
 
 ## Admins
 `/admin` (or the button on `/start`): stats, broadcast (pin, live progress, stop), delete broadcast,

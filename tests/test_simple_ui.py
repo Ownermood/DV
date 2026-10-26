@@ -50,7 +50,7 @@ def test_welcome_escapes_name_and_lists_platforms():
 
 
 def test_menu_is_minimal():
-    assert [c for c, _ in ui.BOT_MENU] == ["start", "help", "lang"]
+    assert [c for c, _ in ui.BOT_MENU] == ["start", "help"]
 
 
 def test_format_for_caps_size_and_height(monkeypatch):
@@ -90,8 +90,8 @@ def test_buttons_premium_and_plain(monkeypatch):
 
 def test_all_i18n_keys_format():
     from COMMANDS import ui_kit
-    for lang, table in ui_kit.T.items():
-        assert set(table) == set(ui_kit.T["en"]), lang
+    assert list(ui_kit.T) == ["en"]  # English only
+    for table in ui_kit.T.values():
         for k in table:
             ui_kit.t(None, k, name="n", platform="p", title="t", max_gb="4", platforms="x")
 
