@@ -1,5 +1,3 @@
-version: "3.9"
-
 x-default-build-args: &default-build-args
   TZ: "${TZ}"
 
