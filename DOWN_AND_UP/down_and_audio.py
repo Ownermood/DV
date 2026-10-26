@@ -481,68 +481,10 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
     download_started_msg_id = None
     audio_files = []
     try:
-        # Check if there is a saved waiting time
-        user_dir = os.path.join("users", str(user_id))
-        flood_time_file = os.path.join(user_dir, "flood_wait.txt")
-
-        # We send the initial message
-        if os.path.exists(flood_time_file):
-            with open(flood_time_file, 'r') as f:
-                wait_time = int(f.read().strip())
-                hours = wait_time // 3600
-                minutes = (wait_time % 3600) // 60
-                seconds = wait_time % 60
-                time_str = f"{hours}h {minutes}m {seconds}s"
-                proc_msg = safe_send_message(user_id, safe_get_messages(user_id).RATE_LIMIT_WITH_TIME_MSG.format(time=time_str), message=message)
-        else:
-            proc_msg = safe_send_message(user_id, safe_get_messages(user_id).RATE_LIMIT_NO_TIME_MSG, message=message)
-
-        # We are trying to replace with "Download started"
-        try:
-            app.edit_message_text(
-                chat_id=user_id,
-                message_id=proc_msg.id,
-                text=safe_get_messages(user_id).DOWNLOAD_STARTED_MSG,
-                parse_mode=enums.ParseMode.HTML
-            )
-            # Schedule deletion of "Download started" message after 5 seconds
-            try:
-                from HELPERS.safe_messeger import schedule_delete_message
-                schedule_delete_message(user_id, proc_msg.id, delete_after_seconds=5)
-            except Exception as e:
-                logger.error(f"Error scheduling download started message deletion: {e}")
-            if os.path.exists(flood_time_file):
-                os.remove(flood_time_file)
-        except FloodWait as e:
-            wait_time = e.value
-            os.makedirs(user_dir, exist_ok=True)
-            with open(flood_time_file, 'w') as f:
-                f.write(str(wait_time))
-            return
-        except Exception as e:
-            logger.error(f"Error editing message: {e}")
-            return
-
-        # If there is no flood error, send a normal message (only once)
+        # One progress message per download (no flood probe, pin, status or hourglass extras)
         proc_msg = app.send_message(user_id, safe_get_messages(user_id).PROCESSING_MSG, reply_parameters=ReplyParameters(message_id=message.id))
-        # Pin proc/status message for visibility
-        try:
-            app.pin_chat_message(user_id, proc_msg.id, disable_notification=True)
-        except Exception:
-            pass
         proc_msg_id = proc_msg.id
-        status_msg = safe_send_message(user_id, safe_get_messages(user_id).AUDIO_PROCESSING_MSG, message=message)
-        hourglass_msg = safe_send_message(user_id, safe_get_messages(user_id).WAITING_HOURGLASS_MSG, message=message)
-        try:
-            from HELPERS.safe_messeger import schedule_delete_message
-            if status_msg and hasattr(status_msg, 'id'):
-                schedule_delete_message(user_id, status_msg.id, delete_after_seconds=5)
-            # track to force-delete on error
-            download_started_msg_id = proc_msg.id
-        except Exception:
-            pass
-        status_msg_id = status_msg.id
-        hourglass_msg_id = hourglass_msg.id
+        download_started_msg_id = proc_msg.id  # track to force-delete on error
         anim_thread = start_hourglass_animation(user_id, hourglass_msg_id, stop_anim)
 
         # Check if there's enough disk space (estimate 500MB per audio file)
