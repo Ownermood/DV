@@ -6,6 +6,7 @@ Opened with /admin or the Admin Panel button on /start (admins only).
 from __future__ import annotations
 
 import io
+import os
 import platform
 import secrets
 import threading
@@ -26,7 +27,7 @@ _START_TS = time.time()
 _MAX_BROADCAST_RECORDS = 5
 _DEAD_ERRORS = ("USER_IS_BLOCKED", "INPUT_USER_DEACTIVATED", "USER_DEACTIVATED", "PEER_ID_INVALID", "CHAT_WRITE_FORBIDDEN")
 
-_input = {}          # admin_id -> pending action ("bc", "block", "unblock", "uncache", "startimg")
+_input = {}          # admin_id -> pending action ("bc", "block", "unblock", "uncache", "startimg", "ckyt", "cktt")
 _drafts = {}         # admin_id -> (chat_id, message_id) of the broadcast draft
 _bc_lock = threading.Lock()
 _bc_running = {"on": False, "stop": False}
@@ -96,6 +97,7 @@ def _home():
         [btn("trash", "Delete Broadcast", cb="ap|dbl", style=RED), btn("folder", "Users", cb="ap|users", style=BLUE)],
         [btn("ban", "Block", cb="ap|ask|block", style=RED), btn("ok", "Unblock", cb="ap|ask|unblock", style=GREEN)],
         [btn("refresh", "Uncache URL", cb="ap|ask|uncache", style=BLUE), btn("image", "Start Image", cb="ap|ask|startimg", style=BLUE)],
+        [btn("play", "YouTube Cookie", cb="ap|ask|ckyt", style=BLUE), btn("music", "TikTok Cookie", cb="ap|ask|cktt", style=BLUE)],
         [btn("stars", f"Premium Emoji: {prem}", cb="ap|prem", style=GREEN if premium_on() else RED)],
         [btn("exit", "Close", cb="ap|close", style=RED)],
     ])
@@ -146,6 +148,9 @@ _ASK = {
     "block": "Send the <b>user ID</b> to block.",
     "unblock": "Send the <b>user ID</b> to unblock.",
     "uncache": "Send the <b>URL</b> to remove from cache.",
+    "ckyt": ("Send the shared <b>YouTube cookies.txt</b> (Netscape format). Used for every user without their own "
+             "cookie: fixes \"Sign in to confirm you're not a bot\". Send <code>off</code> to remove."),
+    "cktt": "Send the shared <b>TikTok cookies.txt</b>. Send <code>off</code> to remove.",
     "startimg": "Send a <b>photo</b> for the /start screen, or <code>off</code> to remove it.",
     "bc": ("Send the message to broadcast.\n\n<blockquote>Any type works: text, photo, video, file, "
            "sticker, with premium emoji and buttons. It is copied exactly.</blockquote>"),
@@ -215,10 +220,40 @@ def handle_admin_input(client, message) -> bool:
                 send(client, uid, lambda: back(f"{em('ok')} Start image removed."))
             else:
                 send(client, uid, lambda: back(f"{em('warn')} Send a photo or <code>off</code>."))
+        elif action in ("ckyt", "cktt"):
+            send(client, uid, lambda: back(_save_shared_cookie(client, message, text, action)))
     except Exception as exc:
         logger.error(f"[admin] input {action} failed: {exc}")
         send(client, uid, lambda: back(f"{em('warn')} Failed: <code>{str(exc)[:200]}</code>"))
     return True
+
+
+_COOKIE_FILES = {"ckyt": os.path.join("cookies", "youtube.txt"), "cktt": os.path.join("cookies", "tiktok.txt")}
+
+
+def _save_shared_cookie(client, message, text, action) -> str:
+    dest = _COOKIE_FILES[action]
+    if text.lower() == "off":
+        if os.path.exists(dest):
+            os.remove(dest)
+        return f"{em('ok')} Shared cookie removed."
+    doc = message.document
+    if not doc or (doc.file_size or 0) > 1024 * 1024:
+        return f"{em('warn')} Send a cookies <b>.txt</b> file (max 1 MB)."
+    os.makedirs("cookies", exist_ok=True)
+    tmp = dest + ".upload"
+    try:
+        client.download_media(message, file_name=tmp)
+        with open(tmp, "r", encoding="utf-8", errors="ignore") as f:
+            content = f.read()
+        rows = [l for l in content.splitlines() if l and not l.startswith("#") and len(l.split("\t")) == 7]
+        if not rows:
+            return f"{em('warn')} Not a Netscape cookies.txt file."
+        os.replace(tmp, dest)  # atomic swap; old file stays if anything above failed
+        return f"{em('ok')} Shared cookie saved ({len(rows)} cookies)."
+    finally:
+        if os.path.exists(tmp):
+            os.remove(tmp)
 
 
 def _awaiting_input(_, __, m) -> bool:

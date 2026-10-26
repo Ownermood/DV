@@ -38,7 +38,7 @@ def video_url_extractor(app, message):
     from COMMANDS.simple_ui import format_for
     ui_choice = getattr(message, "_ui_choice", None)
     should_ask = False
-    saved_format = format_for(ui_choice or None)
+    saved_format = getattr(message, "_ui_format", None) or format_for(ui_choice or None)
     if ui_choice is None and os.path.exists(format_file):
         with open(format_file, "r", encoding="utf-8") as f:
             fmt = f.read().strip()

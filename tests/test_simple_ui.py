@@ -64,9 +64,9 @@ def test_format_for_caps_size_and_height(monkeypatch):
 def test_yt_sizes_adds_audio_and_buckets():
     info = {"formats": [
         {"vcodec": "none", "acodec": "opus", "filesize": 10},
-        {"height": 1080, "vcodec": "avc1", "acodec": "none", "filesize": 1000},
-        {"height": 720, "vcodec": "avc1", "acodec": "none", "filesize_approx": 500},
-        {"height": 360, "vcodec": "avc1", "acodec": "mp4a", "filesize": 50},
+        {"format_id": "1", "height": 1080, "vcodec": "avc1", "acodec": "none", "filesize": 1000},
+        {"format_id": "2", "height": 720, "vcodec": "avc1", "acodec": "none", "filesize_approx": 500},
+        {"format_id": "3", "height": 360, "vcodec": "avc1", "acodec": "mp4a", "filesize": 50},
     ]}
     assert ui._yt_sizes(info) == {1080: 1010, 720: 510, 360: 50}
 
@@ -109,3 +109,26 @@ def test_friendly_errors():
     assert "unavailable" in friendly_error("❌ Unknown error: Video unavailable")
     assert "Download failed" in friendly_error("❌ Unknown error: something weird")
     assert friendly_error("✅ Cookies saved, private links work now") == "✅ Cookies saved, private links work now"
+
+
+def test_yt_pick_exact_4gb_limit(monkeypatch):
+    monkeypatch.setattr(ui.Config, "MAX_FILE_SIZE_GB", 4, raising=False)
+    G = 1024 ** 3
+    info = {"formats": [
+        {"format_id": "a", "vcodec": "none", "acodec": "opus", "filesize": int(0.1 * G)},
+        {"format_id": "av1", "height": 1080, "vcodec": "av01", "acodec": "none", "filesize": int(4.2 * G)},
+        {"format_id": "h264", "height": 1080, "vcodec": "avc1", "acodec": "none", "filesize": int(3.85 * G)},
+        {"format_id": "big", "height": 2160, "vcodec": "vp9", "acodec": "none", "filesize": int(3.95 * G)},
+    ]}
+    p = ui._yt_pick(info)
+    assert p[1080][0] == "h264"            # 3.95 GB total fits, av1 (4.3) does not
+    assert p[2160] == (None, int(3.95 * G) + int(0.1 * G), False)  # 4.05 GB > 4 GB
+
+
+def test_local_shared_cookie_source(tmp_path):
+    from COMMANDS.cookies_cmd import _download_content
+    f = tmp_path / "youtube.txt"
+    f.write_text("# Netscape HTTP Cookie File\n")
+    ok, status, data, err = _download_content(str(f))
+    assert ok and status == 200 and data.startswith(b"# Netscape")
+    assert _download_content(str(tmp_path / "missing.txt"))[0] is False

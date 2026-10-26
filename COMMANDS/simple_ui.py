@@ -167,8 +167,8 @@ def _register_user(message) -> None:
 _PENDING = {}  # token -> (message, platform_key, ts)
 _PENDING_TTL = 3600
 _pending_lock = threading.Lock()
-_SIZES = {}  # token -> {height: bytes} from the YouTube probe
-YT_HEIGHTS = (2160, 1440, 1080, 720, 480, 360)
+_SIZES = {}  # token -> _yt_pick() result from the YouTube probe
+YT_HEIGHTS = (2160, 1440, 1080, 720, 480, 360, 240, 144)
 
 
 def _remember(message, key) -> str:
@@ -214,27 +214,44 @@ def _probe(url, user_id) -> Optional[dict]:
         return None
 
 
-def _yt_sizes(info) -> dict:
-    """height -> approx bytes (best video at that height + best audio)."""
+def _cap_bytes() -> float:
+    return float(getattr(Config, "MAX_FILE_SIZE_GB", 4)) * 1024 ** 3
+
+
+def _yt_pick(info) -> dict:
+    """height -> (format_id or None, total bytes, muxed).
+
+    Per height: the biggest (= best) format whose video + best audio stays within
+    the limit. If none fits: (None, smallest total, False) so the menu can say why."""
     fmts = info.get("formats") or []
     size = lambda f: f.get("filesize") or f.get("filesize_approx") or 0
-    audio = max((size(f) for f in fmts if f.get("vcodec") == "none" and f.get("acodec") != "none"), default=0)
-    out = {}
+    audio = max((size(f) for f in fmts if f.get("vcodec") == "none" and f.get("acodec") not in (None, "none")), default=0)
+    cands = {}
     for f in fmts:
         hgt = f.get("height")
-        if not hgt or f.get("vcodec") in (None, "none"):
+        if not hgt or f.get("vcodec") in (None, "none") or not size(f) or not f.get("format_id"):
             continue
         for target in YT_HEIGHTS:
             if abs(hgt - target) <= target * 0.1:  # 1080 covers 1072 etc.
-                s = size(f) + (audio if f.get("acodec") == "none" else 0)
-                out[target] = max(out.get(target, 0), s)
+                muxed = f.get("acodec") not in (None, "none")
+                cands.setdefault(target, []).append((f["format_id"], size(f) + (0 if muxed else audio), muxed))
+    cap = _cap_bytes()
+    out = {}
+    for hgt, items in cands.items():
+        fit = [c for c in items if c[1] <= cap]
+        out[hgt] = max(fit, key=lambda c: c[1]) if fit else (None, min(c[1] for c in items), False)
     return out
+
+
+def _yt_sizes(info) -> dict:
+    """height -> bytes of the format that would be downloaded (see _yt_pick)."""
+    return {h: p[1] for h, p in _yt_pick(info).items()}
 
 
 def _choice_rows(uid, token, yt_sizes=None, is_yt=False):
     rows = []
     if is_yt:
-        heights = sorted(yt_sizes, reverse=True) if yt_sizes else list(YT_HEIGHTS)
+        heights = sorted(yt_sizes, reverse=True) if yt_sizes else list(YT_HEIGHTS[:6])
         cap = float(getattr(Config, "MAX_FILE_SIZE_GB", 4)) * 1024 ** 3
         row = []
         for hgt in heights:
@@ -265,9 +282,10 @@ def _show_link_menu(client, message, key, label) -> None:
 
     def work():
         info = _probe(extract_url(message.text), uid)
-        sizes = _yt_sizes(info) if info else None
-        if sizes:
-            _SIZES[token] = sizes
+        picks = _yt_pick(info) if info else None
+        sizes = {h: p[1] for h, p in picks.items()} if picks else None
+        if picks:
+            _SIZES[token] = picks
         title = html.escape((info or {}).get("title") or "YouTube")[:200]
         try:
             edit(client, menu, lambda: (t(uid, "pick_yt", title=title, max_gb=_max_gb()),
@@ -278,17 +296,15 @@ def _show_link_menu(client, message, key, label) -> None:
 
 
 def _too_big(token, choice):
-    """(size, fitting heights) when the chosen YouTube quality exceeds the cap, else None."""
-    sizes = _SIZES.get(token)
-    if not sizes or choice in ("a", "t"):
+    """(size, fitting heights) when the chosen YouTube quality is over the limit, else None."""
+    picks = _SIZES.get(token)
+    if not picks or choice in ("a", "t"):
         return None
-    cap = float(getattr(Config, "MAX_FILE_SIZE_GB", 4)) * 1024 ** 3
-    picked = max(sizes) if choice == "b" else int(choice)
-    size = sizes.get(picked)
-    if not size or size <= cap:
+    picked = max(picks) if choice == "b" else int(choice)
+    if picked not in picks or picks[picked][0]:
         return None
-    fits = sorted((h for h, sz in sizes.items() if sz and sz <= cap), reverse=True)
-    return size, fits
+    fits = sorted((h for h, p in picks.items() if p[0]), reverse=True)
+    return picks[picked][1], fits
 
 
 def _too_big_view(uid, token, size, fits):
@@ -299,28 +315,35 @@ def _too_big_view(uid, token, size, fits):
                "No video quality fits the limit, but you can still get the audio.") + "</blockquote>")
     rows, row = [], []
     for hgt in fits:
-        label = {2160: "4K", 1440: "2K"}.get(hgt, f"{hgt}p") + f" • {_human(_SIZES[token][hgt])}"
+        label = {2160: "4K", 1440: "2K"}.get(hgt, f"{hgt}p") + f" • {_human(_SIZES[token][hgt][1])}"
         row.append(btn("play", label, cb=f"ui|g|{token}|{hgt}", style=GREEN))
         if len(row) == 2:
             rows.append(row)
             row = []
     if row:
         rows.append(row)
-    rows.append([btn("music", t(uid, "mp3"), cb=f"ui|g|{token}|a", style=BLUE),
-                 btn("trash", t(uid, "close"), cb="ui|close", style=RED)])
+    rows.append([btn("music", "MP3", cb=f"ui|g|{token}|a", style=BLUE),
+                 btn("trash", "Close", cb="ui|close", style=RED)])
     return text, InlineKeyboardMarkup(rows)
 
 
-def _run_choice(client, message, choice) -> None:
+def _run_choice(client, message, choice, picks=None) -> None:
     """Hand the stored link to the legacy pipeline (keeps ban/sub/rate checks)."""
     from URL_PARSERS.url_extractor import url_distractor
     original = message.text
     try:
+        message._ui_format = None
         if choice == "a":
             message.text = f"/audio {extract_url(original) or original}"
             message._ui_choice = None
         else:
             message._ui_choice = 0 if choice == "b" else int(choice)
+            if picks:  # YouTube with known sizes: download exactly the format the menu checked
+                hgt = max(h for h, p in picks.items() if p[0]) if choice == "b" else int(choice)
+                fid, _, muxed = picks.get(hgt, (None, 0, False))
+                if fid:
+                    message._ui_choice = hgt
+                    message._ui_format = (fid if muxed else f"{fid}+ba") + "/" + format_for(hgt)
         url_distractor(client, message)
     except Exception as exc:
         logger.error(f"[ui] choice {choice} failed: {exc}")
@@ -477,13 +500,13 @@ def ui_callbacks(client, cq):
             else:
                 with _pending_lock:
                     _PENDING.pop(token, None)  # one download per menu
-                    _SIZES.pop(token, None)
+                    picks = _SIZES.pop(token, None)
                 cq.answer(t(uid, "started"))
                 try:
                     msg.delete()
                 except Exception:
                     pass
-                threading.Thread(target=_run_choice, args=(client, original, choice), daemon=True).start()
+                threading.Thread(target=_run_choice, args=(client, original, choice, picks), daemon=True).start()
     except Exception as exc:
         if "MESSAGE_NOT_MODIFIED" not in str(exc):
             logger.warning(f"[ui] callback {cq.data} failed: {exc}")

@@ -10,6 +10,10 @@ Telegram bot for **YouTube, TikTok, Snapchat, Pinterest and TeraBox**. Other sit
    and updates yt-dlp / gallery-dl on every start).
    Without Docker: install `ffmpeg` and [Deno](https://deno.land), then `pip install -r requirements.txt && python magic.py`.
 
+## YouTube "Sign in to confirm you're not a bot"
+YouTube often blocks server IPs. Fix: admin panel → **YouTube Cookie** → send a `cookies.txt`
+exported from a spare YouTube account. Every user without their own cookie then uses it.
+
 ## Private links
 Private / age-restricted / login-only posts: the user sends `/cookie` once and uploads a `cookies.txt`
 exported from their own account (YouTube, TikTok, Snapchat, Pinterest). After that the same link downloads.

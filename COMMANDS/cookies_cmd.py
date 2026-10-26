@@ -943,6 +943,13 @@ def _download_content(url: str, timeout: int = 30, user_id: int | None = None, a
     """Download binary content, using the user's proxy when needed."""
     if not url:
         return False, None, None, "empty-url"
+    if not url.lower().startswith(("http://", "https://")):
+        # Local shared cookie file (uploaded by an admin), e.g. cookies/youtube.txt
+        try:
+            with open(url, "rb") as f:
+                return True, 200, f.read(), None
+        except OSError as e:
+            return False, 404, None, f"missing-file: {e.__class__.__name__}"
     
     sess = Session()
     sess.trust_env = False
@@ -2220,7 +2227,7 @@ def try_download_with_cookie_fallback(user_id: int, url: str, download_func, *ar
                 # Download service cookies
                 try:
                     ok, status, content, err = _download_content(cookie_source, timeout=30, user_id=user_id)
-                    if ok and content and len(content) <= 100 * 1024:
+                    if ok and content and len(content) <= 1024 * 1024:
                         cookie_file_path = user_cookie_path
                         with open(cookie_file_path, "wb") as cf:
                             cf.write(content)
