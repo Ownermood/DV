@@ -5,30 +5,19 @@ ENV TZ="$TZ"
 
 # System dependencies:
 # - git, ffmpeg, mediainfo, rsync (README: base deps + FFmpeg)
-# - font packages for Arabic/Asian and emoji support (README: optional fonts)
+# - build-essential: compiles TgCrypto (no prebuilt wheel for Python 3.12)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     ffmpeg \
     mediainfo \
     rsync \
     fonts-noto-core \
-    fonts-noto-extra \
-    #fonts-kacst \
-    fonts-kacst-one \
-    fonts-noto-cjk \
-    fonts-indic \
     fonts-noto-color-emoji \
     fontconfig \
     libass9 \
     ca-certificates \
+    build-essential \
     && rm -rf /var/lib/apt/lists/*
-
-# Optional: install Amiri Arabic font (as in README)
-RUN git clone https://github.com/aliftype/amiri.git /tmp/amiri \
-    && mkdir -p /usr/share/fonts/truetype/amiri \
-    && cp /tmp/amiri/fonts/*.ttf /usr/share/fonts/truetype/amiri/ \
-    && fc-cache -fv \
-    && rm -rf /tmp/amiri
 
 # Deno: JS runtime yt-dlp needs for YouTube signature/n-challenges (2025.11+)
 COPY --from=denoland/deno:bin /deno /usr/local/bin/deno
