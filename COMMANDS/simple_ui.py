@@ -167,6 +167,7 @@ def _register_user(message) -> None:
 _PENDING = {}  # token -> (message, platform_key, ts)
 _PENDING_TTL = 3600
 _pending_lock = threading.Lock()
+_SIZES = {}  # token -> {height: bytes} from the YouTube probe
 YT_HEIGHTS = (2160, 1440, 1080, 720, 480, 360)
 
 
@@ -176,6 +177,7 @@ def _remember(message, key) -> str:
     with _pending_lock:
         for k in [k for k, v in _PENDING.items() if now - v[2] > _PENDING_TTL]:
             _PENDING.pop(k, None)
+            _SIZES.pop(k, None)
         _PENDING[token] = (message, key, now)
     return token
 
@@ -264,6 +266,8 @@ def _show_link_menu(client, message, key, label) -> None:
     def work():
         info = _probe(extract_url(message.text), uid)
         sizes = _yt_sizes(info) if info else None
+        if sizes:
+            _SIZES[token] = sizes
         title = html.escape((info or {}).get("title") or "YouTube")[:200]
         try:
             edit(client, menu, lambda: (t(uid, "pick_yt", title=title, max_gb=_max_gb()),
@@ -271,6 +275,40 @@ def _show_link_menu(client, message, key, label) -> None:
         except Exception as exc:
             logger.warning(f"[ui] yt menu edit failed: {exc}")
     threading.Thread(target=work, daemon=True).start()
+
+
+def _too_big(token, choice):
+    """(size, fitting heights) when the chosen YouTube quality exceeds the cap, else None."""
+    sizes = _SIZES.get(token)
+    if not sizes or choice in ("a", "t"):
+        return None
+    cap = float(getattr(Config, "MAX_FILE_SIZE_GB", 4)) * 1024 ** 3
+    picked = max(sizes) if choice == "b" else int(choice)
+    size = sizes.get(picked)
+    if not size or size <= cap:
+        return None
+    fits = sorted((h for h, sz in sizes.items() if sz and sz <= cap), reverse=True)
+    return size, fits
+
+
+def _too_big_view(uid, token, size, fits):
+    text = (f"{em('warn')} <b>Sorry, this quality is too large.</b>\n\n"
+            f"<blockquote>This video is about <b>{_human(size)}</b> in the selected quality, "
+            f"and the bot can send up to <b>{_max_gb()} GB</b>.\n"
+            + ("Please choose one of the qualities below, they fit perfectly." if fits else
+               "No video quality fits the limit, but you can still get the audio.") + "</blockquote>")
+    rows, row = [], []
+    for hgt in fits:
+        label = {2160: "4K", 1440: "2K"}.get(hgt, f"{hgt}p") + f" • {_human(_SIZES[token][hgt])}"
+        row.append(btn("play", label, cb=f"ui|g|{token}|{hgt}", style=GREEN))
+        if len(row) == 2:
+            rows.append(row)
+            row = []
+    if row:
+        rows.append(row)
+    rows.append([btn("music", t(uid, "mp3"), cb=f"ui|g|{token}|a", style=BLUE),
+                 btn("trash", t(uid, "close"), cb="ui|close", style=RED)])
+    return text, InlineKeyboardMarkup(rows)
 
 
 def _run_choice(client, message, choice) -> None:
@@ -432,9 +470,14 @@ def ui_callbacks(client, cq):
             elif choice == "t":
                 cq.answer(t(uid, "thumb"))
                 threading.Thread(target=_send_thumbnail, args=(client, original), daemon=True).start()
+            elif _too_big(token, choice):
+                size, fits = _too_big(token, choice)
+                cq.answer()
+                edit(client, msg, lambda: _too_big_view(uid, token, size, fits))
             else:
                 with _pending_lock:
                     _PENDING.pop(token, None)  # one download per menu
+                    _SIZES.pop(token, None)
                 cq.answer(t(uid, "started"))
                 try:
                     msg.delete()

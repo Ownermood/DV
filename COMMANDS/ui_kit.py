@@ -181,14 +181,14 @@ T = {
         "help_text": ("{question} <b>What I can do</b>\n\n<blockquote expandable>"
                       "{bolt} Auto best quality, up to {max_gb} GB. If the best quality is too big, I step down "
                       "(1080p → 720p …) automatically.\n"
-                      "{play} YouTube: pick the quality yourself.\n"
+                      "{play} YouTube: pick the quality yourself. Too big? I show the qualities that fit.\n"
                       "{music} MP3 audio from any supported link.\n"
                       "{image} Download the thumbnail.\n"
                       "{box} Big files arrive in parts (Telegram limit 2 GB per file).\n"
                       "{chat} Private links: send /cookie first.</blockquote>\n\n"
                       "<b>Supported</b>\n<blockquote>{platforms}</blockquote>"),
         "pick": "{down} <b>{platform}</b> link detected. What do you want?",
-        "pick_yt": "{play} <b>{title}</b>\n\nChoose quality (auto-drops if over {max_gb} GB):",
+        "pick_yt": "{play} <b>{title}</b>\n\nChoose a quality (up to {max_gb} GB):",
         "loading": "{search} Fetching qualities…",
         "best": "Best Quality", "mp3": "MP3", "thumb": "Thumbnail",
         "expired": "This menu expired. Send the link again.",
@@ -206,14 +206,14 @@ T = {
         "help_text": ("{question} <b>Main kya kar sakta hu</b>\n\n<blockquote expandable>"
                       "{bolt} Auto best quality, {max_gb} GB tak. Best quality bahut badi ho to main khud "
                       "neeche aata hu (1080p → 720p …).\n"
-                      "{play} YouTube: quality khud chuno.\n"
+                      "{play} YouTube: quality khud chuno. Badi ho to fit hone wali qualities dikhaunga.\n"
                       "{music} Kisi bhi link se MP3.\n"
                       "{image} Thumbnail download.\n"
                       "{box} Badi file parts me aati hai (Telegram limit 2 GB per file).\n"
                       "{chat} Private link: pehle /cookie bhejo.</blockquote>\n\n"
                       "<b>Supported</b>\n<blockquote>{platforms}</blockquote>"),
         "pick": "{down} <b>{platform}</b> link mila. Kya chahiye?",
-        "pick_yt": "{play} <b>{title}</b>\n\nQuality chuno ({max_gb} GB se upar ho to auto neeche):",
+        "pick_yt": "{play} <b>{title}</b>\n\nQuality chuno ({max_gb} GB tak):",
         "loading": "{search} Qualities la raha hu…",
         "best": "Best Quality", "mp3": "MP3", "thumb": "Thumbnail",
         "expired": "Ye menu expire ho gaya. Link dobara bhejo.",

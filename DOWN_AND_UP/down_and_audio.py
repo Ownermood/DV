@@ -893,6 +893,11 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
 
             ytdl_opts = {
                'format': download_format,
+               # Max speed: parallel fragments + 10MB chunks (HLS path below resets these)
+               'concurrent_fragment_downloads': 8,
+               'http_chunk_size': 10485760,
+               'retries': 10,
+               'fragment_retries': 10,
                'postprocessors': [{
                   'key': 'FFmpegExtractAudio',
                   'preferredcodec': audio_format,
