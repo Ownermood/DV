@@ -140,6 +140,7 @@ def test_selected_buttons_green_premium_single_and_multi(monkeypatch):
     from pyrogram.types import InlineKeyboardButton
     from COMMANDS import ui_kit
     monkeypatch.setattr(ui_kit, "premium_on", lambda: True)
+    monkeypatch.setattr(ui_kit, "state_get", lambda k, d=None: True if k == "premium_ok" else d)
     btns = [InlineKeyboardButton(t, callback_data="x") for t in ("✅ AVC", "✅ AV1", "☑️ VP9", "Close")]
     raws = [asyncio.run(b.write(None)) for b in btns]
     assert [b.style for b in btns] == [enums.ButtonStyle.SUCCESS, enums.ButtonStyle.SUCCESS,

@@ -117,7 +117,7 @@ def btn(key, text, cb=None, url=None, style=BLUE) -> InlineKeyboardButton:
 
 def _is_emoji_error(exc) -> bool:
     s = str(exc).upper()
-    return "EMOJI" in s or "DOCUMENT_INVALID" in s or "PREMIUM" in s
+    return any(k in s for k in ("EMOJI", "DOCUMENT_INVALID", "PREMIUM", "ICON", "BUTTON_STYLE"))
 
 
 _QUOTE_TAG = re.compile(r"(</?blockquote[^>]*>)")
@@ -144,11 +144,15 @@ def _call(fn, build, **kw):
     build = lambda: (lambda tm: (bold(tm[0]), tm[1]))(raw())
     text, markup = build()
     try:
-        return fn(text, markup)
+        result = fn(text, markup)
+        if premium_on() and "<emoji id=" in (text or "") and not state_get("premium_ok"):
+            state_set("premium_ok", True)  # Telegram accepted premium emoji: legacy menus may use them too
+        return result
     except Exception as exc:
         if premium_on() and _is_emoji_error(exc):
             logger.warning(f"[ui] premium emoji rejected ({exc}); switching to plain emoji")
             state_set("premium", False)
+            state_set("premium_ok", False)
             text, markup = build()
             return fn(text, markup)
         raise
@@ -258,7 +262,8 @@ def style_selection(b) -> None:
         if text.startswith(mark):
             if b.style in (None, enums.ButtonStyle.DEFAULT, BLUE):
                 b.style = GREEN
-            if premium_on() and not b.icon_custom_emoji_id:
+            # legacy menus have no retry, so only use the icon once Telegram accepted premium emoji
+            if premium_on() and state_get("premium_ok") and not b.icon_custom_emoji_id:
                 b.text = text[len(mark):].lstrip() or text
                 b.icon_custom_emoji_id = E["ok"][1]
             return
@@ -266,7 +271,7 @@ def style_selection(b) -> None:
         if text.startswith(mark):
             if b.style in (None, enums.ButtonStyle.DEFAULT):
                 b.style = BLUE
-            if premium_on():
+            if premium_on() and state_get("premium_ok"):
                 b.text = text[len(mark):].lstrip() or text
             return
 
