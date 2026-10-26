@@ -302,7 +302,7 @@ def _send_thumbnail(client, message) -> None:
                     key=lambda x: (x.get("preference") or 0, (x.get("width") or 0) * (x.get("height") or 0)))
     thumb = info.get("thumbnail") or (thumbs[-1]["url"] if thumbs else None)
     if not thumb:
-        client.send_message(uid, t(uid, "no_thumb"), reply_to_message_id=message.id)
+        send(client, uid, lambda: (t(uid, "no_thumb"), None), reply_to_message_id=message.id)
         return
     title = html.escape(info.get("title") or "Thumbnail")[:300]
     cap = f'<blockquote expandable>{em("image")} <b>{title}</b>\n<a href="{html.escape(url)}">🔗 Link</a></blockquote>'
@@ -328,7 +328,7 @@ def _send_thumbnail(client, message) -> None:
         send(client, uid, lambda: (cap, None), photo=path, reply_to_message_id=message.id)
     except Exception as exc:
         logger.warning(f"[ui] thumbnail failed: {exc}")
-        client.send_message(uid, t(uid, "no_thumb"), reply_to_message_id=message.id)
+        send(client, uid, lambda: (t(uid, "no_thumb"), None), reply_to_message_id=message.id)
     finally:
         if os.path.exists(path):
             os.remove(path)
@@ -382,18 +382,18 @@ def front_door(client, message):
             message.stop_propagation()
         if cmd in ALLOWED_USER_COMMANDS or admin:
             return  # legacy handlers (cookies / admin) continue
-        client.send_message(chat_id, t(chat_id, "cmd_na"))
+        send(client, chat_id, lambda: (t(chat_id, "cmd_na"), None))
         message.stop_propagation()
 
     if not _URL_RE.search(text):
         if admin or text in ("",):
             return
-        client.send_message(chat_id, t(chat_id, "send_link"))
+        send(client, chat_id, lambda: (t(chat_id, "send_link"), None))
         message.stop_propagation()
 
     found = detect_platform(text)
     if found is None:
-        client.send_message(chat_id, unsupported_text(chat_id), parse_mode=enums.ParseMode.HTML)
+        send(client, chat_id, lambda: (unsupported_text(chat_id), None))
         message.stop_propagation()
     key, label, _, _ = found
     if key == "terabox":

@@ -74,7 +74,7 @@ def test_yt_sizes_adds_audio_and_buckets():
 def test_quoted_caption_single_expandable_block():
     from HELPERS.caption import build_quoted_caption
     c = build_quoted_caption("<b>T</b>", "", "desc", "#tag\n", '<a href="u">L</a>')
-    assert c.startswith("<blockquote expandable><b>T</b>") and c.endswith("</a></blockquote>")
+    assert c.startswith("<blockquote expandable><b>T") and c.endswith("</a></b></blockquote>")
     assert c.count("<blockquote") == 1
 
 
@@ -94,3 +94,9 @@ def test_all_i18n_keys_format():
         assert set(table) == set(ui_kit.T["en"]), lang
         for k in table:
             ui_kit.t(None, k, name="n", platform="p", title="t", max_gb="4", platforms="x")
+
+
+def test_bold_everywhere_including_quotes():
+    from COMMANDS.ui_kit import bold
+    out = bold("Hi <b>x</b>\n<blockquote expandable>line</blockquote>\nend")
+    assert out == "<b>Hi x</b>\n<blockquote expandable><b>line</b></blockquote>\n<b>end</b>"

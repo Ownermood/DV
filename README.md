@@ -1,4 +1,6 @@
-# All Downloader Bot
+# Downloder — @Downloader_Villanbot
+
+All bot text is **bold** (quotes too). The bot detects the platform from the link by itself.
 
 Telegram bot for **YouTube, TikTok, Snapchat, Pinterest and TeraBox**. Other sites are rejected.
 

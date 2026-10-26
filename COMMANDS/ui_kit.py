@@ -7,6 +7,7 @@ them, `send`/`edit` retry once in plain mode and switch premium off.
 from __future__ import annotations
 
 import json
+import re
 import os
 import threading
 
@@ -55,6 +56,9 @@ E = {
     "stars": ("🤩", "5424639292230082961"),
     "crown": ("👸", "5424709970211905165"),
 }
+
+BOT_TITLE = "Downloder"
+BOT_USERNAME = "Downloader_Villanbot"
 
 BLUE = enums.ButtonStyle.PRIMARY
 GREEN = enums.ButtonStyle.SUCCESS
@@ -116,8 +120,28 @@ def _is_emoji_error(exc) -> bool:
     return "EMOJI" in s or "DOCUMENT_INVALID" in s or "PREMIUM" in s
 
 
+_QUOTE_TAG = re.compile(r"(</?blockquote[^>]*>)")
+
+
+def bold(text: str) -> str:
+    """House style: every text part bold, inside quotes too."""
+    if not text:
+        return text
+    out = []
+    for part in _QUOTE_TAG.split(text.replace("<b>", "").replace("</b>", "")):
+        if not part or _QUOTE_TAG.fullmatch(part) or not part.strip():
+            out.append(part)
+        else:
+            lead = part[:len(part) - len(part.lstrip())]
+            trail = part[len(part.rstrip()):]
+            out.append(f"{lead}<b>{part.strip()}</b>{trail}")
+    return "".join(out)
+
+
 def _call(fn, build, **kw):
     """build() -> (text, markup); retried once without premium emoji on rejection."""
+    raw = build
+    build = lambda: (lambda tm: (bold(tm[0]), tm[1]))(raw())
     text, markup = build()
     try:
         return fn(text, markup)
@@ -150,7 +174,7 @@ def edit(client, msg, build):
 # ---------------- i18n (UI strings only; legacy messages use CONFIG/LANGUAGES) ----------------
 T = {
     "en": {
-        "welcome": "{wave} <b>Hey {name}!</b>\n\n<blockquote>{bolt} Send any link and I'll download it in the <b>best quality</b>.\n{music} MP3 and {image} thumbnail on every link.</blockquote>",
+        "welcome": "{wave} <b>Hey {name}!</b> Welcome to <b>{bot}</b>\n\n<blockquote>{bolt} Send any link and I'll download it in the <b>best quality</b>.\n{music} MP3 and {image} thumbnail on every link.</blockquote>",
         "lang": "Language", "help": "Help", "admin": "Admin Panel", "back": "Back", "close": "Close",
         "choose_lang": "{globe} <b>Choose your language</b>",
         "lang_set": "Language updated",
@@ -175,7 +199,7 @@ T = {
         "cmd_na": "That command isn't available. Just send a link.",
     },
     "in": {
-        "welcome": "{wave} <b>Hey {name}!</b>\n\n<blockquote>{bolt} Koi bhi link bhejo, main <b>best quality</b> me download kar dunga.\n{music} Har link pe MP3 aur {image} thumbnail bhi.</blockquote>",
+        "welcome": "{wave} <b>Hey {name}!</b> Welcome to <b>{bot}</b>\n\n<blockquote>{bolt} Koi bhi link bhejo, main <b>best quality</b> me download kar dunga.\n{music} Har link pe MP3 aur {image} thumbnail bhi.</blockquote>",
         "lang": "Bhasha", "help": "Help", "admin": "Admin Panel", "back": "Back", "close": "Band karo",
         "choose_lang": "{globe} <b>Apni bhasha chuno</b>",
         "lang_set": "Bhasha badal di gayi",
@@ -216,5 +240,6 @@ def t(user_id, key, **fmt) -> str:
     if fmt or "{" in s:
         for k in E:
             fmt.setdefault(k, em(k))
+        fmt.setdefault("bot", BOT_TITLE)
         s = s.format(**fmt)
     return s

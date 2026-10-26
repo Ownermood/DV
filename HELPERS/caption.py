@@ -42,7 +42,7 @@ def caption_editor(app, message):
 
 def build_quoted_caption(title_html: str = '', pre_block: str = '', body: str = '',
                          tags_block: str = '', link_block: str = '') -> str:
-    """Whole caption inside one collapsed (expandable) quote."""
+    """Whole caption bold, inside one collapsed (expandable) quote."""
     parts = []
     if title_html:
         parts.append(title_html + '\n')
@@ -53,7 +53,8 @@ def build_quoted_caption(title_html: str = '', pre_block: str = '', body: str = 
     if tags_block:
         parts.append(tags_block.rstrip('\n') + '\n')
     parts.append(link_block)
-    return '<blockquote expandable>' + ''.join(parts).strip() + '</blockquote>'
+    body_html = ''.join(parts).strip().replace('<b>', '').replace('</b>', '')
+    return '<blockquote expandable><b>' + body_html + '</b></blockquote>'
 
 
 def truncate_caption(

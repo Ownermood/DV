@@ -14,7 +14,7 @@ class Config(object):
     # IMPORTANT (REQUIRED) SETTINGS - start filling settings here
     #######################################################        
     # Your bot name - Required (str)
-    BOT_NAME = "tgytdlp_test_bot"
+    BOT_NAME = "Downloader_Villanbot"
     # A name for users - Required (str)
     BOT_NAME_FOR_USERS = "tgytdlp_bot" #name in database
     # List of administrator IDs
