@@ -64,7 +64,7 @@ BLUE = enums.ButtonStyle.PRIMARY
 GREEN = enums.ButtonStyle.SUCCESS
 RED = enums.ButtonStyle.DANGER
 
-_STATE_FILE = os.path.join("CONFIG", ".ui_state.json")
+_STATE_FILE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "CONFIG", ".ui_state.json")
 _lock = threading.RLock()
 _state = None
 
@@ -178,7 +178,19 @@ def edit(client, msg, build):
 # ---------------- UI strings (English only) ----------------
 T = {
     "en": {
-        "welcome": "{wave} <b>Hey {name}!</b> Welcome to <b>{bot}</b>\n\n<blockquote>{bolt} Send any link and I'll download it in the <b>best quality</b>.\n{music} MP3 and {image} thumbnail on every link.</blockquote>",
+        "welcome": ("{wave} <b>Hey {name}!</b> Welcome to <b>{bot}</b> {party}\n\n"
+                    "<blockquote>{bolt} The fastest way to save videos, reels, shorts and music.\n"
+                    "Just send a link, I detect the platform myself.</blockquote>\n\n"
+                    "{stars} <b>What you get</b>\n"
+                    "<blockquote>{medal} Best quality, up to {max_gb} GB\n"
+                    "{play} YouTube: choose your quality (4K to 144p)\n"
+                    "{music} MP3 audio from any link\n"
+                    "{image} HD thumbnail download\n"
+                    "{chat} Clean captions in a neat quote\n"
+                    "{down} Private links work with your cookies (/cookie)</blockquote>\n\n"
+                    "{box} <b>Supported</b>\n"
+                    "<blockquote>{platforms}</blockquote>\n\n"
+                    "{down} <b>Send a link to start!</b>"),
         "help": "Help", "admin": "Admin Panel", "back": "Back", "close": "Close",
         "help_text": ("{question} <b>What I can do</b>\n\n<blockquote expandable>"
                       "{bolt} Auto best quality, up to {max_gb} GB. If the best quality is too big, I step down "

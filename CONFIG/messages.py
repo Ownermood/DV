@@ -61,10 +61,10 @@ def _get_message_placeholders():
     Must not import Config at module import time (CONFIG/_config.py imports this module).
     """
     defaults = {
-        # Defaults preserve original upstream branding unless overridden in Config.
-        "required_channel": "@tg_ytdlp",
-        "managed_by": "@iilililiiillliiliililliilliliiil",
-        "credits_bots": "🇮🇹 @tgytdlp_it_bot\n🇦🇪 @tgytdlp_uae_bot\n🇬🇧 @tgytdlp_uk_bot\n🇫🇷 @tgytdlp_fr_bot",
+        # No upstream branding
+        "required_channel": "",
+        "managed_by": "@Downloader_Villanbot",
+        "credits_bots": "",
     }
 
     try:

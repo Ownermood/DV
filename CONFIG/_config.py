@@ -16,7 +16,7 @@ class Config(object):
     # Your bot name - Required (str)
     BOT_NAME = "Downloader_Villanbot"
     # A name for users - Required (str)
-    BOT_NAME_FOR_USERS = "tgytdlp_bot" #name in database
+    BOT_NAME_FOR_USERS = "Downloader_Villanbot" #name in database
     # List of administrator IDs
     ADMIN = [0]
     # Add allowed group IDs - Only these groups will be served by the bot
@@ -28,7 +28,7 @@ class Config(object):
     # Bot token
     BOT_TOKEN = ""
     # Mini-app URL
-    MINIAPP_URL = "https://t.me/tgytdlp_test_bot/?startapp"
+    MINIAPP_URL = ""
     # Channel ID for logs (you can use the same 1 channel ID for all LOGS)
     LOGS_ID = 0  # Channel ID for logs
     LOGS_VIDEO_ID = 0  # Channel ID for video logs
@@ -42,9 +42,9 @@ class Config(object):
     SUBSCRIBE_CHANNEL_URL = ""
     # Branding / UI text overrides (optional).
     # These values are used by translations via placeholders.
-    REQUIRED_CHANNEL_MENTION = "@tg_ytdlp"
-    CREDITS_MANAGED_BY = "@iilililiiillliiliililliilliliiil"
-    CREDITS_BOTS = "🇮🇹 @tgytdlp_it_bot\n🇦🇪 @tgytdlp_uae_bot\n🇬🇧 @tgytdlp_uk_bot\n🇫🇷 @tgytdlp_fr_bot"
+    REQUIRED_CHANNEL_MENTION = ""
+    CREDITS_MANAGED_BY = "@Downloader_Villanbot"
+    CREDITS_BOTS = ""
     # Session string пользователя для чтения admin logs канала (опционально)
     # Боты не могут читать admin logs, поэтому нужна пользовательская сессия
     # Для генерации session string запустите: python generate_session_string.py

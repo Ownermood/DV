@@ -8,7 +8,7 @@ class Messages(object):
     #######################################################
     # Messages and errors
     #######################################################
-    CREDITS_MSG = "<blockquote><i>Managed by</i> {managed_by}\n{credits_bots}</blockquote>\n<b>🌍 Change language: /lang</b>"
+    CREDITS_MSG = ""  # no upstream branding
     TO_USE_MSG = "<i>To use this bot you need to subscribe to {required_channel} Telegram channel.</i>\nAfter you join the channel, <b>resend your video link again and bot will download it for you</b> ❤️\n\n<blockquote>P.S. Downloading 🔞NSFW content and files from ☁️Cloud Storage is paid! 1⭐️ = $0.02</blockquote>\n<blockquote>P.P.S. ‼️ Do not leave the channel - you will be banned from using the bot ⛔️</blockquote>"
 
     ERROR1 = "Did not found a url link. Please enter a url with <b>https://</b> or <b>http://</b>"
@@ -257,12 +257,12 @@ Add my bots to your groups to get enhanced features and higher limits!
 ————————————
 💰 <b>Pricing & Setup:</b>
 <blockquote>• Price: <b>$5/month</b> per 1 bot in group
-• Setup: Contact @iilililiiillliiliililliilliliiil
+• Setup: Contact @Downloader_Villanbot
 • Payment: 💎TON or other methods💲
 • Support: Full technical support included</blockquote>
 ————————————
 You can add my bots to your group to unblock free 🔞<b>NSFW</b> and to double (x2️⃣) all limits.
-Contact me if you want me to allow your group to use my bots @iilililiiillliiliililliilliliiil
+Contact me if you want me to allow your group to use my bots @Downloader_Villanbot
 ————————————
 💡<b>TIP:</b> <blockquote>You can chip in money with any amount of your friends (for example 100 people) and made 1 purchase for whole group - ALL GROUP MEMBERS WILL HAVE FULL UNLIMITED ACCESS to all bots functions in that group for just <b>0.05$</b></blockquote>
     """
@@ -1408,7 +1408,7 @@ Use:
     AUDIO_PROGRESS_MSG = "<b>Audio:</b> {current} / {total}"
     
     # Error messages
-    ERROR_CHECK_SUPPORTED_SITES_MSG = "Check <a href='https://github.com/chelaxian/tg-ytdlp-bot/wiki/YT_DLP#supported-sites'>here</a> if your site supported"
+    ERROR_CHECK_SUPPORTED_SITES_MSG = "Supported: YouTube, TikTok, Snapchat, Pinterest, TeraBox"
     ERROR_COOKIE_NEEDED_MSG = "You may need <code>cookie</code> for downloading this video. First, clean your workspace via <b>/clean</b> command"
     ERROR_COOKIE_INSTRUCTIONS_MSG = "For Youtube - get <code>cookie</code> via <b>/cookie</b> command. For any other supported site - send your own cookie (<a href='https://t.me/tg_ytdlp/203'>guide1</a>) (<a href='https://t.me/tg_ytdlp/214'>guide2</a>) and after that send your video link again."
     CHOOSE_SUBTITLE_LANGUAGE_MSG = "Choose subtitle language"

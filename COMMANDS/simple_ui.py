@@ -67,7 +67,7 @@ def detect_platform(text: str) -> Optional[Tuple[str, str, str, str]]:
 
 def welcome_text(first_name: str = "", user_id=None) -> str:
     name = html.escape(first_name.strip()) if first_name else "there"
-    return t(user_id, "welcome", name=name)
+    return t(user_id, "welcome", name=name, max_gb=_max_gb(), platforms=_platform_lines())
 
 
 def _platform_lines() -> str:
