@@ -1,6 +1,6 @@
-FROM python:3.10-slim
+FROM python:3.12-slim
 
-ARG TZ=Europe/Moscow
+ARG TZ=Asia/Kolkata
 ENV TZ="$TZ"
 
 # System dependencies:
@@ -29,6 +29,9 @@ RUN git clone https://github.com/aliftype/amiri.git /tmp/amiri \
     && cp /tmp/amiri/fonts/*.ttf /usr/share/fonts/truetype/amiri/ \
     && fc-cache -fv \
     && rm -rf /tmp/amiri
+
+# Deno: JS runtime yt-dlp needs for YouTube signature/n-challenges (2025.11+)
+COPY --from=denoland/deno:bin /deno /usr/local/bin/deno
 
 WORKDIR /app
 

@@ -6,7 +6,14 @@ Telegram bot for **YouTube, TikTok, Snapchat, Pinterest and TeraBox**. Other sit
 
 ## Setup
 1. `cp .env.example .env` and fill the 4 required values (`BOT_TOKEN`, `API_ID`, `API_HASH`, `ADMIN_IDS`).
-2. Run: `docker compose up -d --build` or `pip install -r requirements.txt && python magic.py`.
+2. Run: `docker compose up -d --build` (recommended: includes ffmpeg, Deno and the YouTube PO-token provider,
+   and updates yt-dlp / gallery-dl on every start).
+   Without Docker: install `ffmpeg` and [Deno](https://deno.land), then `pip install -r requirements.txt && python magic.py`.
+
+## Private links
+Private / age-restricted / login-only posts: the user sends `/cookie` once and uploads a `cookies.txt`
+exported from their own account (YouTube, TikTok, Snapchat, Pinterest). After that the same link downloads.
+TeraBox password-protected shares are not supported.
 
 ## Users
 Send a link and the bot shows a menu:

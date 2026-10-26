@@ -612,7 +612,7 @@ def save_my_cookie(app, message):
     """
     user_id = str(message.chat.id)
     # Check file size
-    if message.document.file_size > 100 * 1024:
+    if message.document.file_size > 1024 * 1024:  # big YouTube/TikTok exports exceed 100KB
         send_to_all(message, safe_get_messages(user_id).COOKIES_FILE_TOO_LARGE_MSG)
         return
     # Check extension
@@ -622,12 +622,15 @@ def save_my_cookie(app, message):
     # Download the file to a temporary folder to check the contents
     import tempfile
     with tempfile.TemporaryDirectory() as tmpdir:
-        tmp_path = os.path.join(tmpdir, message.document.file_name)
+        tmp_path = os.path.join(tmpdir, 'cookies.txt')  # never trust the uploaded file name as a path
         app.download_media(message, file_name=tmp_path)
         try:
             with open(tmp_path, 'r', encoding='utf-8', errors='ignore') as f:
                 content = f.read(4096)  # read only the first 4 KB
-                if '# Netscape HTTP Cookie File' not in content:
+                # Netscape header, or (header-less exports) at least one 7-field tab-separated cookie line
+                has_header = 'HTTP Cookie File' in content
+                has_rows = any(len(l.split('\t')) == 7 for l in content.splitlines() if l and not l.startswith('#'))
+                if not (has_header or has_rows):
                     send_to_all(message, safe_get_messages(user_id).COOKIES_INVALID_COOKIE_MSG)
                     return
         except Exception as e:
@@ -882,15 +885,7 @@ def download_cookie(app, message):
                 safe_get_messages(user_id).COOKIES_YOUTUBE_BUTTON_MSG.format(max=max(1, len(get_youtube_cookie_urls()))),
                 callback_data="download_cookie|youtube"
             ),
-            InlineKeyboardButton(safe_get_messages(user_id).COOKIES_FROM_BROWSER_BUTTON_MSG, callback_data="download_cookie|from_browser"),            
-        ],
-        [
-            InlineKeyboardButton(safe_get_messages(user_id).COOKIES_TWITTER_BUTTON_MSG, callback_data="download_cookie|twitter"),
             InlineKeyboardButton(safe_get_messages(user_id).COOKIES_TIKTOK_BUTTON_MSG, callback_data="download_cookie|tiktok"),
-        ],
-        [
-            InlineKeyboardButton(safe_get_messages(user_id).COOKIES_VK_BUTTON_MSG, callback_data="download_cookie|vk"),
-            InlineKeyboardButton(safe_get_messages(user_id).COOKIES_INSTAGRAM_BUTTON_MSG, callback_data="download_cookie|instagram"),
         ],
         [
 

@@ -96,10 +96,42 @@ def send_to_logger(message, msg):
 
 # Send Message to User Only
 
+# --- Short user-facing errors ---------------------------------------------------
+# Only raw technical dumps are rewritten; normal bot texts (cookie help etc.) pass through untouched.
+_RAW_ERROR_HINTS = ("ERROR:", "Traceback", "Error Code", "Full Error", "HTTP Error", "Unknown error",
+                    "DownloadError", "ExtractorError", "Unsupported URL", "Errno")
+_FRIENDLY = (
+    (("sign in to confirm", "not a bot"), "🤖 <b>YouTube asked for a login check.</b>\n<blockquote><b>Send /cookie and add your YouTube cookies, then send the link again.</b></blockquote>"),
+    (("private", "login", "log in", "sign in", "members-only", "age", "cookies", "authentication", "401", "403"),
+     "🔒 <b>This link is private or needs login.</b>\n<blockquote><b>Send /cookie, add cookies from your account, then send the link again.</b></blockquote>"),
+    (("not available", "unavailable", "removed", "deleted", "404", "does not exist", "no video"),
+     "🚫 <b>This post is unavailable.</b>\n<blockquote><b>It may be deleted, region-locked or the link is wrong.</b></blockquote>"),
+    (("too large", "file size", "exceeds", "limit"), None),  # keep the original size-limit text
+    (("timed out", "timeout", "connection", "network", "temporarily"),
+     "🌐 <b>Network problem.</b>\n<blockquote><b>Please try again in a minute.</b></blockquote>"),
+)
+_GENERIC = "⚠️ <b>Download failed.</b>\n<blockquote><b>Please try again. If it keeps failing, the link may be private: send /cookie first.</b></blockquote>"
+
+
+def friendly_error(msg) -> str:
+    """Turn raw yt-dlp/gallery-dl dumps into one short message. Normal texts pass through."""
+    text = str(msg or "")
+    if not any(h.lower() in text.lower() for h in _RAW_ERROR_HINTS):
+        return text
+    low = text.lower()
+    for keys, friendly in _FRIENDLY:
+        if any(k in low for k in keys):
+            return friendly or text
+    return _GENERIC
+
+
 def send_to_user(message, msg):
     capture_message_context(message)
     user_id = message.chat.id
-    safe_send_message(user_id, msg, parse_mode=enums.ParseMode.HTML, message=message)
+    friendly = friendly_error(msg)
+    if friendly != msg:
+        logger.info(f"[user-error] {user_id}: {str(msg)[:500]}")
+    safe_send_message(user_id, friendly, parse_mode=enums.ParseMode.HTML, message=message)
 
 # Send Message to All ...
 
@@ -139,8 +171,11 @@ def send_error_to_user(message, msg, url: str = None):
         msg_with_id = f"{message.chat.first_name} - {user_id}\n \n{msg}"
     # Send to LOG_EXCEPTION channel for error tracking
     safe_send_message(Config.LOG_EXCEPTION, msg_with_id, parse_mode=enums.ParseMode.HTML)
-    # Send to user
-    safe_send_message(user_id, msg, parse_mode=enums.ParseMode.HTML, message=message)
+    # Send to user: short message; full details stay in LOG_EXCEPTION / logs
+    friendly = friendly_error(msg)
+    if friendly != msg:
+        logger.info(f"[user-error] {user_id}: {str(msg)[:500]}")
+    safe_send_message(user_id, friendly, parse_mode=enums.ParseMode.HTML, message=message)
 
 # Log error message to LOG_EXCEPTION channel (without sending to user)
 def log_error_to_channel(message, msg, url: str = None):

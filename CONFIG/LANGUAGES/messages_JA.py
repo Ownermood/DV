@@ -962,7 +962,7 @@ class Messages(object):
     ARGS_SEND_AS_FILE_SHORT_MSG = "ファイルとして送信"
     
     # Additional cookies command messages
-    COOKIES_FILE_TOO_LARGE_MSG = "❌ ファイルが大きすぎます。最大サイズは100 KBです。"
+    COOKIES_FILE_TOO_LARGE_MSG = "❌ ファイルが大きすぎます。最大サイズは1 MBです。"
     COOKIES_INVALID_FORMAT_MSG = "❌ .txt形式のファイルのみが許可されています。"
     COOKIES_INVALID_COOKIE_MSG = "❌ cookie.txtのようには見えません(「# Netscape HTTP Cookie File」という行がありません)。"
     COOKIES_ERROR_READING_MSG = "❌ ファイルの読み取り中にエラーが発生しました: {error}"

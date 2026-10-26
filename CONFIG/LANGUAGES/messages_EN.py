@@ -963,7 +963,7 @@ Use:
     ARGS_SEND_AS_FILE_SHORT_MSG = "Send As File"
     
     # Additional cookies command messages
-    COOKIES_FILE_TOO_LARGE_MSG = "❌ The file is too large. Maximum size is 100 KB."
+    COOKIES_FILE_TOO_LARGE_MSG = "❌ The file is too large. Maximum size is 1 MB."
     COOKIES_INVALID_FORMAT_MSG = "❌ Only files of the following format are allowed .txt."
     COOKIES_INVALID_COOKIE_MSG = "❌ The file does not look like cookie.txt (there is no line '# Netscape HTTP Cookie File')."
     COOKIES_ERROR_READING_MSG = "❌ Error reading file: {error}"

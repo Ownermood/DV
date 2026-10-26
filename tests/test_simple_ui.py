@@ -100,3 +100,12 @@ def test_bold_everywhere_including_quotes():
     from COMMANDS.ui_kit import bold
     out = bold("Hi <b>x</b>\n<blockquote expandable>line</blockquote>\nend")
     assert out == "<b>Hi x</b>\n<blockquote expandable><b>line</b></blockquote>\n<b>end</b>"
+
+
+def test_friendly_errors():
+    from HELPERS.logger import friendly_error
+    assert "private" in friendly_error("ERROR: [youtube] x: Private video. Sign in if you've been granted access")
+    assert "login check" in friendly_error("ERROR: Sign in to confirm you're not a bot")
+    assert "unavailable" in friendly_error("❌ Unknown error: Video unavailable")
+    assert "Download failed" in friendly_error("❌ Unknown error: something weird")
+    assert friendly_error("✅ Cookies saved, private links work now") == "✅ Cookies saved, private links work now"
