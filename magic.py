@@ -140,6 +140,7 @@ from COMMANDS.link_cmd import *
 from COMMANDS.mediainfo_cmd import *
 from COMMANDS.other_handlers import *
 from COMMANDS import simple_ui  # noqa: E402 - clean front door (group -1)
+from COMMANDS import admin_panel  # noqa: E402 - admin panel (group -1)
 from COMMANDS.proxy_cmd import *
 from COMMANDS.settings_cmd import *
 from COMMANDS.split_sizer import *

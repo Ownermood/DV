@@ -33,10 +33,13 @@ def video_url_extractor(app, message):
         os.makedirs(user_dir, exist_ok=True)
     format_file = os.path.join(user_dir, "format.txt")
 
-    # Default: no menu. Best quality up to 1080p; user can still pick ALWAYS_ASK explicitly.
+    # Default: best available quality under MAX_FILE_SIZE_GB (auto steps down 1080p -> 720p ...).
+    # A choice from the link menu (COMMANDS/simple_ui) overrides the saved /format.
+    from COMMANDS.simple_ui import format_for
+    ui_choice = getattr(message, "_ui_choice", None)
     should_ask = False
-    saved_format = "bv*[height<=1080]+ba/b[height<=1080]/b"
-    if os.path.exists(format_file):
+    saved_format = format_for(ui_choice or None)
+    if ui_choice is None and os.path.exists(format_file):
         with open(format_file, "r", encoding="utf-8") as f:
             fmt = f.read().strip()
         # Do not ask only if the format is set and it is NOT "ALWAYS_ASK"

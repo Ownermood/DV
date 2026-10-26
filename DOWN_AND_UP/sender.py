@@ -102,15 +102,8 @@ def send_videos(
         # Flag: whether it was sent as paid media
         was_paid = False
         # Form HTML caption: title outside the quote, timecodes outside the quote, description in the quote, tags and link outside the quote
-        cap = ''
-        if title_html:
-            cap += title_html + '\n\n'
-        if pre_block:
-            cap += pre_block + '\n'
-        cap += f'<blockquote expandable>{blockquote_content}</blockquote>\n'
-        if tags_block:
-            cap += tags_block
-        cap += link_block
+        from HELPERS.caption import build_quoted_caption
+        cap = build_quoted_caption(title_html, pre_block, blockquote_content, tags_block, link_block)
 
         def _should_generate_cover(video_path: str, duration_seconds: int) -> bool:
             try:

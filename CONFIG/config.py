@@ -53,7 +53,9 @@ Config.DASHBOARD_PASSWORD = os.getenv("DASHBOARD_PASSWORD", Config.DASHBOARD_PAS
 
 # Safe defaults for optional services
 Config.USE_FIREBASE = os.getenv("USE_FIREBASE", "false").lower() in {"1", "true", "yes", "on"}
-Config.MAX_FILE_SIZE_GB = float(os.getenv("MAX_FILE_SIZE_GB", str(Config.MAX_FILE_SIZE_GB)))
+Config.MAX_FILE_SIZE_GB = float(os.getenv("MAX_FILE_SIZE_GB", "4"))
+# Optional welcome image for /start: https URL or Telegram file_id
+Config.START_IMAGE = os.getenv("START_IMAGE", getattr(Config, "START_IMAGE", "")).strip()
 Config.DOWNLOAD_TIMEOUT = int(os.getenv("DOWNLOAD_TIMEOUT", str(Config.DOWNLOAD_TIMEOUT)))
 
 if os.getenv("REQUIRE_VALID_CONFIG", "true").lower() in {"1", "true", "yes", "on"}:

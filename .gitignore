@@ -28,3 +28,4 @@ firebase_cache.json
 .vscode/
 
 !CONFIG/config.py
+CONFIG/.ui_state.json*

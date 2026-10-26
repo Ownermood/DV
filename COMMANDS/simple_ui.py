@@ -6,7 +6,11 @@ Registered at handler group -1 so it runs before every legacy handler.
 from __future__ import annotations
 
 import html
+import os
 import re
+import secrets
+import threading
+import time
 from typing import Optional, Tuple
 from urllib.parse import urlparse
 
@@ -17,6 +21,7 @@ from pyrogram.types import (InlineKeyboardButton, InlineKeyboardMarkup,
 from CONFIG.config import Config
 from HELPERS.app_instance import get_app
 from HELPERS.logger import logger
+from COMMANDS.ui_kit import btn, em, send, edit, t, BLUE, GREEN, RED
 
 app = get_app()
 
@@ -31,12 +36,12 @@ PLATFORMS = {
                                        "freeterabox.com", "mirrobox.com", "nephobox.com", "4funbox.com", "momerybox.com", "tibibox.com")),
 }
 
-ALLOWED_USER_COMMANDS = {"start", "help", "cookie", "cookies", "check_cookie", "save_as_cookie", "cookies_from_browser"}
+ALLOWED_USER_COMMANDS = {"start", "help", "lang", "cookie", "cookies", "check_cookie", "save_as_cookie", "cookies_from_browser"}
 
 BOT_MENU = [
-    ("start", "Welcome"),
-    ("help", "How to use"),
-    ("cookie", "Private links (cookies)"),
+    ("start", "Start"),
+    ("help", "What this bot can do"),
+    ("lang", "Language"),
 ]
 
 _URL_RE = re.compile(r"https?://[^\s<>\"']+", re.I)
@@ -62,34 +67,31 @@ def detect_platform(text: str) -> Optional[Tuple[str, str, str, str]]:
     return None
 
 
-def welcome_text(first_name: str = "") -> str:
+def welcome_text(first_name: str = "", user_id=None) -> str:
     name = html.escape(first_name.strip()) if first_name else "there"
-    lines = "\n".join(f"{e} {l}" for l, e, _ in PLATFORMS.values())
-    return (
-        f"<b>Welcome, {name}!</b>\n\n"
-        "Send me a link and I'll download it. No menus, no setup.\n\n"
-        f"<blockquote>{lines}</blockquote>\n"
-        "Public and private links are supported. For private links, add your cookies first."
-    )
+    return t(user_id, "welcome", name=name)
 
 
-def help_text() -> str:
-    return (
-        "<b>How to use</b>\n\n"
-        "1. Copy a link from any supported app\n"
-        "2. Send it here\n"
-        "3. Wait for the file\n\n"
-        "<b>Private links</b>\n"
-        "Private Instagram or YouTube links need your login cookies. Use /cookie and follow the steps. "
-        "TeraBox private links are not supported."
-    )
+def _platform_lines() -> str:
+    return "\n".join(f"{e} {l}" for l, e, _ in PLATFORMS.values())
 
 
-def _welcome_markup() -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup([
-        [InlineKeyboardButton("📖 How to use", callback_data="ui|help"),
-         InlineKeyboardButton("🔒 Private links", callback_data="ui|private")],
-    ])
+def help_text(user_id=None) -> str:
+    return t(user_id, "help_text", max_gb=_max_gb(), platforms=_platform_lines())
+
+
+def _max_gb() -> str:
+    return f"{float(getattr(Config, 'MAX_FILE_SIZE_GB', 4)):g}"
+
+
+def format_for(height: Optional[int] = None) -> str:
+    """Best quality under MAX_FILE_SIZE_GB; yt-dlp falls to the next lower
+    resolution automatically when the bigger one exceeds the size cap.
+    Unknown sizes pass (`<?`); the downloader's own size check is the backstop."""
+    cap = int(float(getattr(Config, "MAX_FILE_SIZE_GB", 4)) * 1024 * 0.95)  # 5% headroom for audio
+    h = f"[height<={int(height)}]" if height else ""
+    size = f"[filesize<?{cap}M][filesize_approx<?{cap}M]"
+    return f"bv*{h}{size}+ba/b{h}{size}/b{h}"
 
 
 def _is_admin(user_id: int) -> bool:
@@ -97,6 +99,27 @@ def _is_admin(user_id: int) -> bool:
         return int(user_id) in Config.ADMIN
     except Exception:
         return False
+
+
+def _start_markup(user_id) -> InlineKeyboardMarkup:
+    rows = [[btn("globe", t(user_id, "lang"), cb="ui|lang", style=BLUE),
+             btn("question", t(user_id, "help"), cb="ui|help", style=GREEN)]]
+    if _is_admin(user_id):
+        rows.append([btn("crown", t(user_id, "admin"), cb="ap|home", style=RED)])
+    return InlineKeyboardMarkup(rows)
+
+
+def _back_markup(user_id) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([[btn("back", t(user_id, "back"), cb="ui|home", style=BLUE)]])
+
+
+def _start_image():
+    from COMMANDS.ui_kit import state_get
+    return state_get("start_image") or getattr(Config, "START_IMAGE", "") or None
+
+
+def send_start(client, chat_id, first_name=""):
+    send(client, chat_id, lambda: (welcome_text(first_name, chat_id), _start_markup(chat_id)), photo=_start_image())
 
 
 _menu_set = False
@@ -121,53 +144,308 @@ def _clear_reply_keyboard(client, chat_id: int) -> None:
         pass
 
 
+_registered = set()
+
+
+def _register_user(message) -> None:
+    """Persist the user once per process so broadcasts reach them."""
+    uid = message.chat.id
+    if uid in _registered:
+        return
+    try:
+        from DATABASE.firebase_init import check_user
+        check_user(message)
+        _registered.add(uid)
+    except Exception as exc:
+        logger.warning(f"[ui] user register failed for {uid}: {exc}")
+
+
+# ---------------- link menu ----------------
+_PENDING = {}  # token -> (message, platform_key, ts)
+_PENDING_TTL = 3600
+_pending_lock = threading.Lock()
+YT_HEIGHTS = (2160, 1440, 1080, 720, 480, 360)
+
+
+def _remember(message, key) -> str:
+    token = secrets.token_hex(4)
+    now = time.time()
+    with _pending_lock:
+        for k in [k for k, v in _PENDING.items() if now - v[2] > _PENDING_TTL]:
+            _PENDING.pop(k, None)
+        _PENDING[token] = (message, key, now)
+    return token
+
+
+def _human(n) -> str:
+    n = float(n or 0)
+    for unit in ("B", "KB", "MB", "GB"):
+        if n < 1024:
+            return f"{n:.0f}{unit}" if unit in ("B", "KB") else f"{n:.1f}{unit}"
+        n /= 1024
+    return f"{n:.1f}TB"
+
+
+def _ydl_opts(user_id) -> dict:
+    opts = {"quiet": True, "no_warnings": True, "skip_download": True, "noplaylist": True,
+            "socket_timeout": 20}
+    cookie = os.path.join("users", str(user_id), "cookie.txt")
+    if os.path.exists(cookie):
+        opts["cookiefile"] = cookie
+    return opts
+
+
+def _probe(url, user_id) -> Optional[dict]:
+    try:
+        import yt_dlp
+        with yt_dlp.YoutubeDL(_ydl_opts(user_id)) as ydl:
+            info = ydl.extract_info(url, download=False)
+        if info and info.get("_type") == "playlist":
+            entries = [e for e in (info.get("entries") or []) if e]
+            info = entries[0] if entries else info
+        return info
+    except Exception as exc:
+        logger.info(f"[ui] probe failed for {url}: {exc}")
+        return None
+
+
+def _yt_sizes(info) -> dict:
+    """height -> approx bytes (best video at that height + best audio)."""
+    fmts = info.get("formats") or []
+    size = lambda f: f.get("filesize") or f.get("filesize_approx") or 0
+    audio = max((size(f) for f in fmts if f.get("vcodec") == "none" and f.get("acodec") != "none"), default=0)
+    out = {}
+    for f in fmts:
+        hgt = f.get("height")
+        if not hgt or f.get("vcodec") in (None, "none"):
+            continue
+        for target in YT_HEIGHTS:
+            if abs(hgt - target) <= target * 0.1:  # 1080 covers 1072 etc.
+                s = size(f) + (audio if f.get("acodec") == "none" else 0)
+                out[target] = max(out.get(target, 0), s)
+    return out
+
+
+def _choice_rows(uid, token, yt_sizes=None, is_yt=False):
+    rows = []
+    if is_yt:
+        heights = sorted(yt_sizes, reverse=True) if yt_sizes else list(YT_HEIGHTS)
+        cap = float(getattr(Config, "MAX_FILE_SIZE_GB", 4)) * 1024 ** 3
+        row = []
+        for hgt in heights:
+            sz = (yt_sizes or {}).get(hgt)
+            label = {2160: "4K", 1440: "2K"}.get(hgt, f"{hgt}p") + (f" • {_human(sz)}" if sz else "")
+            style = RED if sz and sz > cap else (GREEN if hgt >= 1080 else BLUE)
+            row.append(btn("play", label, cb=f"ui|g|{token}|{hgt}", style=style))
+            if len(row) == 2:
+                rows.append(row)
+                row = []
+        if row:
+            rows.append(row)
+    rows.append([btn("bolt", t(uid, "best"), cb=f"ui|g|{token}|b", style=GREEN)])
+    rows.append([btn("music", t(uid, "mp3"), cb=f"ui|g|{token}|a", style=BLUE),
+                 btn("image", t(uid, "thumb"), cb=f"ui|g|{token}|t", style=BLUE)])
+    rows.append([btn("trash", t(uid, "close"), cb="ui|close", style=RED)])
+    return InlineKeyboardMarkup(rows)
+
+
+def _show_link_menu(client, message, key, label) -> None:
+    uid = message.chat.id
+    token = _remember(message, key)
+    if key != "youtube":
+        send(client, uid, lambda: (t(uid, "pick", platform=label), _choice_rows(uid, token)),
+             reply_to_message_id=message.id)
+        return
+    menu = send(client, uid, lambda: (t(uid, "loading"), None), reply_to_message_id=message.id)
+
+    def work():
+        info = _probe(extract_url(message.text), uid)
+        sizes = _yt_sizes(info) if info else None
+        title = html.escape((info or {}).get("title") or "YouTube")[:200]
+        try:
+            edit(client, menu, lambda: (t(uid, "pick_yt", title=title, max_gb=_max_gb()),
+                                        _choice_rows(uid, token, sizes, is_yt=True)))
+        except Exception as exc:
+            logger.warning(f"[ui] yt menu edit failed: {exc}")
+    threading.Thread(target=work, daemon=True).start()
+
+
+def _run_choice(client, message, choice) -> None:
+    """Hand the stored link to the legacy pipeline (keeps ban/sub/rate checks)."""
+    from URL_PARSERS.url_extractor import url_distractor
+    original = message.text
+    try:
+        if choice == "a":
+            message.text = f"/audio {extract_url(original) or original}"
+            message._ui_choice = None
+        else:
+            message._ui_choice = 0 if choice == "b" else int(choice)
+        url_distractor(client, message)
+    except Exception as exc:
+        logger.error(f"[ui] choice {choice} failed: {exc}")
+    finally:
+        message.text = original
+
+
+def _send_thumbnail(client, message) -> None:
+    from DATABASE.firebase_init import is_user_blocked
+    from HELPERS.limitter import is_user_in_channel
+    uid = message.chat.id
+    if is_user_blocked(message) or (not _is_admin(uid) and not is_user_in_channel(client, message)):
+        return
+    url = extract_url(message.text)
+    info = _probe(url, uid) or {}
+    thumbs = sorted((x for x in info.get("thumbnails") or [] if x.get("url")),
+                    key=lambda x: (x.get("preference") or 0, (x.get("width") or 0) * (x.get("height") or 0)))
+    thumb = info.get("thumbnail") or (thumbs[-1]["url"] if thumbs else None)
+    if not thumb:
+        client.send_message(uid, t(uid, "no_thumb"), reply_to_message_id=message.id)
+        return
+    title = html.escape(info.get("title") or "Thumbnail")[:300]
+    cap = f'<blockquote expandable>{em("image")} <b>{title}</b>\n<a href="{html.escape(url)}">🔗 Link</a></blockquote>'
+    try:
+        send(client, uid, lambda: (cap, None), photo=thumb, reply_to_message_id=message.id)
+        return
+    except Exception as exc:
+        logger.info(f"[ui] thumb by URL failed, downloading: {exc}")
+    import requests
+    path = os.path.join("users", str(uid), f"thumb_{secrets.token_hex(4)}.jpg")
+    try:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        r = requests.get(thumb, timeout=20)
+        r.raise_for_status()
+        if len(r.content) > 10 * 1024 * 1024:
+            raise ValueError("thumbnail too large")
+        with open(path, "wb") as f:
+            f.write(r.content)
+        # Telegram rejects webp as photo -> convert
+        from PIL import Image
+        with Image.open(path) as im:
+            im.convert("RGB").save(path, "JPEG", quality=95)
+        send(client, uid, lambda: (cap, None), photo=path, reply_to_message_id=message.id)
+    except Exception as exc:
+        logger.warning(f"[ui] thumbnail failed: {exc}")
+        client.send_message(uid, t(uid, "no_thumb"), reply_to_message_id=message.id)
+    finally:
+        if os.path.exists(path):
+            os.remove(path)
+
+
+def _lang_markup(user_id) -> InlineKeyboardMarkup:
+    from CONFIG.LANGUAGES.language_router import language_router
+    from COMMANDS.ui_kit import user_lang
+    cur = user_lang(user_id)
+    rows, row = [], []
+    for code, name in language_router.get_available_languages().items():
+        row.append(InlineKeyboardButton(("✅ " if code == cur else "") + name, callback_data=f"ui|L|{code}",
+                                        style=GREEN if code == cur else BLUE))
+        if len(row) == 2:
+            rows.append(row)
+            row = []
+    if row:
+        rows.append(row)
+    rows.append([btn("back", t(user_id, "back"), cb="ui|home", style=BLUE)])
+    return InlineKeyboardMarkup(rows)
+
+
 @app.on_message(filters.private & filters.text, group=-1)
 def front_door(client, message):
     _ensure_menu(client)
+    _register_user(message)
     text = (message.text or "").strip()
     chat_id = message.chat.id
     admin = _is_admin(chat_id)
 
+    if admin:
+        from COMMANDS.admin_panel import handle_admin_input
+        if handle_admin_input(client, message):
+            message.stop_propagation()
+
     if text.startswith("/"):
         cmd = text[1:].split()[0].split("@")[0].lower()
-        if cmd in ("start", "help"):
-            if cmd == "start":
-                _clear_reply_keyboard(client, chat_id)
-                client.send_message(chat_id, welcome_text(message.from_user.first_name if message.from_user else ""),
-                                    parse_mode=enums.ParseMode.HTML, reply_markup=_welcome_markup())
-            else:
-                client.send_message(chat_id, help_text(), parse_mode=enums.ParseMode.HTML)
+        if cmd == "start":
+            _clear_reply_keyboard(client, chat_id)
+            send_start(client, chat_id, message.from_user.first_name if message.from_user else "")
+            message.stop_propagation()
+        if cmd == "help":
+            send(client, chat_id, lambda: (help_text(chat_id), _back_markup(chat_id)))
+            message.stop_propagation()
+        if cmd == "lang":
+            send(client, chat_id, lambda: (t(chat_id, "choose_lang"), _lang_markup(chat_id)))
+            message.stop_propagation()
+        if cmd in ("admin", "panel") and admin:
+            from COMMANDS.admin_panel import open_panel
+            open_panel(client, chat_id)
             message.stop_propagation()
         if cmd in ALLOWED_USER_COMMANDS or admin:
             return  # legacy handlers (cookies / admin) continue
-        client.send_message(chat_id, "That command isn't available. Just send a link.")
+        client.send_message(chat_id, t(chat_id, "cmd_na"))
         message.stop_propagation()
 
     if not _URL_RE.search(text):
         if admin or text in ("",):
             return
-        client.send_message(chat_id, "Send me a link from YouTube, Instagram, TikTok, Snapchat, Pinterest or TeraBox.")
+        client.send_message(chat_id, t(chat_id, "send_link"))
         message.stop_propagation()
 
     found = detect_platform(text)
     if found is None:
-        client.send_message(
-            chat_id,
-            "That link isn't supported.\n\n<blockquote>" +
-            "\n".join(f"{e} {l}" for l, e, _ in PLATFORMS.values()) + "</blockquote>",
-            parse_mode=enums.ParseMode.HTML)
+        if admin:
+            return  # admins may still use any yt-dlp site through the legacy flow
+        client.send_message(chat_id, t(chat_id, "unsupported") + "\n\n<blockquote>" + _platform_lines() +
+                            "</blockquote>", parse_mode=enums.ParseMode.HTML)
         message.stop_propagation()
-    # supported -> fall through to the download pipeline
+    key, label, _, _ = found
+    if key == "terabox":
+        return  # TeraBox adapter is a direct download; no quality/MP3 menu
+    _show_link_menu(client, message, key, label)
+    message.stop_propagation()
 
 
 @app.on_callback_query(filters.regex(r"^ui\|"), group=-1)
 def ui_callbacks(client, cq):
-    action = cq.data.split("|", 1)[1]
-    if action == "help":
-        client.send_message(cq.message.chat.id, help_text(), parse_mode=enums.ParseMode.HTML)
-    elif action == "private":
-        client.send_message(cq.message.chat.id,
-                            "<b>Private links</b>\nUse /cookie to add your login cookies. "
-                            "After that, send the private link as usual.", parse_mode=enums.ParseMode.HTML)
-    cq.answer()
+    parts = cq.data.split("|")
+    action = parts[1]
+    uid = cq.from_user.id
+    msg = cq.message
+    try:
+        if action == "help":
+            edit(client, msg, lambda: (help_text(uid), _back_markup(uid)))
+        elif action == "lang":
+            edit(client, msg, lambda: (t(uid, "choose_lang"), _lang_markup(uid)))
+        elif action == "L" and len(parts) == 3:
+            from CONFIG.LANGUAGES.language_router import language_router
+            if language_router.set_user_language(uid, parts[2]):
+                cq.answer(t(uid, "lang_set"))
+            edit(client, msg, lambda: (welcome_text(cq.from_user.first_name or "", uid), _start_markup(uid)))
+        elif action == "home":
+            edit(client, msg, lambda: (welcome_text(cq.from_user.first_name or "", uid), _start_markup(uid)))
+        elif action == "close":
+            msg.delete()
+        elif action == "g" and len(parts) == 4:
+            token, choice = parts[2], parts[3]
+            with _pending_lock:
+                item = _PENDING.get(token)
+            original = item[0] if item and item[0].chat.id == uid else None
+            if original is None:
+                cq.answer(t(uid, "expired"), show_alert=True)
+            elif choice == "t":
+                cq.answer(t(uid, "thumb"))
+                threading.Thread(target=_send_thumbnail, args=(client, original), daemon=True).start()
+            else:
+                with _pending_lock:
+                    _PENDING.pop(token, None)  # one download per menu
+                cq.answer(t(uid, "started"))
+                try:
+                    msg.delete()
+                except Exception:
+                    pass
+                threading.Thread(target=_run_choice, args=(client, original, choice), daemon=True).start()
+    except Exception as exc:
+        if "MESSAGE_NOT_MODIFIED" not in str(exc):
+            logger.warning(f"[ui] callback {cq.data} failed: {exc}")
+    try:
+        cq.answer()
+    except Exception:
+        pass
     cq.stop_propagation()

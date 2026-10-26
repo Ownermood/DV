@@ -1756,12 +1756,8 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 user_id=user_id
             )
             # Rebuild caption from truncated parts
-            caption_with_link = ""
-            if title_html:
-                caption_with_link += title_html + "\n"
-            if tags_block:
-                caption_with_link += tags_block
-            caption_with_link += link_block
+            from HELPERS.caption import build_quoted_caption
+            caption_with_link = build_quoted_caption(title_html, "", "", tags_block, link_block)
             
             try:
                 # Create Telegram-compliant thumbnail if cover is available

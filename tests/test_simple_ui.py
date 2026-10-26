@@ -46,9 +46,52 @@ def test_trailing_punctuation_and_text():
 
 
 def test_welcome_escapes_name_and_lists_platforms():
-    t = ui.welcome_text("<b>Evil</b>")
-    assert "&lt;b&gt;" in t and all(l in t for l, _, _ in ui.PLATFORMS.values())
+    assert "&lt;b&gt;" in ui.welcome_text("<b>Evil</b>")
+    assert all(l in ui.help_text() for l, _, _ in ui.PLATFORMS.values())
 
 
 def test_menu_is_minimal():
-    assert [c for c, _ in ui.BOT_MENU] == ["start", "help", "cookie"]
+    assert [c for c, _ in ui.BOT_MENU] == ["start", "help", "lang"]
+
+
+def test_format_for_caps_size_and_height(monkeypatch):
+    monkeypatch.setattr(ui.Config, "MAX_FILE_SIZE_GB", 4, raising=False)
+    f = ui.format_for(None)
+    assert "[filesize<?3891M]" in f and "height" not in f and f.endswith("/b")
+    f = ui.format_for(720)
+    assert f.startswith("bv*[height<=720][filesize<?3891M]") and f.endswith("/b[height<=720]")
+
+
+def test_yt_sizes_adds_audio_and_buckets():
+    info = {"formats": [
+        {"vcodec": "none", "acodec": "opus", "filesize": 10},
+        {"height": 1080, "vcodec": "avc1", "acodec": "none", "filesize": 1000},
+        {"height": 720, "vcodec": "avc1", "acodec": "none", "filesize_approx": 500},
+        {"height": 360, "vcodec": "avc1", "acodec": "mp4a", "filesize": 50},
+    ]}
+    assert ui._yt_sizes(info) == {1080: 1010, 720: 510, 360: 50}
+
+
+def test_quoted_caption_single_expandable_block():
+    from HELPERS.caption import build_quoted_caption
+    c = build_quoted_caption("<b>T</b>", "", "desc", "#tag\n", '<a href="u">L</a>')
+    assert c.startswith("<blockquote expandable><b>T</b>") and c.endswith("</a></blockquote>")
+    assert c.count("<blockquote") == 1
+
+
+def test_buttons_premium_and_plain(monkeypatch):
+    from COMMANDS import ui_kit
+    monkeypatch.setattr(ui_kit, "premium_on", lambda: True)
+    b = ui_kit.btn("music", "MP3", cb="x", style=ui_kit.GREEN)
+    assert b.icon_custom_emoji_id and b.text == "MP3" and b.style == ui_kit.GREEN
+    monkeypatch.setattr(ui_kit, "premium_on", lambda: False)
+    b = ui_kit.btn("music", "MP3", cb="x")
+    assert b.text == "🎧 MP3" and not b.icon_custom_emoji_id
+
+
+def test_all_i18n_keys_format():
+    from COMMANDS import ui_kit
+    for lang, table in ui_kit.T.items():
+        assert set(table) == set(ui_kit.T["en"]), lang
+        for k in table:
+            ui_kit.t(None, k, name="n", platform="p", title="t", max_gb="4", platforms="x")
