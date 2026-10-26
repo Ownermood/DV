@@ -67,7 +67,7 @@ def _handle_quality_key_error(e: Exception, split_msg_ids: list, is_playlist: bo
     if (successful_uploads == len(indices_to_download)) or (split_msg_ids and not is_playlist):
         logger.info(f"Upload complete condition met after quality_key error, replacing status message")
         success_msg = f"<b>{safe_get_messages(user_id).DOWN_UP_UPLOAD_COMPLETE_MSG}</b> - {video_count} {safe_get_messages(user_id).DOWN_UP_FILES_UPLOADED_MSG}.\n{safe_get_messages(user_id).CREDITS_MSG}"
-        safe_edit_message_text(user_id, proc_msg_id, success_msg)
+        safe_delete_messages(chat_id=user_id, message_ids=[proc_msg_id], revoke=True)  # file itself is the success signal
         send_to_logger(message, success_msg)
         try:
             from COMMANDS.subtitles_cmd import clear_subs_cache_for
@@ -468,7 +468,6 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                             if thread_id:
                                 forward_kwargs['message_thread_id'] = thread_id
                         app.forward_messages(**forward_kwargs)
-                        app.send_message(user_id, safe_get_messages(user_id).VIDEO_SENT_FROM_CACHE_MSG, reply_parameters=ReplyParameters(message_id=message.id))
                         send_to_logger(message, LoggerMsg.VIDEO_SENT_FROM_CACHE.format(quality=safe_quality_key, user_id=user_id))
                         return
                     except Exception as e:
@@ -2677,7 +2676,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                             actual_video_count = len(split_msg_ids)
                             success_msg = f"<b>{safe_get_messages(user_id).DOWN_UP_UPLOAD_COMPLETE_MSG}</b> - {actual_video_count} {safe_get_messages(user_id).DOWN_UP_FILES_UPLOADED_MSG}.\n{safe_get_messages(user_id).CREDITS_MSG}"
                             logger.info(f"PREVENTIVE FIX: sending final success message for split video: {success_msg}")
-                            safe_edit_message_text(user_id, proc_msg_id, success_msg)
+                            safe_delete_messages(chat_id=user_id, message_ids=[proc_msg_id], revoke=True)  # file itself is the success signal
                             send_to_logger(message, safe_get_messages(user_id).VIDEO_UPLOAD_COMPLETED_SPLITTING_LOG_MSG)
                             break
                         if is_playlist:
@@ -2744,7 +2743,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 actual_video_count = len(split_msg_ids) if split_msg_ids else video_count
                 success_msg = f"<b>{safe_get_messages(user_id).DOWN_UP_UPLOAD_COMPLETE_MSG}</b> - {actual_video_count} {safe_get_messages(user_id).DOWN_UP_FILES_UPLOADED_MSG}.\n{safe_get_messages(user_id).CREDITS_MSG}"
                 logger.info(f"down_and_up: sending final success message for split video: {success_msg}")
-                safe_edit_message_text(user_id, proc_msg_id, success_msg)
+                safe_delete_messages(chat_id=user_id, message_ids=[proc_msg_id], revoke=True)  # file itself is the success signal
                 send_to_logger(message, safe_get_messages(user_id).VIDEO_UPLOAD_COMPLETED_SPLITTING_LOG_MSG)
                 
             else:
@@ -3155,7 +3154,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                     actual_video_count = len(split_msg_ids)
                                     success_msg = f"<b>{safe_get_messages(user_id).DOWN_UP_UPLOAD_COMPLETE_MSG}</b> - {actual_video_count} {safe_get_messages(user_id).DOWN_UP_FILES_UPLOADED_MSG}.\n{safe_get_messages(user_id).CREDITS_MSG}"
                                     logger.info(f"PREVENTIVE FIX: sending final success message for split video: {success_msg}")
-                                    safe_edit_message_text(user_id, proc_msg_id, success_msg)
+                                    safe_delete_messages(chat_id=user_id, message_ids=[proc_msg_id], revoke=True)  # file itself is the success signal
                                     send_to_logger(message, safe_get_messages(user_id).VIDEO_UPLOAD_COMPLETED_SPLITTING_LOG_MSG)
                 
                             else:
@@ -3280,7 +3279,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                         actual_video_count = len(split_msg_ids)
                                         success_msg = f"<b>{safe_get_messages(user_id).DOWN_UP_UPLOAD_COMPLETE_MSG}</b> - {actual_video_count} {safe_get_messages(user_id).DOWN_UP_FILES_UPLOADED_MSG}.\n{safe_get_messages(user_id).CREDITS_MSG}"
                                         logger.info(f"PREVENTIVE FIX: sending final success message for split video: {success_msg}")
-                                        safe_edit_message_text(user_id, proc_msg_id, success_msg)
+                                        safe_delete_messages(chat_id=user_id, message_ids=[proc_msg_id], revoke=True)  # file itself is the success signal
                                         send_to_logger(message, safe_get_messages(user_id).VIDEO_UPLOAD_COMPLETED_SPLITTING_LOG_MSG)
                 # end-of-task subs cache clearing handled in unified success branches below
                                 else:
@@ -3302,7 +3301,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                         continue
         if successful_uploads == len(indices_to_download):
             success_msg = f"<b>{safe_get_messages(user_id).DOWN_UP_UPLOAD_COMPLETE_MSG}</b> - {video_count} {safe_get_messages(user_id).DOWN_UP_FILES_UPLOADED_MSG}.\n{safe_get_messages(user_id).CREDITS_MSG}"
-            safe_edit_message_text(user_id, proc_msg_id, success_msg)
+            safe_delete_messages(chat_id=user_id, message_ids=[proc_msg_id], revoke=True)  # file itself is the success signal
             send_to_logger(message, success_msg)
             try:
                 from COMMANDS.subtitles_cmd import clear_subs_cache_for
@@ -3345,7 +3344,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 actual_video_count = len(split_msg_ids)
                 success_msg = f"<b>{safe_get_messages(user_id).DOWN_UP_UPLOAD_COMPLETE_MSG}</b> - {actual_video_count} {safe_get_messages(user_id).DOWN_UP_FILES_UPLOADED_MSG}.\n{safe_get_messages(user_id).CREDITS_MSG}"
                 logger.info(f"HARD FIX: sending final success message for split video: {success_msg}")
-                safe_edit_message_text(user_id, proc_msg_id, success_msg)
+                safe_delete_messages(chat_id=user_id, message_ids=[proc_msg_id], revoke=True)  # file itself is the success signal
                 send_to_logger(message, safe_get_messages(user_id).VIDEO_UPLOAD_COMPLETED_SPLITTING_LOG_MSG)
                 try:
                     from COMMANDS.subtitles_cmd import clear_subs_cache_for

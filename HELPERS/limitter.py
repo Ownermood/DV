@@ -74,6 +74,9 @@ def is_user_in_channel(app, message):
             return True
     except Exception:
         pass
+    # Force-join is optional: no channel configured -> everyone allowed
+    if not getattr(Config, 'SUBSCRIBE_CHANNEL', 0):
+        return True
     try:
         logger.info(LoggerMsg.LIMITTER_CHANNEL_CHECK_MEMBERSHIP_LOG_MSG.format(user_id=message.chat.id, channel=Config.SUBSCRIBE_CHANNEL))
         cht_member = app.get_chat_member(

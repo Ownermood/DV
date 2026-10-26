@@ -1046,6 +1046,11 @@ def url_distractor(app, message):
     # Use updated message.text if it was changed
     final_text = message.text if hasattr(message, 'text') and message.text else text
     if ("https://" in final_text) or ("http://" in final_text):
+        # Only the platforms listed in COMMANDS/simple_ui.PLATFORMS are served (private and groups).
+        from COMMANDS.simple_ui import detect_platform, unsupported_text
+        if detect_platform(final_text) is None:
+            safe_send_message(user_id, unsupported_text(user_id), parse_mode=enums.ParseMode.HTML, message=message)
+            return
         if not is_user_blocked(message):
             # Check rate limit before processing URL
             from HELPERS.rate_limiter import check_rate_limit

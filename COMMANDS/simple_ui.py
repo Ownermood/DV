@@ -1,6 +1,6 @@
 """Front door of the bot: welcome screen, link auto-detect, clean command set.
 
-Supported: YouTube, Instagram, TikTok, Snapchat, Pinterest, TeraBox.
+Supported: YouTube, TikTok, Snapchat, Pinterest, TeraBox (nothing else).
 Registered at handler group -1 so it runs before every legacy handler.
 """
 from __future__ import annotations
@@ -28,7 +28,6 @@ app = get_app()
 # key -> (label, emoji, domain suffixes)
 PLATFORMS = {
     "youtube":   ("YouTube",   "▶️", ("youtube.com", "youtu.be", "youtube-nocookie.com")),
-    "instagram": ("Instagram", "📸", ("instagram.com", "instagr.am", "ig.me")),
     "tiktok":    ("TikTok",    "🎵", ("tiktok.com", "tiktokv.com")),
     "snapchat":  ("Snapchat",  "👻", ("snapchat.com", "snap.com")),
     "pinterest": ("Pinterest", "📌", ("pinterest.com", "pin.it", "pinterest.co.uk", "pinterest.fr", "pinterest.de", "pinterest.ca", "pinterest.com.au", "pinterest.ph", "pinterest.es", "pinterest.it")),
@@ -74,6 +73,10 @@ def welcome_text(first_name: str = "", user_id=None) -> str:
 
 def _platform_lines() -> str:
     return "\n".join(f"{e} {l}" for l, e, _ in PLATFORMS.values())
+
+
+def unsupported_text(user_id=None) -> str:
+    return t(user_id, "unsupported") + "\n\n<blockquote>" + _platform_lines() + "</blockquote>"
 
 
 def help_text(user_id=None) -> str:
@@ -390,10 +393,7 @@ def front_door(client, message):
 
     found = detect_platform(text)
     if found is None:
-        if admin:
-            return  # admins may still use any yt-dlp site through the legacy flow
-        client.send_message(chat_id, t(chat_id, "unsupported") + "\n\n<blockquote>" + _platform_lines() +
-                            "</blockquote>", parse_mode=enums.ParseMode.HTML)
+        client.send_message(chat_id, unsupported_text(chat_id), parse_mode=enums.ParseMode.HTML)
         message.stop_propagation()
     key, label, _, _ = found
     if key == "terabox":

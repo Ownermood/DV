@@ -1950,7 +1950,10 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
             success_msg = f"{safe_get_messages(user_id).AUDIO_PARTIALLY_COMPLETED_MSG.format(successful_uploads=successful_uploads, total_files=len(indices_to_download))}\n{safe_get_messages(user_id).CREDITS_MSG}"
             
         try:
-            safe_edit_message_text(user_id, proc_msg_id, success_msg)
+            if successful_uploads == len(indices_to_download):
+                safe_delete_messages(chat_id=user_id, message_ids=[proc_msg_id], revoke=True)  # audio itself is the success signal
+            else:
+                safe_edit_message_text(user_id, proc_msg_id, success_msg)
         except Exception as e:
             logger.error(f"Error updating final status: {e}")
 

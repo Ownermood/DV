@@ -11,19 +11,6 @@ except Exception as e:
     print(f"⚠️  Global messages patch failed: {e}")
     # Minimal protection is already built into safe_get_messages
 
-# NONE PATCH DISABLED - THE BUG IS ALREADY FIXED IN CODE
-# try:
-#     from PATCH.FIX_NONE_COMPARISONS_PATCH import apply_patch
-#     apply_patch()
-# except Exception as e:
-#     print(f"⚠️  None comparisons patch failed: {e}")
-
-# DEBUG PATCHES DISABLED - THE NONE BUG IS FIXED
-# try:
-#     from PATCH.DEBUG_NONE_COMPARISON import apply_debug_none_comparison
-#     apply_debug_none_comparison()
-# except Exception as e:
-#     print(f"⚠️  Debug None comparison failed: {e}")
 import glob
 try:
     from sdnotify import SystemdNotifier  # optional, used for watchdog

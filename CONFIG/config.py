@@ -47,9 +47,7 @@ for _name in ("LOGS_ID", "LOGS_VIDEO_ID", "LOGS_NSFW_ID", "LOGS_IMG_ID", "LOGS_P
     setattr(Config, _name, _int(_name, getattr(Config, _name, 0)))
 Config.SUBSCRIBE_CHANNEL_URL = os.getenv("SUBSCRIBE_CHANNEL_URL", Config.SUBSCRIBE_CHANNEL_URL).strip()
 Config.BOT_NAME = os.getenv("BOT_NAME", Config.BOT_NAME).strip()
-Config.BOT_NAME_FOR_USERS = os.getenv("BOT_NAME_FOR_USERS", Config.BOT_NAME_FOR_USERS).strip()
-Config.DASHBOARD_USERNAME = os.getenv("DASHBOARD_USERNAME", Config.DASHBOARD_USERNAME).strip()
-Config.DASHBOARD_PASSWORD = os.getenv("DASHBOARD_PASSWORD", Config.DASHBOARD_PASSWORD)
+Config.BOT_NAME_FOR_USERS = os.getenv("BOT_NAME_FOR_USERS", Config.BOT_NAME).strip()
 
 # Safe defaults for optional services
 Config.USE_FIREBASE = os.getenv("USE_FIREBASE", "false").lower() in {"1", "true", "yes", "on"}
@@ -68,9 +66,5 @@ if os.getenv("REQUIRE_VALID_CONFIG", "true").lower() in {"1", "true", "yes", "on
         missing.append("API_HASH")
     if not Config.ADMIN or all(admin <= 0 for admin in Config.ADMIN):
         missing.append("ADMIN_IDS")
-    if not Config.DASHBOARD_PASSWORD or len(Config.DASHBOARD_PASSWORD) < 16 or "replace-with-" in Config.DASHBOARD_PASSWORD:
-        missing.append("DASHBOARD_PASSWORD (minimum 16 characters)")
-    if Config.SUBSCRIBE_CHANNEL == 0 or not Config.SUBSCRIBE_CHANNEL_URL:
-        missing.append("SUBSCRIBE_CHANNEL and SUBSCRIBE_CHANNEL_URL (force-join channel)")
     if missing:
         raise RuntimeError("Missing/invalid required configuration: " + ", ".join(missing) + ". Copy .env.example to .env and fill it in.")

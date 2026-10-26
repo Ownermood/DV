@@ -24,7 +24,7 @@ TERABOX_HOSTS = {
     "tibibox.com", "www.tibibox.com",
 }
 API_ENDPOINT = os.getenv("TERABOX_API_ENDPOINT", "https://ytshorts.savetube.me/api/v1/terabox-downloader")
-ENABLED = os.getenv("TERABOX_ENABLED", "false").lower() in {"1", "true", "yes", "on"}
+ENABLED = os.getenv("TERABOX_ENABLED", "true").lower() in {"1", "true", "yes", "on"}
 MAX_BYTES = int(float(os.getenv("TERABOX_MAX_BYTES", str(1900 * 1024 * 1024))))
 CONNECT_TIMEOUT = float(os.getenv("TERABOX_CONNECT_TIMEOUT", "10"))
 READ_TIMEOUT = float(os.getenv("TERABOX_READ_TIMEOUT", "30"))
