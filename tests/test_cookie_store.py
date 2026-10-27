@@ -27,7 +27,7 @@ def test_add_validate_and_limit(store):
     assert "already added as Cookie-1" in cs.add("instagram", _cookie(value="a"))[1]
     assert "No login cookie" in cs.add("instagram", _cookie(name="csrftoken"))[1]
     assert "expired" in cs.add("instagram", _cookie(value="old", exp=int(time.time()) - 10))[1]
-    assert "Netscape" in cs.add("instagram", "hello")[1]
+    assert "has no Instagram cookies" in cs.add("instagram", "hello")[1]
     for i in range(9):
         assert cs.add("instagram", _cookie(value=f"x{i}"))[0]
     assert "Max 10" in cs.add("instagram", _cookie(value="eleven"))[1]
