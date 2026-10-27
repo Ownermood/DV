@@ -287,7 +287,31 @@ def test_slot(service, slot_id):
         return False, "expired"
     if service == "youtube":
         return _youtube_live(p)
+    if service in _LOGIN_PAGES:
+        return _web_live(service, cookies)
     return True, "login cookie present"
+
+
+# A logged-in page: a dead cookie gets redirected away
+# (Facebook answers 400 to server requests either way, so it keeps the login-cookie check only)
+_LOGIN_PAGES = {
+    "instagram": "https://www.instagram.com/accounts/edit/",
+}
+
+
+def _web_live(service, cookies):
+    import requests
+    try:
+        r = requests.get(_LOGIN_PAGES[service], cookies={k: v[0] for k, v in cookies.items()}, allow_redirects=False,
+                         timeout=20, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                                                            "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36"})
+    except Exception as exc:
+        return True, f"login cookie present (live check failed: {str(exc)[:40]})"
+    if r.status_code in (301, 302, 303, 307):  # logged out -> sent to the home / login page
+        return False, f"{SERVICES[service][0]} says logged out (export a fresh cookie)"
+    if r.status_code == 200:
+        return True, "working"
+    return True, f"login cookie present (live check: HTTP {r.status_code})"
 
 
 def _youtube_live(path):

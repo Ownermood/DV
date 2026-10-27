@@ -548,6 +548,10 @@ def _ckv_view(svc, sid):
     return text, _back_kb(kb, back=f"ap|cks|{svc}")
 
 
+_CK_SITE = {"youtube": "youtube.com", "instagram": "instagram.com", "facebook": "facebook.com",
+            "terabox": "1024terabox.com (or terabox.com)"}
+
+
 def _cookie_input(client, message, uid, action):
     """Files sent after Add Cookies (up to 10 at once, album or one by one) or Replace."""
     kind, svc, *rest = action.split(":")
@@ -592,8 +596,8 @@ def _cookie_input(client, message, uid, action):
         note = (f"\n\n{em('plus')} <b>Add Cookie-{count + 1}?</b> Just send the next .txt file now."
                 if ok else f"\n\n{em('plus')} Send another .txt file, or tap Done.")
         kb = InlineKeyboardMarkup([[btn("ok", "Done", cb=f"ap|cks|{svc}", style=GREEN), list_btn]])
-    sent = send(client, uid, lambda: (line + (f"\n{em('search')} Testing…" if ok and svc == "youtube" else "") + note, kb))
-    if ok and svc == "youtube" and sent:  # live test right away, so a dead cookie is caught now
+    sent = send(client, uid, lambda: (line + (f"\n{em('search')} Testing…" if ok else "") + note, kb))
+    if ok and sent:  # test right away, so a dead cookie is caught now
         sid = cs.slots(svc)[n - 1]["id"]
 
         def run():
@@ -1007,7 +1011,7 @@ def admin_callbacks(client, cq):
                 label = cs.SERVICES[arg][0]
                 nxt = len(cs.slots(arg)) + 1
                 edit(client, msg, lambda: (card("plus", f"ADD {label.upper()} COOKIE-{nxt}", [
-                    f"1. New Incognito window → log in to {label} (spare account)",
+                    f"1. New Incognito window → log in to {_CK_SITE.get(arg, label)} (spare account)",
                     "2. Get cookies.txt LOCALLY → <b>Export</b>",
                     "3. Close the Incognito window (don't log out)",
                     f"4. Send the <b>.txt file here</b>"],
