@@ -86,13 +86,47 @@ def get_log_channel(kind: str = "general", nsfw: bool = False, paid: bool = Fals
 
 # Send Message to Logger
 
+
+# --- Log channel cards ------------------------------------------------------------
+def _plain_log_text(msg) -> str:
+    """Old log texts carry their own HTML; keep it short and safe for one card."""
+    text = re.sub(r"</?(?:blockquote|pre|code|tg-emoji|emoji)[^>]*>", "", str(msg or "")).strip()
+    return text[:700] + ("…" if len(text) > 700 else "")
+
+
+def log_card(message, icon: str, title: str, msg, url: str = None) -> str:
+    """Card for the log channels: user (clickable name, @username, ID), platform + link, event, time."""
+    from datetime import datetime, timedelta, timezone
+    from html import escape
+    chat = getattr(message, "chat", None)
+    user = getattr(message, "from_user", None) or chat
+    uid = getattr(user, "id", None) or getattr(chat, "id", 0)
+    name = " ".join(x for x in (getattr(user, "first_name", None), getattr(user, "last_name", None)) if x) or "User"
+    uname = getattr(user, "username", None)
+    who = (f'<a href="tg://user?id={uid}">{escape(name[:60])}</a>'
+           + (f" · @{escape(uname)}" if uname else "") + f" · <code>{uid}</code>")
+    link = (url or _extract_url_from_message(message) or "").strip()
+    site_line = ""
+    if link:
+        try:
+            from COMMANDS.simple_ui import detect_platform, PLATFORMS
+            found = detect_platform(link)
+            site = f"{PLATFORMS[found[0]][1]} {PLATFORMS[found[0]][0]}" if found else "🌐 Link"
+        except Exception:
+            site = "🌐 Link"
+        short = escape(link if len(link) <= 60 else link[:57] + "…")
+        site_line = f'\n{site} · <a href="{escape(link, quote=True)}">{short}</a>'
+    when = datetime.now(timezone(timedelta(hours=5, minutes=30))).strftime("%d %b %Y · %I:%M %p")
+    body = _plain_log_text(msg)
+    return (f"{icon} <b>{title}</b>\n<blockquote>👤 {who}{site_line}</blockquote>"
+            + (f"\n{body}" if body else "") + f"\n🕐 <i>{when} IST</i>")
+
+
 def send_to_logger(message, msg):
     capture_message_context(message)
-    user_id = message.chat.id
-    msg_with_id = f"{message.chat.first_name} - {user_id}\n \n{msg}"
-    # Print (user_id, "-", msg)
-    safe_send_message(get_log_channel("general"), msg_with_id,
-                     parse_mode=enums.ParseMode.HTML)
+    if get_log_channel("general"):  # 0 = no log channel set
+        safe_send_message(get_log_channel("general"), log_card(message, "📥", "Download log", msg),
+                          parse_mode=enums.ParseMode.HTML, disable_web_page_preview=True)
 
 # Send Message to User Only
 
@@ -154,9 +188,9 @@ def send_to_user(message, msg):
 def send_to_all(message, msg, parse_mode=None):
     capture_message_context(message)
     user_id = message.chat.id
-    msg_with_id = f"{message.chat.first_name} - {user_id}\n \n{msg}"
     if get_log_channel("general"):  # 0 = no log channel set
-        safe_send_message(get_log_channel("general"), msg_with_id, parse_mode=enums.ParseMode.HTML)
+        safe_send_message(get_log_channel("general"), log_card(message, "📣", "Bot log", msg),
+                          parse_mode=enums.ParseMode.HTML, disable_web_page_preview=True)
     safe_send_message(user_id, msg, parse_mode=parse_mode or enums.ParseMode.HTML, message=message)
 
 # --- Helpers for error logging -------------------------------------------------
@@ -181,14 +215,10 @@ def send_error_to_user(message, msg, url: str = None):
          extracted from the user's message text/caption when possible.
     """
     user_id = message.chat.id
-    url_str = (url or _extract_url_from_message(message) or "").strip()
-    if url_str:
-        msg_with_id = f"{message.chat.first_name} - {user_id}\n \nURL: {url_str}\n\n{msg}"
-    else:
-        msg_with_id = f"{message.chat.first_name} - {user_id}\n \n{msg}"
     # Send to LOG_EXCEPTION channel for error tracking
     if getattr(Config, "LOG_EXCEPTION", 0):  # 0 = no log channel set
-        safe_send_message(Config.LOG_EXCEPTION, msg_with_id, parse_mode=enums.ParseMode.HTML)
+        safe_send_message(Config.LOG_EXCEPTION, log_card(message, "⚠️", "Error", msg, url),
+                          parse_mode=enums.ParseMode.HTML, disable_web_page_preview=True)
     # Send to user: short message; full details stay in LOG_EXCEPTION / logs
     friendly = friendly_error(msg)
     if friendly != msg:
@@ -208,12 +238,7 @@ def log_error_to_channel(message, msg, url: str = None):
     url: optional explicit URL that caused the error; if not provided, will be
          extracted from the user's message text/caption when possible.
     """
-    user_id = message.chat.id
-    url_str = (url or _extract_url_from_message(message) or "").strip()
-    if url_str:
-        msg_with_id = f"{message.chat.first_name} - {user_id}\n \nURL: {url_str}\n\n{msg}"
-    else:
-        msg_with_id = f"{message.chat.first_name} - {user_id}\n \n{msg}"
     # Send to LOG_EXCEPTION channel for error tracking
     if getattr(Config, "LOG_EXCEPTION", 0):  # 0 = no log channel set
-        safe_send_message(Config.LOG_EXCEPTION, msg_with_id, parse_mode=enums.ParseMode.HTML)
+        safe_send_message(Config.LOG_EXCEPTION, log_card(message, "⚠️", "Error", msg, url),
+                          parse_mode=enums.ParseMode.HTML, disable_web_page_preview=True)

@@ -24,3 +24,13 @@ def test_placeholder_proxy_is_no_proxy(monkeypatch):
     assert proxy_cmd.get_proxy_config() is None and proxy_helper.get_all_proxy_configs() == []
     monkeypatch.setattr(proxy_cmd.Config, "PROXY_IP", "1.2.3.4", raising=False)
     assert proxy_cmd.get_proxy_config()["ip"] == "1.2.3.4"
+
+
+def test_log_card():
+    import types
+    from HELPERS.logger import log_card
+    user = types.SimpleNamespace(id=42, first_name="Owner", last_name="<Mood>", username="ownermood")
+    msg = types.SimpleNamespace(chat=user, from_user=user, text="https://youtu.be/dQw4w9WgXcQ")
+    card = log_card(msg, "📥", "Download log", "<b>Video sent</b> 720p")
+    assert '<a href="tg://user?id=42">Owner &lt;Mood&gt;</a>' in card and "@ownermood" in card and "<code>42</code>" in card
+    assert "YouTube" in card and 'href="https://youtu.be/dQw4w9WgXcQ"' in card and "Video sent" in card and "IST" in card
