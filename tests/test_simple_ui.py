@@ -17,6 +17,9 @@ from COMMANDS import simple_ui as ui  # noqa: E402
     ("watch this https://youtu.be/dQw4w9WgXcQ?t=5 pls", "youtube"),
     ("https://m.youtube.com/shorts/abc", "youtube"),
     ("https://vm.tiktok.com/ZMabc/", "tiktok"),
+    ("https://www.instagram.com/reel/C0abc/", "instagram"),
+    ("https://www.facebook.com/watch/?v=1", "facebook"),
+    ("https://fb.watch/abc/", "facebook"),
     ("https://www.tiktok.com/@u/video/7123", "tiktok"),
     ("https://www.snapchat.com/spotlight/W7_abc", "snapchat"),
     ("https://www.snapchat.com/add/user", "snapchat"),
@@ -31,9 +34,9 @@ def test_supported_detected(text, key):
 
 
 @pytest.mark.parametrize("text", [
-    "https://twitter.com/u/status/1", "https://x.com/u/status/1", "https://www.facebook.com/watch/?v=1",
+    "https://twitter.com/u/status/1", "https://x.com/u/status/1", "https://notfacebook.com/watch/?v=1",
     "https://evil-youtube.com/watch?v=1", "https://youtube.com.evil.io/x", "https://notinstagram.com/p/1",
-    "https://www.instagram.com/reel/C0abc/",
+
     "hello there", "", "https://example.com/?u=https://youtube.com/watch?v=1",
 ])
 def test_unsupported_rejected(text):

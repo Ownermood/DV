@@ -253,9 +253,10 @@ def get_video_formats(url, user_id=None, playlist_start_index=1, cookies_already
                     cookie_file = user_cookie_path
                     logger.info(f"Using user cookies for non-YouTube format detection: {url}")
                 else:
-                    # No user cookies, will try fallback during format detection
-                    cookie_file = None
-                    logger.info(f"No user cookies found for non-YouTube format detection: {url}, will try fallback")
+                    # No user cookies: the admin's shared cookie for this site, else fallback
+                    from COMMANDS.cookies_cmd import shared_cookie_path
+                    cookie_file = shared_cookie_path(url)
+                    logger.info(f"No user cookies for non-YouTube format detection: {url}, shared cookie: {bool(cookie_file)}")
         
         # We check whether to use —no-Cookies for this domain
         if is_no_cookie_domain(url):

@@ -678,9 +678,10 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                     cookie_file = user_cookie_path
                     logger.info(f"Using user cookies for non-YouTube audio URL: {url}")
                 else:
-                    # No user cookies, will try fallback during download
-                    cookie_file = None
-                    logger.info(f"No user cookies found for non-YouTube audio URL: {url}, will try fallback during download")
+                    # No user cookies: the admin's shared cookie for this site, else fallback during download
+                    from COMMANDS.cookies_cmd import shared_cookie_path
+                    cookie_file = shared_cookie_path(url)
+                    logger.info(f"No user cookies for non-YouTube audio URL: {url}, shared cookie: {bool(cookie_file)}")
         last_update = 0
         last_update = 0
         progress_start_time = time.time()

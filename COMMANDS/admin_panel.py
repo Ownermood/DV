@@ -274,9 +274,12 @@ SECTIONS = {
     "users": ("folder", "Users", "Block or unblock a user, export the user list, clear a cached URL.", [
         ("ban", "Block", "ap|ask|block", RED), ("ok", "Unblock", "ap|ask|unblock", GREEN),
         ("file", "Users List", "ap|users", BLUE), ("refresh", "Uncache URL", "ap|ask|uncache", BLUE)]),
-    "settings": ("stars", "Settings", "Start photo, premium emoji and the shared cookies for YouTube / TikTok.", [
+    "settings": ("stars", "Settings", "Start photo, premium emoji and the shared cookies (used for every user "
+                 "without their own cookie).", [
         ("image", "Start Image", "ap|ask|startimg", BLUE), ("stars", "Premium Emoji", "ap|prem", GREEN),
-        ("play", "YouTube Cookie", "ap|ask|ckyt", BLUE), ("music", "TikTok Cookie", "ap|ask|cktt", BLUE)]),
+        ("play", "YouTube Cookie", "ap|ask|ckyt", BLUE), ("music", "TikTok Cookie", "ap|ask|cktt", BLUE),
+        ("image", "Instagram Cookie", "ap|ask|ckig", BLUE), ("chat", "Facebook Cookie", "ap|ask|ckfb", BLUE),
+        ("box", "TeraBox Cookie", "ap|ask|cktb", BLUE)]),
 }
 
 
@@ -325,6 +328,11 @@ _ASK = {
     "ckyt": ("Send the shared <b>YouTube cookies.txt</b> (Netscape format). Used for every user without their own "
              "cookie: fixes \"Sign in to confirm you're not a bot\". Send <code>off</code> to remove."),
     "cktt": "Send the shared <b>TikTok cookies.txt</b>. Send <code>off</code> to remove.",
+    "ckig": ("Send the shared <b>Instagram cookies.txt</b> from a spare account. Instagram blocks most servers "
+             "without it. Send <code>off</code> to remove."),
+    "ckfb": "Send the shared <b>Facebook cookies.txt</b> (needed for private / login-only videos). Send <code>off</code> to remove.",
+    "cktb": ("Send the <b>TeraBox cookies.txt</b> of a TeraBox account (must contain <code>ndus</code>). "
+             "The bot then gets TeraBox files itself. Send <code>off</code> to remove."),
     "startimg": "Send a <b>photo</b> for the /start screen, or <code>off</code> to remove it.",
     "addadmin": ("Send the new admin as <code>Name user_id</code>\n"
                  "Example: <code>Wifu 8494053059</code>\n\nPremium emojis in the name are kept."),
@@ -332,7 +340,8 @@ _ASK = {
            "sticker, with premium emojis and buttons. It is copied exactly, without the \"Forwarded from\" tag.</blockquote>"),
 }
 _ASK_BACK = {"addadmin": "ap|admins", "block": "ap|sec|users", "unblock": "ap|sec|users", "uncache": "ap|sec|users",
-             "ckyt": "ap|sec|settings", "cktt": "ap|sec|settings", "startimg": "ap|sec|settings"}
+             "ckyt": "ap|sec|settings", "cktt": "ap|sec|settings", "ckig": "ap|sec|settings",
+             "ckfb": "ap|sec|settings", "cktb": "ap|sec|settings", "startimg": "ap|sec|settings"}
 
 
 def open_panel(client, chat_id, msg=None):
@@ -459,7 +468,7 @@ def handle_admin_input(client, message) -> bool:
                 send(client, uid, lambda: back(f"{em('ok')} Start image removed."))
             else:
                 send(client, uid, lambda: back(f"{em('warn')} Send a photo or <code>off</code>."))
-        elif action in ("ckyt", "cktt"):
+        elif action in _COOKIE_FILES:
             send(client, uid, lambda: back(_save_shared_cookie(client, message, text, action)))
     except Exception as exc:
         logger.error(f"[admin] input {action} failed: {exc}")
@@ -467,7 +476,9 @@ def handle_admin_input(client, message) -> bool:
     return True
 
 
-_COOKIE_FILES = {"ckyt": os.path.join("cookies", "youtube.txt"), "cktt": os.path.join("cookies", "tiktok.txt")}
+_COOKIE_FILES = {"ckyt": os.path.join("cookies", "youtube.txt"), "cktt": os.path.join("cookies", "tiktok.txt"),
+                 "ckig": os.path.join("cookies", "instagram.txt"), "ckfb": os.path.join("cookies", "facebook.txt"),
+                 "cktb": os.path.join("cookies", "terabox.txt")}
 
 
 def _save_shared_cookie(client, message, text, action) -> str:
@@ -488,6 +499,8 @@ def _save_shared_cookie(client, message, text, action) -> str:
         rows = [l for l in content.splitlines() if l and not l.startswith("#") and len(l.split("\t")) == 7]
         if not rows:
             return f"{em('warn')} Not a Netscape cookies.txt file."
+        if action == "cktb" and not any(r.split("\t")[5] == "ndus" for r in rows):
+            return f"{em('warn')} No <code>ndus</code> cookie: log in to TeraBox in the browser, then export again."
         os.replace(tmp, dest)  # atomic swap; old file stays if anything above failed
         return f"{em('ok')} Shared cookie saved ({len(rows)} cookies)."
     finally:

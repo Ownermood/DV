@@ -95,9 +95,9 @@ class Config(object):
     YOUTUBE_COOKIE_TEST_URL = "https://www.youtube.com/watch?v=_GuOjXYl5ew" #youtube official video
     #YOUTUBE_COOKIE_TEST_URL = "https://youtu.be/XqZsoesa55w"  # Baby Shark Dance
     #YOUTUBE_COOKIE_TEST_URL = "https://www.youtube.com/watch?v=dQw4w9WgXcQ"  # Rick Roll - short video
-    INSTAGRAM_COOKIE_URL = ""
+    INSTAGRAM_COOKIE_URL = "cookies/instagram.txt"
     TIKTOK_COOKIE_URL = "cookies/tiktok.txt"
-    FACEBOOK_COOKIE_URL = ""
+    FACEBOOK_COOKIE_URL = "cookies/facebook.txt"
     TWITTER_COOKIE_URL = ""
     VK_COOKIE_URL = ""
     # Do not chanege this

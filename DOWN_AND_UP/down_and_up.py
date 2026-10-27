@@ -1191,9 +1191,10 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                             common_opts['cookiefile'] = user_cookie_path
                             logger.info(f"Using user cookies for non-YouTube URL: {url}")
                         else:
-                            # No user cookies, will try fallback during download
-                            common_opts['cookiefile'] = None
-                            logger.info(f"No user cookies found for non-YouTube URL: {url}, will try fallback during download")
+                            # No user cookies: the admin's shared cookie for this site, else fallback during download
+                            from COMMANDS.cookies_cmd import shared_cookie_path
+                            common_opts['cookiefile'] = shared_cookie_path(url)
+                            logger.info(f"No user cookies for non-YouTube URL: {url}, shared cookie: {bool(common_opts['cookiefile'])}")
             
             # If this is not a playlist with a range, add --no-playlist to the URL with the list parameter
             if not is_playlist and 'list=' in url:

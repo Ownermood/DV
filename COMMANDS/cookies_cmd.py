@@ -2514,6 +2514,15 @@ def try_non_youtube_cookie_fallback(user_id: int, url: str, download_func, *args
         finish_cookie_task(task_id, False)
         return None
 
+def shared_cookie_path(url: str) -> str | None:
+    """Admin's shared cookie file for this site (cookies/<service>.txt), if it exists."""
+    service = get_service_name_from_url(url)
+    path = get_service_cookie_url(service) if service else None
+    if path and not path.lower().startswith(("http://", "https://")) and os.path.exists(path):
+        return path
+    return None
+
+
 def get_service_name_from_url(url: str) -> str | None:
     """
     Determine service name by URL.
@@ -2534,7 +2543,7 @@ def get_service_name_from_url(url: str) -> str | None:
         return 'twitter'
     elif 'vk.com' in url_lower:
         return 'vk'
-    elif 'facebook.com' in url_lower:
+    elif 'facebook.com' in url_lower or 'fb.watch' in url_lower or 'fb.com/' in url_lower:
         return 'facebook'
     
     return None
@@ -2598,3 +2607,32 @@ def get_checked_sources_status(user_id: int = None) -> dict:
                 'checked_sources': [],
                 'last_reset': 0
             }
+
+
+# ---------------- no nested retry rounds ----------------
+# The download/extract callbacks passed to these retry helpers call the same helper again from their own
+# error handler, which recursed until the stack ran out (minutes of retries, no answer to the user).
+# One retry round per thread: a nested call returns None so the outer round moves on to its next option.
+import threading as _threading
+from functools import wraps as _wraps
+
+_RETRY_ACTIVE = _threading.local()
+
+
+def _one_round(fn):
+    @_wraps(fn)
+    def wrapper(*args, **kwargs):
+        if getattr(_RETRY_ACTIVE, fn.__name__, False):
+            logger.info(f"[retry] nested {fn.__name__} skipped")
+            return None
+        setattr(_RETRY_ACTIVE, fn.__name__, True)
+        try:
+            return fn(*args, **kwargs)
+        finally:
+            setattr(_RETRY_ACTIVE, fn.__name__, False)
+    return wrapper
+
+
+try_non_youtube_cookie_fallback = _one_round(try_non_youtube_cookie_fallback)
+retry_download_with_different_cookies = _one_round(retry_download_with_different_cookies)
+retry_download_with_proxy = _one_round(retry_download_with_proxy)

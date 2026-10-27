@@ -2,7 +2,7 @@
 
 All bot text is **bold** (quotes too). The bot detects the platform from the link by itself.
 
-Telegram bot for **YouTube, TikTok, Snapchat, Pinterest and TeraBox**. Other sites are rejected.
+Telegram bot for **YouTube, Instagram, Facebook, TikTok, Snapchat, Pinterest and TeraBox**. Other sites are rejected.
 
 ## Setup
 1. `cp .env.example .env` and fill the 4 required values (`BOT_TOKEN`, `API_ID`, `API_HASH`, `ADMIN_IDS`).
@@ -13,6 +13,12 @@ Telegram bot for **YouTube, TikTok, Snapchat, Pinterest and TeraBox**. Other sit
 ## YouTube "Sign in to confirm you're not a bot"
 YouTube often blocks server IPs. Fix: admin panel → **YouTube Cookie** → send a `cookies.txt`
 exported from a spare YouTube account. Every user without their own cookie then uses it.
+
+## Instagram / Facebook / TeraBox
+- Instagram blocks most server IPs without a login: admin panel → Settings → **Instagram Cookie** (spare account).
+- Facebook public videos work without anything; private ones need **Facebook Cookie**.
+- TeraBox: admin panel → Settings → **TeraBox Cookie** (a TeraBox account's cookies.txt with `ndus`). The bot then reads
+  the share itself; without it, it tries the external extraction service. TeraBox files are sent up to 1.9 GB.
 
 ## Private links
 Private / age-restricted / login-only posts: the user sends `/cookie` once and uploads a `cookies.txt`

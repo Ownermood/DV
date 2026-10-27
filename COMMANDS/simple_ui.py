@@ -1,6 +1,6 @@
 """Front door of the bot: welcome screen, link auto-detect, clean command set.
 
-Supported: YouTube, TikTok, Snapchat, Pinterest, TeraBox (nothing else).
+Supported: YouTube, Instagram, Facebook, TikTok, Snapchat, Pinterest, TeraBox (nothing else).
 Registered at handler group -1 so it runs before every legacy handler.
 """
 from __future__ import annotations
@@ -29,6 +29,8 @@ app = get_app()
 # key -> (label, emoji, domain suffixes)
 PLATFORMS = {
     "youtube":   ("YouTube",   "▶️", ("youtube.com", "youtu.be", "youtube-nocookie.com")),
+    "instagram": ("Instagram", "📸", ("instagram.com", "instagr.am")),
+    "facebook":  ("Facebook",  "📘", ("facebook.com", "fb.watch", "fb.com")),
     "tiktok":    ("TikTok",    "🎵", ("tiktok.com", "tiktokv.com")),
     "snapchat":  ("Snapchat",  "👻", ("snapchat.com", "snap.com")),
     "pinterest": ("Pinterest", "📌", ("pinterest.com", "pin.it", "pinterest.co.uk", "pinterest.fr", "pinterest.de", "pinterest.ca", "pinterest.com.au", "pinterest.ph", "pinterest.es", "pinterest.it")),
@@ -71,8 +73,20 @@ def welcome_text(first_name: str = "", user_id=None) -> str:
     return t(user_id, "welcome", name=name, max_gb=_max_gb(), platforms=_platform_lines())
 
 
+# Premium logos (custom emoji IDs); Pinterest/Snapchat/TeraBox have none yet
+PLATFORM_EMOJI = {"youtube": "5934029049260150525", "instagram": "5935998223045889696",
+                  "facebook": "5933728045067145810", "tiktok": "5936080475964576264"}
+
+
+def platform_icon(key) -> str:
+    from COMMANDS.ui_kit import premium_on
+    label, char, _ = PLATFORMS[key]
+    cid = PLATFORM_EMOJI.get(key)
+    return f'<emoji id="{cid}">{char}</emoji>' if cid and premium_on() else char
+
+
 def _platform_lines() -> str:
-    return "\n".join(f"{e} {l}" for l, e, _ in PLATFORMS.values())
+    return "\n".join(f"{platform_icon(k)} {v[0]}" for k, v in PLATFORMS.items())
 
 
 def unsupported_text(user_id=None) -> str:
@@ -276,7 +290,7 @@ def _show_link_menu(client, message, key, label) -> None:
     uid = message.chat.id
     token = _remember(message, key)
     if key != "youtube":
-        send(client, uid, lambda: (t(uid, "pick", platform=label), _choice_rows(uid, token)),
+        send(client, uid, lambda: (t(uid, "pick", platform=f"{platform_icon(key)} {label}"), _choice_rows(uid, token)),
              reply_to_message_id=message.id)
         return
     menu = send(client, uid, lambda: (t(uid, "loading"), None), reply_to_message_id=message.id)
