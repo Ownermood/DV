@@ -1,4 +1,4 @@
-import shutil
+import shutil as _shutil_mod  # module-level alias: functions below import shutil locally
 
 # ########################################
 # Down_and_audio function
@@ -848,7 +848,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                # aria2c: 16 connections per file for plain https downloads (YouTube, Facebook ...)
                **({'external_downloader': {'http': 'aria2c'},
                   'external_downloader_args': {'aria2c': ['-x', '16', '-s', '16', '-k', '1M', '--file-allocation=none']}}
-                  if shutil.which('aria2c') else {}),
+                  if _shutil_mod.which('aria2c') else {}),
                'retries': 10,
                'fragment_retries': 10,
                'postprocessors': [{
