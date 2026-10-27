@@ -27,6 +27,8 @@ WORKDIR /app
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
+# Faster uploads: 8 parallel part uploads per connection (pyrogram's default is 4) x 3 connections
+RUN python -c "import pyrogram, pathlib; p = pathlib.Path(pyrogram.__file__).parent / 'methods/advanced/save_file.py'; s = p.read_text(); n = s.replace('workers_count = 4 if is_big else 1', 'workers_count = 8 if is_big else 1'); p.write_text(n); print('pyrogram upload workers patched' if n != s else 'pyrogram upload patch NOT applied')"
 
 COPY . .
 

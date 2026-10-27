@@ -542,17 +542,18 @@ def _send_cached(app, message, url, entry) -> bool:
         return False
 
 
-def _send_file(app, message, filepath: Path, title: str, url: str, thumb_path):
-    """Send the file; videos over the Telegram limit go out in parts."""
+def _send_file(app, message, filepath: Path, title: str, url: str, thumb_path, on_progress=None):
+    """Send the file; videos over the Telegram limit go out in parts. on_progress(done, total) during upload."""
     chat, rid = message.chat.id, message.id
     size = filepath.stat().st_size
     is_video = filepath.suffix.lower() in VIDEO_EXT
+    kw = {"progress": on_progress} if on_progress else {}
     if size <= PART_BYTES:
         if is_video:
             return [app.send_video(chat, str(filepath), caption=_caption(title, url), thumb=thumb_path,
-                                   reply_to_message_id=rid, supports_streaming=True)]
+                                   reply_to_message_id=rid, supports_streaming=True, **kw)]
         return [app.send_document(chat, str(filepath), caption=_caption(title, url), thumb=thumb_path,
-                                  reply_to_message_id=rid)]
+                                  reply_to_message_id=rid, **kw)]
     if not is_video:
         raise RuntimeError(f"too large: {size / 1024 ** 3:.2f} GB file (only videos can be sent in parts)")
     from DOWN_AND_UP.ffmpeg import split_video_2
@@ -561,7 +562,7 @@ def _send_file(app, message, filepath: Path, title: str, url: str, thumb_path):
     if not paths:
         raise RuntimeError("could not split the video")
     return [app.send_video(chat, p, caption=_caption(title, url, f"Part {n}/{len(paths)}"), thumb=thumb_path,
-                           reply_to_message_id=rid, supports_streaming=True) for n, p in enumerate(paths, 1)]
+                           reply_to_message_id=rid, supports_streaming=True, **kw) for n, p in enumerate(paths, 1)]
 
 
 # ---------------- quality menu ----------------
@@ -800,7 +801,18 @@ def _run_job(app, message, url, meta, q, card) -> None:
             else:
                 _fast_download(direct_url, filepath, dl_cookies, size, limit, progress)
             _show(app, card, (base + "\n\n" if base else "") + progress_card("upload", 0))
-            _cache_put(key, _send_file(app, message, filepath, title, url, thumb_path) or [], title)
+            up = {"last": 0.0, "start": time.monotonic()}
+
+            def upload_progress(done, total):
+                now = time.monotonic()
+                if now - up["last"] < 4 and done < total:  # every 4 s: MB sent / total and speed
+                    return
+                up["last"] = now
+                speed = done / max(now - up["start"], 0.1) / 1024 ** 2
+                _show(app, card, (base + "\n\n" if base else "") + progress_card(
+                    "upload", done * 100 / total if total else 0,
+                    detail=f"{done / 1024 ** 2:.0f} / {total / 1024 ** 2:.0f} MB · {speed:.1f} MB/s"))
+            _cache_put(key, _send_file(app, message, filepath, title, url, thumb_path, upload_progress) or [], title)
         app.delete_messages(message.chat.id, card.id)  # the file itself is the success signal
     except Exception as exc:
         print(f"[terabox] {url} ({q}): {exc}")
