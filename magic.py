@@ -391,6 +391,11 @@ signal.signal(signal.SIGTERM, signal_handler)
 
 if __name__ == "__main__":
     app.start()
+    try:  # public menu = start/help only; admin menu only in admins' chats
+        from COMMANDS.simple_ui import _ensure_menu
+        _ensure_menu(app)
+    except Exception as e:
+        print(f"menu setup failed: {e}")
     start_channel_guard(app)
     idle()
     try:

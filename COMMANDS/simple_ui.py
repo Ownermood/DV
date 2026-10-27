@@ -164,6 +164,16 @@ def _ensure_menu(client) -> None:
     if _menu_set:
         return
     _menu_set = True
+    # Wider scopes beat the default one in Telegram's menu priority: clear any old lists there
+    # (BotFather / an older bot) so users only get the public menu; admins get theirs per chat.
+    from pyrogram.types import (BotCommandScopeAllPrivateChats, BotCommandScopeAllGroupChats,
+                                BotCommandScopeAllChatAdministrators)
+    for scope in (BotCommandScopeAllPrivateChats(), BotCommandScopeAllGroupChats(),
+                  BotCommandScopeAllChatAdministrators()):
+        try:
+            client.delete_bot_commands(scope=scope)
+        except Exception as exc:
+            logger.info(f"[ui] clearing {type(scope).__name__} menu: {exc}")
     try:
         client.set_bot_commands([BotCommand(c, d) for c, d in BOT_MENU])
     except Exception as exc:

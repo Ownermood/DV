@@ -181,3 +181,48 @@ def test_cookie_menu_buttons():
     labels = [b.text for r in kb.inline_keyboard for b in r]
     assert any("Upload" in l for l in labels) and any("Delete" in l for l in labels)
     assert not any("Browser" in l or "Vkontakte" in l for l in labels) and "not added" in text
+
+
+def test_menus_public_and_admin_only(monkeypatch):
+    from COMMANDS import admin_panel as ap
+    calls = []
+
+    class C:
+        def set_bot_commands(self, cmds, scope=None):
+            calls.append(("set", type(scope).__name__ if scope else "default", getattr(scope, "chat_id", None),
+                          [c.command for c in cmds]))
+        def delete_bot_commands(self, scope=None):
+            calls.append(("del", type(scope).__name__, getattr(scope, "chat_id", None)))
+    monkeypatch.setattr(ui, "_menu_set", False)
+    monkeypatch.setattr(ap.Config, "ADMIN", [42], raising=False)
+    ui._ensure_menu(C())
+    deleted = {c[1] for c in calls if c[0] == "del"}
+    assert {"BotCommandScopeAllPrivateChats", "BotCommandScopeAllGroupChats", "BotCommandScopeAllChatAdministrators"} <= deleted
+    public = next(c for c in calls if c[0] == "set" and c[2] is None)
+    assert public[3] == ["start", "help"]                                   # users: no admin
+    admin = next(c for c in calls if c[0] == "set" and c[2] == 42)
+    assert "admin" in admin[3]                                              # only in the admin's own chat
+
+
+def test_non_admin_cannot_open_panel(monkeypatch):
+    import pyrogram
+    from types import SimpleNamespace as NS
+    sent = []
+
+    class Msg(NS):
+        def stop_propagation(self):
+            raise pyrogram.StopPropagation
+
+    class C:
+        def send_message(self, chat, text, **k):
+            sent.append(text)
+            return NS(id=1)
+    monkeypatch.setattr(ui, "_menu_set", True)
+    monkeypatch.setattr(ui, "_register_user", lambda m: None)
+    monkeypatch.setattr(ui.Config, "ADMIN", [42], raising=False)
+    for cmd in ("/admin", "/broadcast", "/addadmin 5 x"):
+        try:
+            ui.front_door(C(), Msg(text=cmd, chat=NS(id=7), from_user=NS(id=7, first_name="u"), id=3))
+        except pyrogram.StopPropagation:
+            pass
+    assert sent and all("isn't available" in s for s in sent)
