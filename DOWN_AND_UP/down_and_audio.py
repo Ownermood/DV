@@ -273,8 +273,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
         # First, repost the cached ones (skip if send_as_file is enabled)
         if cached_videos and (not use_range_download or len(uncached_indices) == 0):
             # Check if send_as_file is enabled - if so, skip cache repost
-            from COMMANDS.args_cmd import get_user_args
-            user_args = get_user_args(user_id)
+            user_args = {}  # per-user yt-dlp args were removed
             send_as_file = user_args.get("send_as_file", False)
             
             if not send_as_file:
@@ -351,8 +350,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
         
         if cached_ids:
             # Check if send_as_file is enabled - if so, skip cache repost
-            from COMMANDS.args_cmd import get_user_args
-            user_args = get_user_args(user_id)
+            user_args = {}  # per-user yt-dlp args were removed
             send_as_file = user_args.get("send_as_file", False)
             
             if not send_as_file:
@@ -614,9 +612,8 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
             if download_format == 'ba':
                 download_format = 'ba/b'  # no audio-only stream (Snapchat, many reels): take the video, extract MP3
             
-            # Get user's audio format preference from args_cmd
-            from COMMANDS.args_cmd import get_user_ytdlp_args
-            user_args = get_user_ytdlp_args(user_id, url)
+            # Audio format: MP3 (per-user args were removed)
+            user_args = {}  # per-user yt-dlp args were removed
             audio_format = user_args.get('audio_format', 'mp3')  # Default to mp3
             
             # If audio_format is 'best', use mp3 as fallback
@@ -704,13 +701,9 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 logger.info(f"Skipping domain filter for domain in NO_FILTER_DOMAINS: {url}")
             
             # Add user's custom yt-dlp arguments
-            from COMMANDS.args_cmd import get_user_ytdlp_args, log_ytdlp_options
-            user_args = get_user_ytdlp_args(user_id, url)
-            if user_args:
-                ytdl_opts.update(user_args)
+            user_args = {}  # per-user yt-dlp args were removed
             
             # Log final yt-dlp options for debugging
-            log_ytdlp_options(user_id, ytdl_opts, "audio_download")
             
             # Check if we need to use --no-cookies for this domain
             if is_no_cookie_domain(url):
@@ -1233,8 +1226,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                         download_format = format_override if format_override else 'ba'
                         if download_format == 'ba':
                             download_format = 'ba/b'  # no audio-only stream: take the video, extract MP3
-                        from COMMANDS.args_cmd import get_user_ytdlp_args
-                        user_args = get_user_ytdlp_args(user_id, url)
+                        user_args = {}  # per-user yt-dlp args were removed
                         audio_format = user_args.get('audio_format', 'mp3')
                         if audio_format == 'best':
                             audio_format = 'mp3'
@@ -1275,8 +1267,6 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                             ytdl_opts['match_filter'] = create_smart_match_filter()
                         
                         # Add user's custom yt-dlp arguments
-                        if user_args:
-                            ytdl_opts.update(user_args)
                         
                         # Check if we need to use --no-cookies for this domain
                         if is_no_cookie_domain(url):

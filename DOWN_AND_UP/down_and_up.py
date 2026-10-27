@@ -91,8 +91,7 @@ def _save_video_cache_with_logging(url: str, safe_quality_key: str, message_ids:
     try:
         # Check if user has send_as_file enabled
         if user_id is not None:
-            from COMMANDS.args_cmd import get_user_args
-            user_args = get_user_args(user_id)
+            user_args = {}  # per-user yt-dlp args were removed
             send_as_file = user_args.get("send_as_file", False)
             if send_as_file:
                 logger.info(LoggerMsg.DOWN_UP_SKIPPING_CACHE_SEND_AS_FILE_LOG_MSG.format(user_id=user_id, url=url, quality=safe_quality_key))
@@ -313,8 +312,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
         # First, repost the cached ones (skip if send_as_file is enabled)
         if cached_videos and (not use_range_download or len(uncached_indices) == 0):
             # Check if send_as_file is enabled - if so, skip cache repost
-            from COMMANDS.args_cmd import get_user_args
-            user_args = get_user_args(user_id)
+            user_args = {}  # per-user yt-dlp args were removed
             send_as_file = user_args.get("send_as_file", False)
             
             if not send_as_file:
@@ -376,8 +374,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
             
             if cached_ids:
                 # Check if send_as_file is enabled - if so, skip cache repost
-                from COMMANDS.args_cmd import get_user_args
-                user_args = get_user_args(user_id)
+                user_args = {}  # per-user yt-dlp args were removed
                 send_as_file = user_args.get("send_as_file", False)
                 
                 if not send_as_file:
@@ -573,8 +570,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
             format_override = None
 
         # Get user's merge_output_format preference once
-        from COMMANDS.args_cmd import get_user_ytdlp_args
-        user_args = get_user_ytdlp_args(user_id, url)
+        user_args = {}  # per-user yt-dlp args were removed
         user_merge_format = user_args.get('merge_output_format', 'mp4')
         
         if format_override:
@@ -908,10 +904,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
             common_opts['match_filter'] = sanitize_and_filter
             
             # Add user's custom yt-dlp arguments
-            from COMMANDS.args_cmd import get_user_ytdlp_args, log_ytdlp_options
-            user_args = get_user_ytdlp_args(user_id, url)
-            if user_args:
-                common_opts.update(user_args)
+            user_args = {}  # per-user yt-dlp args were removed
             
             # Configure subtitle options based on user settings
             if need_subs and is_youtube_url(url):
@@ -953,7 +946,6 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 common_opts['writeautomaticsub'] = False
             
             # Log final yt-dlp options for debugging
-            log_ytdlp_options(user_id, common_opts, "video_download")
             
             # Check if we need to use --no-cookies for this domain
             if is_no_cookie_domain(url):
@@ -1914,8 +1906,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
             downloaded_abs_path = None
             
             # Get user's preferred video format to determine file extensions
-            from COMMANDS.args_cmd import get_user_ytdlp_args
-            user_args = get_user_ytdlp_args(user_id, url)
+            user_args = {}  # per-user yt-dlp args were removed
             user_video_format = user_args.get('video_format', 'mp4')
             user_merge_format = user_args.get('merge_output_format', 'mp4')
             

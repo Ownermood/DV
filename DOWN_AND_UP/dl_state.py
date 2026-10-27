@@ -15,22 +15,6 @@ _ASK_SUBS_LANGS_PREFIX = "ask_subs_"
 _USER_DOWNLOAD_DIRS = {}
 
 
-def get_user_args(user_id: int):
-    """Get user's saved args settings"""
-    import os
-    import json
-    user_dir = os.path.join("users", str(user_id))
-    args_file = os.path.join(user_dir, "args.txt")
-    
-    if not os.path.exists(args_file):
-        return {}
-    
-    try:
-        with open(args_file, 'r', encoding='utf-8') as f:
-            return json.load(f)
-    except Exception as e:
-        logger.error(LoggerMsg.ALWAYS_ASK_ERROR_READING_USER_ARGS_LOG_MSG.format(user_id=user_id, error=e))
-        return {}
 
 
 def set_user_download_dir(user_id, download_dir):

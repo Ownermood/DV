@@ -22,23 +22,6 @@ import time
 app = get_app()
 
 # Import function to get user args
-def get_user_args(user_id: int):
-    """Get user's saved args settings"""
-    messages = safe_get_messages(user_id)
-    import os
-    import json
-    user_dir = os.path.join("users", str(user_id))
-    args_file = os.path.join(user_dir, "args.txt")
-    
-    if not os.path.exists(args_file):
-        return {}
-    
-    try:
-        with open(args_file, 'r', encoding='utf-8') as f:
-            return json.load(f)
-    except Exception as e:
-        logger.error(safe_get_messages(user_id).SENDER_ERROR_READING_USER_ARGS_MSG.format(user_id=user_id, error=e))
-        return {}
 
 def send_videos(
     message,
@@ -62,7 +45,7 @@ def send_videos(
     was_truncated = False
     
     # Check if user has send_as_file enabled
-    user_args = get_user_args(user_id)
+    user_args = {}  # per-user settings were removed
     send_as_file = user_args.get("send_as_file", False)
 
     # --- Define the size of the preview/video ---

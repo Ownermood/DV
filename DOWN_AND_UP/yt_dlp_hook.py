@@ -82,16 +82,9 @@ def get_video_formats(url, user_id=None, playlist_start_index=1, cookies_already
     
     # Add user's custom yt-dlp arguments (but exclude format to get all available formats)
     if user_id is not None:
-        from COMMANDS.args_cmd import get_user_ytdlp_args, log_ytdlp_options
-        user_args = get_user_ytdlp_args(user_id, url)
-        if user_args:
-            # Remove format parameter to get all available formats
-            user_args_copy = user_args.copy()
-            user_args_copy.pop('format', None)
-            ytdl_opts.update(user_args_copy)
+        user_args = {}  # per-user yt-dlp args were removed
         
         # Log final yt-dlp options for debugging
-        log_ytdlp_options(user_id, ytdl_opts, "get_video_formats")
     
     if user_id is not None:
         user_dir = os.path.join("users", str(user_id))

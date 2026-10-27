@@ -479,7 +479,8 @@ def handle_admin_input(client, message) -> bool:
                 send(client, uid, lambda: back(f"{em('warn')} Send a photo or <code>off</code>."))
     except Exception as exc:
         logger.error(f"[admin] input {action} failed: {exc}")
-        send(client, uid, lambda: back(f"{em('warn')} Failed: <code>{escape(str(exc)[:200])}</code>"))
+        err = escape(str(exc)[:200])  # the lambda may run after the except block
+        send(client, uid, lambda: back(f"{em('warn')} Failed: <code>{err}</code>"))
     return True
 
 

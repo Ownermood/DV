@@ -25,75 +25,6 @@ import tempfile
 
 # ---------- Low-level helpers ----------
 
-def get_user_gallery_dl_args(user_id: int) -> dict:
-    """
-    Get user's yt-dlp arguments that are compatible with gallery-dl
-    Returns dict with gallery-dl compatible configuration
-    """
-    try:
-        # Import here to avoid circular imports
-        from COMMANDS.args_cmd import get_user_args
-        
-        user_args = get_user_args(user_id)
-        if not user_args:
-            return {}
-        
-        gallery_dl_config = {}
-        
-        # Gallery-dl uses 'extractor' section for most configuration
-        # Compatible arguments mapping from yt-dlp to gallery-dl
-        compatible_args = {
-            'user_agent': 'extractor.headers.User-Agent',
-            'referer': 'extractor.headers.Referer', 
-            'username': 'extractor.username',
-            'password': 'extractor.password',
-            'timeout': 'extractor.timeout',
-            'retries': 'extractor.retries'
-        }
-        
-        # Apply compatible arguments
-        for ytdlp_param, gallery_dl_path in compatible_args.items():
-            if ytdlp_param in user_args:
-                value = user_args[ytdlp_param]
-                if value:  # Only apply non-empty values
-                    # Parse nested path like 'extractor.headers.User-Agent'
-                    parts = gallery_dl_path.split('.')
-                    current = gallery_dl_config
-                    
-                    # Navigate/create nested structure
-                    for part in parts[:-1]:
-                        if part not in current:
-                            current[part] = {}
-                        current = current[part]
-                    
-                    # Set the final value
-                    current[parts[-1]] = value
-        
-        # Handle http_headers (JSON format) - merge with existing headers
-        if 'http_headers' in user_args and user_args['http_headers']:
-            try:
-                custom_headers = json.loads(user_args['http_headers'])
-                if isinstance(custom_headers, dict):
-                    # Ensure extractor.headers exists
-                    if 'extractor' not in gallery_dl_config:
-                        gallery_dl_config['extractor'] = {}
-                    if 'headers' not in gallery_dl_config['extractor']:
-                        gallery_dl_config['extractor']['headers'] = {}
-                    
-                    # Merge custom headers
-                    gallery_dl_config['extractor']['headers'].update(custom_headers)
-            except json.JSONDecodeError:
-                logger.warning(f"Invalid JSON in http_headers for user {user_id}")
-        
-        # Log applied arguments
-        if gallery_dl_config:
-            logger.info(f"Applied gallery-dl compatible args for user {user_id}: {gallery_dl_config}")
-        
-        return gallery_dl_config
-        
-    except Exception as e:
-        logger.error(f"Error getting user gallery-dl args for user {user_id}: {e}")
-        return {}
 
 FAST_SLEEP = 0.5  # seconds between site API calls (gallery-dl's Instagram default is 6-12 s)
 
@@ -158,19 +89,6 @@ def _prepare_user_cookies_and_proxy(url: str, user_id, use_proxy: bool, config: 
         return config
 
     # Apply user's compatible yt-dlp arguments to gallery-dl
-    user_gallery_dl_args = get_user_gallery_dl_args(user_id)
-    if user_gallery_dl_args:
-        # Deep merge user args into config
-        def deep_merge(target, source, user_id=None):
-            messages = safe_get_messages(user_id)
-            """Recursively merge source dict into target dict"""
-            for key, value in source.items():
-                if key in target and isinstance(target[key], dict) and isinstance(value, dict):
-                    deep_merge(target[key], value, user_id)
-                else:
-                    target[key] = value
-        
-        deep_merge(config, user_gallery_dl_args, user_id)
 
     user_dir = os.path.join("users", str(user_id))
     user_cookie_path = os.path.join(user_dir, "cookie.txt")
