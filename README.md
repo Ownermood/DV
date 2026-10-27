@@ -21,7 +21,7 @@ exported from a spare YouTube account. Every user without their own cookie then 
   the share itself; without it, it tries the external extraction service. TeraBox files up to MAX_FILE_SIZE_GB (4 GB); videos over 2 GB arrive in parts.
 
 ## Private links
-Private / age-restricted / login-only posts: the user sends `/cookie` once and uploads a `cookies.txt`
+Users cannot add cookies. Private / age-restricted / login-only posts work only through the admin's
 exported from their own account (YouTube, Instagram, Facebook). After that the same link downloads.
 TeraBox password-protected shares are not supported.
 

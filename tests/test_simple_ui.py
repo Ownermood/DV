@@ -176,13 +176,6 @@ def test_old_broadcast_records_are_converted(monkeypatch):
     assert r["items"] == [[5, [9]]] and r["sent"] == 1 and r["deleted"] is False
 
 
-def test_cookie_menu_buttons():
-    text, kb = ui.cookie_menu(123456789)
-    labels = [b.text for r in kb.inline_keyboard for b in r]
-    assert any("Upload" in l for l in labels) and any("Delete" in l for l in labels)
-    assert not any("Browser" in l or "Vkontakte" in l for l in labels) and "not added" in text
-
-
 def test_menus_public_and_admin_only(monkeypatch):
     from COMMANDS import admin_panel as ap
     calls = []
@@ -220,7 +213,7 @@ def test_non_admin_cannot_open_panel(monkeypatch):
     monkeypatch.setattr(ui, "_menu_set", True)
     monkeypatch.setattr(ui, "_register_user", lambda m: None)
     monkeypatch.setattr(ui.Config, "ADMIN", [42], raising=False)
-    for cmd in ("/admin", "/broadcast", "/addadmin 5 x"):
+    for cmd in ("/admin", "/broadcast", "/addadmin 5 x", "/cookie", "/check_cookie"):
         try:
             ui.front_door(C(), Msg(text=cmd, chat=NS(id=7), from_user=NS(id=7, first_name="u"), id=3))
         except pyrogram.StopPropagation:

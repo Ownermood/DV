@@ -39,7 +39,7 @@ PLATFORMS = {
     "terabox":   ("TeraBox",   "📦", TERABOX_DOMAINS),
 }
 
-ALLOWED_USER_COMMANDS = {"start", "help", "cookie", "cookies", "check_cookie", "save_as_cookie", "cookies_from_browser"}
+ALLOWED_USER_COMMANDS = {"start", "help"}   # cookies are the admin's job (Cookie Manager)
 
 BOT_MENU = [
     ("start", "Start"),
@@ -132,21 +132,6 @@ def _back_markup(user_id, cb="ui|home") -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([[btn("back", t(user_id, "back"), cb=cb, style=BLUE)]])
 
 
-def _user_cookie(user_id) -> str:
-    return os.path.join("users", str(user_id), os.path.basename(getattr(Config, "COOKIE_FILE_PATH", "cookie.txt")))
-
-
-def cookie_menu(user_id):
-    has = os.path.exists(_user_cookie(user_id))
-    text = t(user_id, "cookie_menu", state="saved ✓" if has else "not added")
-    kb = InlineKeyboardMarkup([
-        [btn("plus", "Upload My Cookie", cb="ui|ck|own", style=GREEN),
-         btn("search", "Check My Cookie", cb="download_cookie|check_cookie", style=BLUE)],
-        [btn("trash", "Delete My Cookie", cb="ui|ck|del", style=RED)],
-        [btn("exit", "Close", cb="ui|close", style=RED)]])
-    return text, kb
-
-
 def _start_image():
     from COMMANDS.ui_kit import state_get
     return state_get("start_image") or getattr(Config, "START_IMAGE", "") or None
@@ -228,19 +213,26 @@ def _human(n) -> str:
     return f"{n:.1f}TB"
 
 
-def _ydl_opts(user_id) -> dict:
+def _ydl_opts(user_id, url: str = "") -> dict:
     opts = {"quiet": True, "no_warnings": True, "skip_download": True, "noplaylist": True,
             "socket_timeout": 20}
     cookie = os.path.join("users", str(user_id), "cookie.txt")
     if os.path.exists(cookie):
         opts["cookiefile"] = cookie
+    elif url:  # admin's Cookie Manager cookie for this site (YouTube on a server IP needs it)
+        from COMMANDS.cookies_cmd import shared_cookie_path
+        from COMMANDS import cookie_store
+        shared = cookie_store.first_active("youtube") if detect_platform(url) and detect_platform(url)[0] == "youtube" \
+            else shared_cookie_path(url)
+        if shared:
+            opts["cookiefile"] = shared
     return opts
 
 
 def _probe(url, user_id) -> Optional[dict]:
     try:
         import yt_dlp
-        with yt_dlp.YoutubeDL(_ydl_opts(user_id)) as ydl:
+        with yt_dlp.YoutubeDL(_ydl_opts(user_id, url)) as ydl:
             info = ydl.extract_info(url, download=False)
         if info and info.get("_type") == "playlist":
             entries = [e for e in (info.get("entries") or []) if e]
@@ -478,9 +470,6 @@ def front_door(client, message):
             from COMMANDS.admin_panel import handle_command
             if handle_command(client, message, cmd):
                 message.stop_propagation()
-        if cmd in ("cookie", "cookies") and len(text.split()) == 1:
-            send(client, chat_id, lambda: cookie_menu(chat_id))
-            message.stop_propagation()
         if cmd in ALLOWED_USER_COMMANDS or admin:
             return  # legacy handlers (cookies / admin) continue
         send(client, chat_id, lambda: (t(chat_id, "cmd_na"), None))
@@ -518,17 +507,6 @@ def ui_callbacks(client, cq):
     try:
         if action == "help":
             edit(client, msg, lambda: (help_text(uid), _back_markup(uid)))
-        elif action == "ck" and len(parts) == 3:
-            path = _user_cookie(uid)
-            if parts[2] == "own":
-                edit(client, msg, lambda: (t(uid, "cookie_own"), _back_markup(uid, "ui|ckm")))
-            elif parts[2] == "del":
-                had = os.path.exists(path)
-                if had:
-                    os.remove(path)
-                edit(client, msg, lambda: (t(uid, "cookie_deleted" if had else "cookie_none"), _back_markup(uid, "ui|ckm")))
-        elif action == "ckm":
-            edit(client, msg, lambda: cookie_menu(uid))
         elif action == "x" and len(parts) == 4:
             with _pending_lock:
                 item = _AFTER.get(parts[2])

@@ -102,10 +102,10 @@ _RAW_ERROR_HINTS = ("ERROR:", "Traceback", "Error Code", "Full Error", "HTTP Err
                     "DownloadError", "ExtractorError", "Unsupported URL", "Errno")
 _FRIENDLY = (
     (("sign in to confirm", "not a bot"), "ban", "YouTube asked for a login check.",
-     "Send /cookie and add your YouTube cookies, then send the link again."),
+     "Please try again in a few minutes."),
     (("private", "login", "log in", "sign in", "members-only", "age", "cookies", "authentication", "401", "403",
       "empty media response"), "lips", "This link is private or needs login.",
-     "Send /cookie, add cookies from your account, then send the link again."),
+     "Only public posts can be downloaded."),
     (("not available", "unavailable", "removed", "deleted", "404", "does not exist", "no video"), "ban",
      "This post is unavailable.", "It may be deleted, region-locked or the link is wrong."),
     (("too large", "file size", "exceeds", "limit"), None, None, None),  # keep the original size-limit text
@@ -133,7 +133,7 @@ def friendly_error(msg) -> str:
         if any(k in low for k in keys):
             return _friendly_text(icon, title, body) if title else text
     return _friendly_text("warn", "Download failed.",
-                          "Please try again. If it keeps failing, the link may be private: send /cookie first.")
+                          "Please try again. If it keeps failing, the post may be private or removed.")
 
 
 def send_to_user(message, msg):

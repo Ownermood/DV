@@ -252,7 +252,7 @@ T = {
                     "{music} MP3 audio from any link\n"
                     "{image} HD thumbnail download\n"
                     "{chat} Clean captions in a neat quote\n"
-                    "{down} Private links work with your cookies (/cookie)</blockquote>\n\n"
+                    "{down} Fast and free, no login needed</blockquote>\n\n"
                     "{box} <b>Supported</b>\n"
                     "<blockquote>{platforms}</blockquote>\n\n"
                     "{down} <b>Send a link to start!</b>"),
@@ -264,7 +264,7 @@ T = {
                       "{music} MP3 audio from any supported link.\n"
                       "{image} Download the thumbnail.\n"
                       "{box} Big files arrive in parts (Telegram limit 2 GB per file).\n"
-                      "{chat} Private links: send /cookie first.</blockquote>\n\n"
+                      "{chat} Private or login-only posts can't be downloaded.</blockquote>\n\n"
                       "<b>Supported</b>\n<blockquote>{platforms}</blockquote>"),
         "pick": "{down} <b>{platform}</b> link detected. What do you want?",
         "pick_yt": "{play} <b>{title}</b>\n\nChoose a quality (up to {max_gb} GB):",
@@ -276,17 +276,6 @@ T = {
         "unsupported": "That link isn't supported.",
         "send_link": "Send me a link.",
         "cmd_na": "That command isn't available. Just send a link.",
-        "cookie_menu": ("{chat} <b>Private links (cookies)</b>\n\n"
-                        "<blockquote>{lips} Private, age-restricted or login-only posts need your account's cookies.\n"
-                        "{stars} Public links never need this.</blockquote>\n\n"
-                        "{memo} <b>How to add</b>\n"
-                        "<blockquote>1. In Chrome / Firefox install <b>Get cookies.txt LOCALLY</b>\n"
-                        "2. Open the site (YouTube, Instagram, Facebook …) logged in\n"
-                        "3. Export <b>cookies.txt</b> and send the file here</blockquote>\n\n"
-                        "{folder} Your cookie: <b>{state}</b>"),
-        "cookie_own": "{file} <b>Send your cookies.txt file now</b> (max 1 MB).",
-        "cookie_deleted": "{trash} <b>Your cookie was deleted.</b>",
-        "cookie_none": "{warn} <b>You have no saved cookie.</b>",
     },
 }
 
