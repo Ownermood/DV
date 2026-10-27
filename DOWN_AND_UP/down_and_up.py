@@ -1,3 +1,4 @@
+import shutil
 # Version: 1.0.1
 # ########################################
 # Download_and_up function
@@ -986,6 +987,10 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 # Max speed: parallel fragments + 10MB chunks (YouTube throttles unchunked https)
                 'concurrent_fragment_downloads': 16,
                 'http_chunk_size': 10485760,
+                # aria2c: 16 connections per file for plain https downloads (YouTube, Facebook ...)
+                **({'external_downloader': {'http': 'aria2c'},
+                   'external_downloader_args': {'aria2c': ['-x', '16', '-s', '16', '-k', '1M', '--file-allocation=none']}}
+                   if shutil.which('aria2c') else {}),
                 'retries': 10,
                 'fragment_retries': 10,
                 #'socket_timeout': 60,  # Increase socket timeout

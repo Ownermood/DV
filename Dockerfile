@@ -9,6 +9,7 @@ ENV TZ="$TZ"
 RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     ffmpeg \
+    aria2 \
     mediainfo \
     rsync \
     fonts-noto-core \
