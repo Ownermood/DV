@@ -270,6 +270,41 @@ def start_cycle_progress(user_id, proc_msg_id, current_total_process, user_dir_n
     cycle_thread.start()
     return cycle_thread
 
+def start_file_progress(user_id, proc_msg_id, folder, total_bytes, stop):
+    """Progress card from the growing file on disk (aria2c gives yt-dlp no progress until the end).
+    Shows MB done / total, speed and %, every 3 s until `stop` is set."""
+    from HELPERS.progress_ui import progress_card, edit_card
+
+    def run():
+        start = time.time()
+        last_text = ""
+        while not stop.wait(3.0):
+            try:
+                done = 0
+                for name in os.listdir(folder):
+                    path = os.path.join(folder, name)
+                    if name.endswith(".aria2") or not os.path.isfile(path):
+                        continue
+                    st = os.stat(path)
+                    if st.st_mtime >= start - 1:
+                        # parallel writes leave holes: count the blocks really written
+                        done += min(st.st_blocks * 512, st.st_size)
+                if not done:
+                    continue
+                speed = done / max(time.time() - start, 0.1) / 1024 ** 2
+                pct = min(done * 100 / total_bytes, 99) if total_bytes else 0
+                of = f" / {total_bytes / 1024 ** 2:.0f} MB" if total_bytes else " MB"
+                text = progress_card("download", pct, detail=f"{done / 1024 ** 2:.0f}{of} · {speed:.1f} MB/s")
+                if text != last_text:
+                    edit_card(safe_edit_message_text, user_id, proc_msg_id, text)
+                    last_text = text
+            except Exception as e:
+                logger.debug(f"file progress: {e}")
+    thread = threading.Thread(target=run, daemon=True)
+    thread.start()
+    return thread
+
+
 def progress_bar(*args):
     # It is expected that Pyrogram will cause Progress_BAR with five parameters:
     # Current, Total, Speed, ETA, File_SIZE, and then additionally your Progress_args (User_id, Msg_id, Status_text)

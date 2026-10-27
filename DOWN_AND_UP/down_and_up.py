@@ -1490,6 +1490,16 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                             finally:
                                 cycle_stop.set()
                                 cycle_thread.join(timeout=1)
+                        elif opts.get('external_downloader'):  # aria2c: progress from the file on disk
+                            from HELPERS.download_status import start_file_progress
+                            fmt = selected_format or {}
+                            total_guess = fmt.get('filesize') or fmt.get('filesize_approx') or 0
+                            file_stop = threading.Event()
+                            start_file_progress(user_id, proc_msg_id, user_dir_name, total_guess, file_stop)
+                            try:
+                                ydl.download([url])
+                            finally:
+                                file_stop.set()
                         else:
                             ydl.download([url])
                         return True
