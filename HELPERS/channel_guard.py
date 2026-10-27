@@ -604,6 +604,10 @@ def get_channel_guard() -> ChannelGuard:
 
 
 def start_channel_guard(app) -> None:
+    # Bots can't read channel admin logs: without a user session the guard only logs errors
+    if not (getattr(Config, "CHANNEL_GUARD_SESSION_STRING", "") or "").strip():
+        logger.info("[ChannelGuard] off (no CHANNEL_GUARD_SESSION_STRING)")
+        return
     loop = getattr(app, "loop", None)
     if not loop:
         logger.error("[ChannelGuard] App loop is not available, cannot start guard")
