@@ -1870,7 +1870,7 @@ def image_command(app, message):
                             '.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.tiff',
                             '.mp4', '.m4v', '.avi', '.mov', '.mkv', '.webm', '.flv',
                             '.mp3', '.wav', '.ogg', '.m4a',
-                            '.pdf', '.doc', '.docx', '.txt', '.zip', '.rar', '.7z'
+                            '.pdf', '.doc', '.docx', '.zip', '.rar', '.7z'
                         )):
                             continue
                         # Skip incomplete/zero-byte files
@@ -3941,7 +3941,7 @@ def image_command(app, message):
                                 '.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.tiff',
                                 '.mp4', '.m4v', '.avi', '.mov', '.mkv', '.webm', '.flv',
                                 '.mp3', '.wav', '.ogg', '.m4a',
-                                '.pdf', '.doc', '.docx', '.txt', '.zip', '.rar', '.7z'
+                                '.pdf', '.doc', '.docx', '.zip', '.rar', '.7z'
                             )):
                                 os.remove(file_path)
                                 logger.info(f"safe_get_messages(user_id).IMG_CLEANUP_REMOVED_FILE_LOG_MSG")
@@ -4025,7 +4025,7 @@ def image_command(app, message):
                                 '.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.tiff',
                                 '.mp4', '.m4v', '.avi', '.mov', '.mkv', '.webm', '.flv',
                                 '.mp3', '.wav', '.ogg', '.m4a',
-                                '.pdf', '.doc', '.docx', '.txt', '.zip', '.rar', '.7z'
+                                '.pdf', '.doc', '.docx', '.zip', '.rar', '.7z'
                             )):
                                 os.remove(file_path)
                                 logger.info(f"[IMG CLEANUP ERROR] Removed file: {file_path}")

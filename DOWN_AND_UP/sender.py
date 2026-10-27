@@ -515,23 +515,7 @@ def send_videos(
         # Note: Forwarding to log channels is now handled in down_and_up.py
         # to avoid double forwarding and ensure proper channel routing
 
-        if was_truncated and full_video_title:
-            with open(temp_desc_path, "w", encoding="utf-8") as f:
-                f.write(full_video_title)
-        if was_truncated and os.path.exists(temp_desc_path):
-            try:
-                user_doc_msg = app.send_document(
-                    chat_id=user_id,
-                    document=temp_desc_path,
-                    caption=safe_get_messages(user_id).CHANGE_CAPTION_HINT_MSG,
-                    reply_parameters=ReplyParameters(message_id=message.id),
-                    parse_mode=enums.ParseMode.HTML
-                )
-                # Note: Description file forwarding is handled in down_and_up.py
-            except Exception as e:
-                logger.error(safe_get_messages(user_id).SENDER_ERROR_SENDING_FULL_DESCRIPTION_FILE_MSG.format(error=e))
-                from HELPERS.logger import send_error_to_user
-                send_error_to_user(message, safe_get_messages(user_id).ERROR_SENDING_DESCRIPTION_FILE_MSG.format(error=str(e)))
+        # (no extra description .txt file after the video: the caption already has the start of it)
         return video_msg
     finally:
         if os.path.exists(temp_desc_path):

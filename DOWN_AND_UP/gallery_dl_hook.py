@@ -572,7 +572,7 @@ def download_image(url: str, user_id=None, use_proxy: bool = False, output_dir: 
                     for root, _, files in os.walk(search_dir):
                         for file in files:
                             # Support all file types that gallery-dl may download
-                            if file.lower().endswith(('.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.tiff', '.mp4', '.avi', '.mov', '.mkv', '.webm', '.flv', '.mp3', '.wav', '.ogg', '.m4a', '.pdf', '.doc', '.docx', '.txt', '.zip', '.rar', '.7z')):
+                            if file.lower().endswith(('.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.tiff', '.mp4', '.avi', '.mov', '.mkv', '.webm', '.flv', '.mp3', '.wav', '.ogg', '.m4a', '.pdf', '.doc', '.docx', '.zip', '.rar', '.7z')):
                                 file_path = os.path.join(root, file)
                                 file_time = os.path.getctime(file_path)
                                 time_diff = current_time - file_time
