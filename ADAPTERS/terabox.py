@@ -444,7 +444,9 @@ def _fast_download(url, filepath: Path, cookies, size, limit, progress) -> None:
                 if pos == b + 1:
                     return
                 raise RuntimeError("part cut short")
-            except Exception:
+            except Exception as exc:
+                if type(exc).__name__ == "Cancelled":  # ❌ Cancel: no retries
+                    raise
                 with lock:
                     done[0] -= pos - a  # this part restarts from its beginning
                 if attempt == 3:
@@ -827,6 +829,8 @@ def on_choice(app, cq) -> None:
 
 
 def _run_job(app, message, url, meta, q, card) -> None:
+    from HELPERS import cancel
+    cancel.clear(message.chat.id)  # a new download: an old Cancel tap must not stop it
     try:
         _run_job_inner(app, message, url, meta, q, card)
     finally:
@@ -835,6 +839,8 @@ def _run_job(app, message, url, meta, q, card) -> None:
 
 def _run_job_inner(app, message, url, meta, q, card) -> None:
     """Download the chosen quality (streaming copy or original file) and send it; the card shows the progress."""
+    from HELPERS import cancel
+    uid = message.chat.id
     from HELPERS.progress_ui import progress_card
     from html import escape
     key = url + ("" if q == "o" else f"#{q}")
@@ -882,6 +888,7 @@ def _run_job_inner(app, message, url, meta, q, card) -> None:
             state = {"last": 0.0, "start": time.monotonic()}
 
             def progress(total, length):
+                cancel.check(uid)  # ❌ Cancel tapped: the download threads stop
                 now = time.monotonic()
                 if now - state["last"] < 4:  # every 4 s: MB done / total and speed
                     return
@@ -891,7 +898,8 @@ def _run_job_inner(app, message, url, meta, q, card) -> None:
                 speed = total / max(now - state["start"], 0.1) / 1024 ** 2
                 of = f" / {length / 1024 ** 2:.0f} MB" if length else " MB"
                 _show(app, card, (base + "\n\n" if base else "")
-                      + progress_card("download", pct, detail=f"{total / 1024 ** 2:.0f}{of} · {speed:.1f} MB/s"))
+                      + progress_card("download", pct, detail=f"{total / 1024 ** 2:.0f}{of} · {speed:.1f} MB/s"),
+                      cancel.markup(uid))
             if playlist:
                 _hls_download(playlist, filepath, limit, progress, meta["sess"].cookies.get_dict(), meta["base"] + "/")
             else:
@@ -900,6 +908,7 @@ def _run_job_inner(app, message, url, meta, q, card) -> None:
             up = {"last": 0.0, "start": time.monotonic()}
 
             def upload_progress(done, total):
+                cancel.stop_upload(uid)
                 now = time.monotonic()
                 if now - up["last"] < 4 and done < total:  # every 4 s: MB sent / total and speed
                     return
@@ -907,10 +916,15 @@ def _run_job_inner(app, message, url, meta, q, card) -> None:
                 speed = done / max(now - up["start"], 0.1) / 1024 ** 2
                 _show(app, card, (base + "\n\n" if base else "") + progress_card(
                     "upload", done * 100 / total if total else 0,
-                    detail=f"{done / 1024 ** 2:.0f} / {total / 1024 ** 2:.0f} MB · {speed:.1f} MB/s"))
-            _cache_put(key, _send_file(app, message, filepath, title, url, thumb_path, upload_progress) or [], title)
+                    detail=f"{done / 1024 ** 2:.0f} / {total / 1024 ** 2:.0f} MB · {speed:.1f} MB/s"), cancel.markup(uid))
+            sent = _send_file(app, message, filepath, title, url, thumb_path, upload_progress) or []
+            if cancel.is_set(uid):  # upload stopped by ❌ Cancel: keep the "cancelled" card
+                return
+            _cache_put(key, sent, title)
         app.delete_messages(message.chat.id, card.id)  # the file itself is the success signal
     except Exception as exc:
+        if cancel.is_set(uid):  # the Cancel button already replaced the card
+            return
         print(f"[terabox] {url} ({q}): {exc}")
         if isinstance(exc, NeedCookie):
             body = (f"File: {exc.title[:80]} ({exc.size / 1024 ** 3:.2f} GB)\n"

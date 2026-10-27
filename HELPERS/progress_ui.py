@@ -91,11 +91,19 @@ def strip_premium(text: str) -> str:
 
 
 def edit_card(edit_fn, chat_id, message_id, text: str):
-    """Edit with HTML; if Telegram rejects premium emoji, retry with plain emoji."""
+    """Edit with HTML; if Telegram rejects premium emoji, retry with plain emoji.
+    Downloading / uploading cards get the ❌ Cancel button."""
+    kw = {"parse_mode": enums.ParseMode.HTML}
+    if any(f"<b>{_KINDS[k][1]}</b>" in text for k in ("download", "upload")):
+        try:
+            from HELPERS.cancel import markup
+            kw["reply_markup"] = markup(chat_id)
+        except Exception:
+            pass
     try:
-        result = edit_fn(chat_id, message_id, text, parse_mode=enums.ParseMode.HTML)
+        result = edit_fn(chat_id, message_id, text, **kw)
     except Exception:
         result = None
     if result is None and _PREMIUM_RE.search(text):
-        result = edit_fn(chat_id, message_id, strip_premium(text), parse_mode=enums.ParseMode.HTML)
+        result = edit_fn(chat_id, message_id, strip_premium(text), **kw)
     return result

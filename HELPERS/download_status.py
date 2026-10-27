@@ -278,7 +278,10 @@ def start_file_progress(user_id, proc_msg_id, folder, total_bytes, stop):
     def run():
         start = time.time()
         last_text = ""
+        from HELPERS.cancel import is_set as _cancelled
         while not stop.wait(3.0):
+            if _cancelled(user_id):
+                break
             try:
                 done = 0
                 for name in os.listdir(folder):
@@ -311,6 +314,8 @@ def progress_bar(*args):
     if len(args) < 8:
         return
     current, total, speed, eta, file_size, user_id, msg_id, status_text = args[:8]
+    from HELPERS.cancel import stop_upload
+    stop_upload(user_id)  # ❌ Cancel tapped: Pyrogram aborts the upload
     # Throttle to avoid flood: update at most once per second per message
     now = time.time()
     key = (user_id, msg_id)

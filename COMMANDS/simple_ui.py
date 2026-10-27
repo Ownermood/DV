@@ -391,6 +391,8 @@ def _yt_preview(info, picks, label="YouTube") -> str:
 
 def _show_link_menu(client, message, key, label) -> None:
     uid = message.chat.id
+    from HELPERS import cancel
+    cancel.clear(uid)  # a new link: an old Cancel tap must not stop it
     token = _remember(message, key)
     menu = send(client, uid, lambda: (t(uid, "loading"), None), reply_to_message_id=message.id)
 
@@ -497,6 +499,8 @@ def _after_markup(message) -> InlineKeyboardMarkup:
 def _run_choice(client, message, choice, picks=None) -> None:
     """Hand the stored link to the legacy pipeline (keeps ban/sub/rate checks)."""
     from URL_PARSERS.url_extractor import url_distractor
+    from HELPERS import cancel
+    cancel.clear(message.chat.id)  # a new download: an old Cancel tap must not stop it
     original = message.text
     try:
         message._ui_format = None
@@ -671,6 +675,25 @@ def front_door(client, message):
         return  # TeraBox adapter is a direct download
     _show_link_menu(client, message, key, label)   # preview card + qualities; no info (photo posts) -> direct download
     message.stop_propagation()
+
+
+@app.on_callback_query(filters.regex(r"^cx\|"), group=-1)
+def cancel_download(client, cq):
+    """❌ Cancel on a downloading / uploading card (only the user who started it)."""
+    from HELPERS import cancel
+    try:
+        uid = int(cq.data.split("|")[1])
+        if cq.from_user.id != uid:
+            cq.answer("Only the person who sent the link can cancel it.", show_alert=True)
+        else:
+            cancel.request(uid)
+            with _queue_lock:  # a running link queue stops too
+                _queues.pop(uid, None)
+            cq.answer("Cancelled")
+            edit(client, cq.message, lambda: (f"{em('ban')} <b>Download cancelled.</b>", None))
+    except Exception as exc:
+        logger.warning(f"[ui] cancel failed: {exc}")
+    cq.stop_propagation()
 
 
 @app.on_callback_query(filters.regex(r"^tb\|"), group=-1)

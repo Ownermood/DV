@@ -608,6 +608,8 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
         def progress_hook(d):
             messages = safe_get_messages(message.chat.id)
             nonlocal last_update, is_hls
+            from HELPERS.cancel import check as _cancel_check
+            _cancel_check(user_id)  # ❌ Cancel tapped: abort yt-dlp right here
             # Check the timeout
             if check_download_timeout(user_id):
                 raise Exception(f"Download timeout exceeded ({Config.DOWNLOAD_TIMEOUT // 3600} hours)")
@@ -978,6 +980,9 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 
                 return info_dict
             except yt_dlp.utils.DownloadError as e:
+                from HELPERS.cancel import is_set as _cancelled
+                if _cancelled(user_id):
+                    return None
                 error_text = str(e)
                 logger.error(f"DownloadError: {error_text}")
                 
@@ -1140,6 +1145,9 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                     down_and_audio._error_message_sent = True
                 return None
             except Exception as e:
+                from HELPERS.cancel import is_set as _cancelled
+                if _cancelled(user_id):
+                    return None
                 error_text = str(e)
                 logger.error(f"Audio download attempt failed: {e}")
                 
@@ -1288,6 +1296,10 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                     current_playlist_items_override = None
                 result = try_download_audio(url, playlist_item_index)
                 current_playlist_items_override = None
+                from HELPERS.cancel import is_set as _cancelled
+                if _cancelled(user_id):
+                    logger.info(f"Audio download cancelled by user {user_id}")
+                    break
                 # For negative indices, don't use range_entries_metadata; download each index separately
                 if use_range_download and isinstance(result, dict) and not has_negative_indices_for_download:
                     if "entries" in result:

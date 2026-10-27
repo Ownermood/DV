@@ -811,6 +811,8 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
         def progress_func(d):
             messages = safe_get_messages(message.chat.id)
             nonlocal last_update, first_progress_update, is_hls
+            from HELPERS.cancel import check as _cancel_check
+            _cancel_check(user_id)  # ❌ Cancel tapped: abort yt-dlp right here
             # Check the timeout
             if check_download_timeout(user_id):
                 raise Exception(f"Download timeout exceeded ({safe_get_messages(user_id).DOWNLOAD_TIMEOUT // 3600} hours)")
@@ -1439,6 +1441,9 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 return info_dict
             except yt_dlp.utils.DownloadError as e:
                 nonlocal error_message
+                from HELPERS.cancel import is_set as _cancelled
+                if _cancelled(user_id):
+                    return "STOP"
                 error_message = str(e)
                 logger.error(f"DownloadError: {error_message}")
                 
@@ -1664,6 +1669,9 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     error_message_sent = True
                 return None
             except Exception as e:
+                from HELPERS.cancel import is_set as _cancelled
+                if _cancelled(user_id):
+                    return "STOP"
                 error_message = str(e)
                 logger.error(f"Attempt with format {ytdl_opts.get('format', 'default')} failed: {e}")
                 # Auto-fallback to gallery-dl for obvious non-video cases
