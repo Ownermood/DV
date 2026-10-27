@@ -115,6 +115,17 @@ def em(key: str) -> str:
     return f'<emoji id="{cid}">{char}</emoji>' if premium_on() else char
 
 
+def verify_premium(client, owners) -> None:
+    """At startup: one premium-emoji message to the owners. Success -> every screen (download progress,
+    errors, captions) uses premium emoji from the first download; rejection -> plain emoji everywhere."""
+    for uid in owners:
+        try:
+            send(client, uid, lambda: (f"{em('ok')} <b>{BOT_TITLE} is online</b> {em('bolt')}", None))
+            return
+        except Exception as exc:
+            logger.info(f"[ui] premium check message to {uid} failed: {exc}")
+
+
 def pem(key: str) -> str:
     """Emoji for senders without a plain retry: premium only once Telegram accepted premium emoji."""
     char, cid = E[key]

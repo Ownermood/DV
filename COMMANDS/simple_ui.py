@@ -417,7 +417,7 @@ def _send_thumbnail(client, message) -> None:
         send(client, uid, lambda: (t(uid, "no_thumb"), None), reply_to_message_id=message.id)
         return
     title = html.escape(info.get("title") or "Thumbnail")[:300]
-    cap = f'<blockquote expandable>{em("image")} <b>{title}</b>\n<a href="{html.escape(url)}">🔗 Link</a></blockquote>'
+    cap = f'<blockquote expandable>{em("image")} <b>{title}</b>\n<a href="{html.escape(url)}">{em("globe")} Link</a></blockquote>'
     try:
         send(client, uid, lambda: (cap, None), photo=thumb, reply_to_message_id=message.id)
         return

@@ -394,6 +394,9 @@ if __name__ == "__main__":
     try:  # public menu = start/help only; admin menu only in admins' chats
         from COMMANDS.simple_ui import _ensure_menu
         _ensure_menu(app)
+        from COMMANDS.ui_kit import verify_premium
+        from COMMANDS.admin_panel import OWNERS
+        verify_premium(app, sorted(OWNERS))
     except Exception as e:
         print(f"menu setup failed: {e}")
     start_channel_guard(app)

@@ -54,6 +54,11 @@ def build_quoted_caption(title_html: str = '', pre_block: str = '', body: str = 
         parts.append(tags_block.rstrip('\n') + '\n')
     parts.append(link_block)
     body_html = ''.join(parts).strip().replace('<b>', '').replace('</b>', '')
+    try:  # premium link icon once Telegram accepted premium emoji
+        from COMMANDS.ui_kit import pem
+        body_html = body_html.replace('🔗', pem('globe'), 1)
+    except Exception:
+        pass
     return '<blockquote expandable><b>' + body_html + '</b></blockquote>'
 
 
