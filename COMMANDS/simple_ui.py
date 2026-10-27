@@ -284,10 +284,9 @@ def _choice_rows(uid, token, yt_sizes=None, is_yt=False):
         for hgt in heights:
             sz = (yt_sizes or {}).get(hgt)
             label = {2160: "4K", 1440: "2K"}.get(hgt, f"{hgt}p") + (f" • {_human(sz)}" if sz else "")
-            style = RED if sz and sz > cap else (GREEN if hgt >= 1080 else BLUE)
-            if yt_sizes:  # sizes are listed in the preview caption; 3 short buttons per row
-                label = {2160: "4K", 1440: "2K"}.get(hgt, f"{hgt}p")
-            row.append(btn("play", label, cb=f"ui|g|{token}|{hgt}", style=style))
+            # plain (uncoloured) quality buttons with the size; ⛔ = over the limit
+            row.append(btn("play", label + (" ⛔" if sz and sz > cap else ""), cb=f"ui|g|{token}|{hgt}",
+                           style=enums.ButtonStyle.DEFAULT))
             if len(row) == 3:
                 rows.append(row)
                 row = []
@@ -400,7 +399,7 @@ def _too_big_view(uid, token, size, fits):
     rows, row = [], []
     for hgt in fits:
         label = {2160: "4K", 1440: "2K"}.get(hgt, f"{hgt}p") + f" • {_human(_SIZES[token][hgt][1])}"
-        row.append(btn("play", label, cb=f"ui|g|{token}|{hgt}", style=GREEN))
+        row.append(btn("play", label, cb=f"ui|g|{token}|{hgt}", style=enums.ButtonStyle.DEFAULT))
         if len(row) == 2:
             rows.append(row)
             row = []

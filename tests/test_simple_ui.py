@@ -229,4 +229,4 @@ def test_yt_preview_card():
     assert "Crush &lt;3" in text and "27-09-2026" in text and "310.7K views" in text and "513K subs" in text
     assert "1. 1080p — 3.4MB" in text and "MP3 — 301KB" in text and len(text) <= 1024
     rows = ui._choice_rows(1, "t", {1080: 1, 720: 1, 480: 1, 360: 1}, is_yt=True).inline_keyboard
-    assert [b.text.split()[-1] for b in rows[0]] == ["1080p", "720p", "480p"]
+    assert len(rows[0]) == 3 and "1080p • 1B" in rows[0][0].text and rows[0][0].style == ui.enums.ButtonStyle.DEFAULT
