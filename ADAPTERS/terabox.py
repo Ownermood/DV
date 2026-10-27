@@ -16,12 +16,49 @@ from urllib.parse import urlparse
 import requests
 
 TERABOX_HOSTS = {
-    "terabox.com", "www.terabox.com", "1024terabox.com", "www.1024terabox.com",
-    "1024tera.com", "www.1024tera.com", "terabox.app", "www.terabox.app",
-    "teraboxapp.com", "www.teraboxapp.com", "freeterabox.com", "www.freeterabox.com",
-    "mirrobox.com", "www.mirrobox.com", "nephobox.com", "www.nephobox.com",
-    "4funbox.com", "www.4funbox.com", "momerybox.com", "www.momerybox.com",
-    "tibibox.com", "www.tibibox.com",
+    "terabox.com",
+    "terabox.app",
+    "terabox.fun",
+    "terabox.best",
+    "terabox.club",
+    "terabox.click",
+    "terabox.me",
+    "terabox.site",
+    "terabox.pro",
+    "terabox.xyz",
+    "teraboxapp.com",
+    "teraboxlink.com",
+    "teraboxlinke.com",
+    "teraboxshare.com",
+    "teraboxsharefile.com",
+    "teraboxurl.com",
+    "teraboxfree.com",
+    "teraboxmod.app",
+    "terasharelink.com",
+    "terasharefile.com",
+    "terashareus.com",
+    "terafileshare.com",
+    "terasharedrive.com",
+    "tera1024box.com",
+    "1024tera.com",
+    "1024tera.co",
+    "1024terabox.com",
+    "1024-terabox.com",
+    "1024box.com",
+    "4funbox.com",
+    "4funbox.co",
+    "4funbox.in",
+    "mirrobox.com",
+    "nephobox.com",
+    "freeterabox.com",
+    "momerybox.com",
+    "tibibox.com",
+    "gibibox.com",
+    "pebibox.com",
+    "fancybox.in",
+    "dubox.com",
+    "bestclouddrive.com",
+    "playduo.link",
 }
 API_ENDPOINT = os.getenv("TERABOX_API_ENDPOINT", "https://ytshorts.savetube.me/api/v1/terabox-downloader")
 ENABLED = os.getenv("TERABOX_ENABLED", "true").lower() in {"1", "true", "yes", "on"}
@@ -33,7 +70,8 @@ READ_TIMEOUT = float(os.getenv("TERABOX_READ_TIMEOUT", "30"))
 def is_terabox_url(url: str) -> bool:
     try:
         parsed = urlparse(url.strip())
-        return parsed.scheme in {"http", "https"} and (parsed.hostname or "").lower().rstrip(".") in TERABOX_HOSTS
+        host = (parsed.hostname or "").lower().rstrip(".")
+        return parsed.scheme in {"http", "https"} and any(host == d or host.endswith("." + d) for d in TERABOX_HOSTS)
     except (ValueError, AttributeError):
         return False
 
@@ -83,12 +121,27 @@ def _extract_direct_link(data: dict) -> tuple[str | None, str | None, str | None
             title if isinstance(title, str) else "TeraBox video")
 
 
-# ---------------- native resolver (TeraBox web API + an account cookie) ----------------
-# Admin uploads cookies/terabox.txt (Netscape, must contain "ndus"). The share page gives
-# jsToken + logid, /share/list then returns the file with a dlink that works with the cookie.
+# ---------------- resolvers ----------------
+# 1) native: share page (jsToken, logid) -> /share/list. Without a login it gives name/size only;
+#    with the admin's TeraBox cookie (cookies/terabox.txt, "ndus") it also gives the dlink.
+# 2) token API (like the ntmterabox.me API): TERABOX_API_URL + TERABOX_API_TOKEN in .env,
+#    GET ?authkey=TOKEN&url=LINK -> {"ok": true, "files": [{"download_url", "filename", "size"}]}
+# 3) the old public endpoint (API_ENDPOINT).
 COOKIE_FILE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "cookies", "terabox.txt")
 UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) "
       "Chrome/131.0.0.0 Safari/537.36")
+TOKEN_API_URL = os.getenv("TERABOX_API_URL", "").strip()
+TOKEN_API_TOKEN = os.getenv("TERABOX_API_TOKEN", "").strip()
+PART_BYTES = int(1.95 * 1024 ** 3)       # Telegram bot upload limit per file
+VIDEO_EXT = {".mp4", ".mkv", ".mov", ".webm", ".m4v", ".avi", ".flv", ".ts"}
+
+
+def _max_bytes() -> int:
+    try:
+        from CONFIG.config import Config
+        return int(float(getattr(Config, "MAX_FILE_SIZE_GB", 4)) * 1024 ** 3)
+    except Exception:
+        return MAX_BYTES
 
 
 def _load_cookies() -> dict:
@@ -108,11 +161,17 @@ def _between(text: str, start: str, end: str) -> str | None:
     return text[i + len(start):j] if j > i else None
 
 
+class NeedCookie(RuntimeError):
+    """TeraBox showed the file but gives a download link only to a logged-in account."""
+
+    def __init__(self, title, size):
+        super().__init__("TeraBox needs a login cookie for this download")
+        self.title, self.size = title, size
+
+
 def _native_resolve(url: str):
     """(direct_url, thumb, title, size, cookies) via TeraBox's own web API, or raise."""
     cookies = _load_cookies()
-    if "ndus" not in cookies:
-        raise RuntimeError("no TeraBox cookie")
     sess = requests.Session()
     sess.headers.update({"User-Agent": UA, "Accept-Language": "en-US,en;q=0.9"})
     sess.cookies.update(cookies)
@@ -139,17 +198,33 @@ def _native_resolve(url: str):
     files = [f for f in data.get("list") or [] if not int(f.get("isdir") or 0)]
     if not files:
         raise RuntimeError("No file in this TeraBox share")
-    f = max(files, key=lambda x: int(x.get("size") or 0)) if len(files) > 1 else files[0]
+    f = max(files, key=lambda x: int(x.get("size") or 0))
+    title, size = f.get("server_filename") or "TeraBox video", int(f.get("size") or 0)
     direct = f.get("dlink")
-    if not direct:
-        raise RuntimeError("TeraBox gave no download link (cookie expired?)")
+    if not direct or "ndus" not in cookies:
+        raise NeedCookie(title, size)
     thumbs = f.get("thumbs") or {}
-    return direct, thumbs.get("url3") or thumbs.get("url2"), f.get("server_filename") or "TeraBox video", \
-        int(f.get("size") or 0), sess.cookies.get_dict()
+    return direct, thumbs.get("url3") or thumbs.get("url2"), title, size, sess.cookies.get_dict()
+
+
+def _token_api_resolve(url: str):
+    if not TOKEN_API_URL:
+        raise RuntimeError("TERABOX_API_URL not set")
+    params = {"url": url}
+    if TOKEN_API_TOKEN:
+        params["authkey"] = TOKEN_API_TOKEN
+    with requests.get(TOKEN_API_URL, params=params, timeout=(CONNECT_TIMEOUT, READ_TIMEOUT)) as r:
+        r.raise_for_status()
+        data = r.json()
+    files = [f for f in (data.get("files") or []) if f.get("download_url")] if data.get("ok") else []
+    if not files:
+        raise RuntimeError("token API returned no file")
+    f = files[0]
+    return f["download_url"], None, f.get("filename") or "TeraBox video", int(f.get("size") or 0), {}
 
 
 def _api_resolve(url: str):
-    """Fallback: the configured third-party extraction endpoint."""
+    """Old public extraction endpoint."""
     with requests.post(API_ENDPOINT, json={"url": url}, timeout=(CONNECT_TIMEOUT, READ_TIMEOUT)) as response:
         response.raise_for_status()
         payload = response.json()
@@ -160,84 +235,132 @@ def _api_resolve(url: str):
 
 
 def _resolve(url: str):
-    errors = []
-    for fn in (_native_resolve, _api_resolve):
+    """First working resolver. On total failure raises; NeedCookie (with name/size) if TeraBox saw the file."""
+    errors, need = [], None
+    for fn in (_native_resolve, _token_api_resolve, _api_resolve):
         try:
             return fn(url)
+        except NeedCookie as exc:
+            need = exc
         except Exception as exc:
             errors.append(f"{fn.__name__}: {exc}")
+    print(f"[terabox] resolvers failed: {'; '.join(errors)}")
+    if need:
+        raise need
     raise RuntimeError("; ".join(errors))
+
+
+# ---------------- send ----------------
+def _duration(path: str) -> float:
+    import subprocess
+    try:
+        out = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of",
+                              "default=noprint_wrappers=1:nokey=1", path], capture_output=True, text=True, timeout=60)
+        return float(out.stdout.strip() or 0)
+    except Exception:
+        return 0.0
+
+
+def _caption(title: str, url: str, part: str = "") -> str:
+    from html import escape
+    from HELPERS.caption import build_quoted_caption
+    bot = os.getenv("BOT_NAME", "Downloader_Villanbot")
+    head = f"<b>{escape(title[:300])}</b>" + (f"\n{part}" if part else "")
+    return build_quoted_caption(head, "", "", "", f'<a href="{escape(url)}">🔗 TeraBox</a> @{bot}')
+
+
+def _send_file(app, message, filepath: Path, title: str, url: str, thumb_path):
+    """Send the file; videos over the Telegram limit go out in parts."""
+    chat, rid = message.chat.id, message.id
+    size = filepath.stat().st_size
+    is_video = filepath.suffix.lower() in VIDEO_EXT
+    if size <= PART_BYTES:
+        if is_video:
+            app.send_video(chat, str(filepath), caption=_caption(title, url), thumb=thumb_path,
+                           reply_to_message_id=rid, supports_streaming=True)
+        else:
+            app.send_document(chat, str(filepath), caption=_caption(title, url), thumb=thumb_path, reply_to_message_id=rid)
+        return
+    if not is_video:
+        raise RuntimeError(f"too large: {size / 1024 ** 3:.2f} GB file (only videos can be sent in parts)")
+    from DOWN_AND_UP.ffmpeg import split_video_2
+    parts = split_video_2(str(filepath.parent), "part", str(filepath), size, PART_BYTES, _duration(str(filepath)), chat)
+    paths = [p for p in (parts or {}).get("path", []) if os.path.exists(p) and os.path.getsize(p) > 0]
+    if not paths:
+        raise RuntimeError("could not split the video")
+    for n, p in enumerate(paths, 1):
+        app.send_video(chat, p, caption=_caption(title, url, f"Part {n}/{len(paths)}"), thumb=thumb_path,
+                       reply_to_message_id=rid, supports_streaming=True)
 
 
 def handle_terabox(app, message) -> bool:
     """Handle a TeraBox URL; return True if this adapter owns the message."""
+    from HELPERS.progress_ui import progress_card
+    from pyrogram import enums
     text = (getattr(message, "text", None) or "").strip()
     match = re.search(r"https?://[^\s<>]+", text)
     url = match.group(0).rstrip(".,);]}") if match else ""
     if not is_terabox_url(url):
         return False
     if not ENABLED:
-        app.send_message(message.chat.id, "TeraBox support is disabled. Set TERABOX_ENABLED=true after reviewing the optional adapter configuration.", reply_to_message_id=message.id)
+        app.send_message(message.chat.id, "TeraBox support is disabled.", reply_to_message_id=message.id)
         return True
 
-    status = app.send_message(message.chat.id, "📦 <b>TeraBox link detected. Getting the file…</b>", reply_to_message_id=message.id)
+    html_mode = enums.ParseMode.HTML
+    status = app.send_message(message.chat.id, progress_card("search", 0), parse_mode=html_mode, reply_to_message_id=message.id)
+    limit = _max_bytes()
     try:
-        # Re-check the exact host before sending it anywhere.
-        if not is_terabox_url(url):
-            raise ValueError("Unsupported TeraBox hostname")
         direct_url, thumb_url, title, size, dl_cookies = _resolve(url)
-        if size and size > MAX_BYTES:
-            raise RuntimeError(f"too large ({size / 1024 ** 3:.2f} GB); TeraBox files are sent up to {MAX_BYTES / 1024 ** 3:.2f} GB")
-
+        if size and size > limit:
+            raise RuntimeError(f"too large: {size / 1024 ** 3:.2f} GB (limit {limit / 1024 ** 3:.0f} GB)")
         with tempfile.TemporaryDirectory(prefix="all-downloader-tera-") as temp_dir:
             folder = Path(temp_dir)
-            filename = re.sub(r"[^\w .()\-]+", "_", title if "." in title else (Path(urlparse(direct_url).path).name or "terabox-video.mp4"))[:120]
+            name = title if "." in title else (Path(urlparse(direct_url).path).name or "terabox-video.mp4")
+            filename = re.sub(r"[^\w .()\-]+", "_", name)[:120]
             if not filename or filename in {".", ".."}:
                 filename = "terabox-video.mp4"
             filepath = folder / filename
             thumb_path = _download_thumb(thumb_url, folder)
-            total = 0
-            last_update = 0.0
+            total, last_update, last_step = 0, 0.0, -1
             with requests.get(direct_url, stream=True, allow_redirects=True, cookies=dl_cookies or None,
                               headers={"User-Agent": UA}, timeout=(CONNECT_TIMEOUT, READ_TIMEOUT)) as response:
                 response.raise_for_status()
-                length = response.headers.get("Content-Length")
-                if length and int(length) > MAX_BYTES:
-                    raise RuntimeError("The file exceeds TERABOX_MAX_BYTES")
+                length = int(response.headers.get("Content-Length") or size or 0)
+                if length and length > limit:
+                    raise RuntimeError(f"too large: {length / 1024 ** 3:.2f} GB (limit {limit / 1024 ** 3:.0f} GB)")
                 with filepath.open("wb") as f:
-                    for chunk in response.iter_content(1024 * 512):
+                    for chunk in response.iter_content(1024 * 1024):
                         if not chunk:
                             continue
                         total += len(chunk)
-                        if total > MAX_BYTES:
-                            raise RuntimeError("The file exceeded TERABOX_MAX_BYTES while downloading")
+                        if total > limit:
+                            raise RuntimeError(f"too large (limit {limit / 1024 ** 3:.0f} GB)")
                         f.write(chunk)
                         now = time.monotonic()
-                        if now - last_update > 4:
-                            last_update = now
-                            app.edit_message_text(message.chat.id, status.id, f"📦 <b>Downloading TeraBox file… {total / (1024 * 1024):.1f} MB</b>")
-            from html import escape
-            from HELPERS.caption import build_quoted_caption
-            bot = os.getenv("BOT_NAME", "Downloader_Villanbot")
-            caption = build_quoted_caption(f"<b>{escape(title[:300])}</b>", "", "", "",
-                                           f'<a href="{escape(url)}">🔗 TeraBox</a> @{bot}')
-            if filepath.suffix.lower() in {".mp4", ".mkv", ".mov", ".webm", ".m4v", ".avi"}:
-                app.send_video(message.chat.id, str(filepath), caption=caption, thumb=thumb_path,
-                               reply_to_message_id=message.id, supports_streaming=True)
-            else:
-                app.send_document(message.chat.id, str(filepath), caption=caption, thumb=thumb_path,
-                                  reply_to_message_id=message.id)
+                        pct = total * 100 / length if length else 0
+                        if now - last_update > 4 and int(pct // 10) != last_step:
+                            last_update, last_step = now, int(pct // 10)
+                            app.edit_message_text(message.chat.id, status.id,
+                                                  progress_card("download", pct, detail=f"{total / 1024 ** 2:.0f} MB"),
+                                                  parse_mode=html_mode)
+            app.edit_message_text(message.chat.id, status.id, progress_card("upload", 0), parse_mode=html_mode)
+            _send_file(app, message, filepath, title, url, thumb_path)
         app.delete_messages(message.chat.id, status.id)  # the file itself is the success signal
     except Exception as exc:
         print(f"[terabox] {url}: {exc}")
-        no_cookie = not os.path.exists(COOKIE_FILE)
-        text = ("📦 <b>TeraBox download failed.</b>\n<blockquote><b>"
-                + (str(exc)[:200] if "too large" in str(exc) else
-                   "The link may be private, deleted or need a password."
-                   + (" Admin: add a TeraBox cookie in Admin Panel → Settings." if no_cookie else ""))
-                + "</b></blockquote>")
+        if isinstance(exc, NeedCookie):
+            body = (f"File: {exc.title[:80]} ({exc.size / 1024 ** 3:.2f} GB)\n"
+                    "TeraBox gives download links only to a logged-in account. "
+                    "Admin: add a TeraBox cookie in Admin Panel → Settings.")
+        elif "too large" in str(exc):
+            body = str(exc)[:200]
+        else:
+            body = "The link may be private, deleted or need a password."
         try:
-            app.edit_message_text(message.chat.id, status.id, text)
+            from html import escape
+            app.edit_message_text(message.chat.id, status.id,
+                                  f"📦 <b>TeraBox download failed.</b>\n<blockquote><b>{escape(body)}</b></blockquote>",
+                                  parse_mode=html_mode)
         except Exception:
             pass
     return True

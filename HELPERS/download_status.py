@@ -103,6 +103,12 @@ def start_hourglass_animation(user_id, hourglass_msg_id, stop_anim):
         The animation thread
     """
 
+    if not hourglass_msg_id:
+        # no separate hourglass message any more (one progress card per download)
+        t = threading.Thread(target=lambda: None, daemon=True)
+        t.start()
+        return t
+
     def animate_hourglass():
         messages = safe_get_messages(user_id)
         """Animate an hourglass emoji by toggling between two hourglass emojis"""

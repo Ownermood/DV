@@ -96,7 +96,7 @@ def test_all_i18n_keys_format():
     assert list(ui_kit.T) == ["en"]  # English only
     for table in ui_kit.T.values():
         for k in table:
-            ui_kit.t(None, k, name="n", platform="p", title="t", max_gb="4", platforms="x")
+            ui_kit.t(None, k, name="n", platform="p", title="t", max_gb="4", platforms="x", state="s")
 
 
 def test_bold_everywhere_including_quotes():
@@ -176,3 +176,10 @@ def test_old_broadcast_records_are_converted(monkeypatch):
     monkeypatch.setattr(ap, "state_get", lambda k, d=None: [{"id": "x", "ts": 1, "sent": {"5": 9}}] if k == "broadcasts" else d)
     r = ap._records()[0]
     assert r["items"] == [[5, [9]]] and r["sent"] == 1 and r["deleted"] is False
+
+
+def test_cookie_menu_buttons():
+    text, kb = ui.cookie_menu(123456789)
+    labels = [b.text for r in kb.inline_keyboard for b in r]
+    assert any("Upload" in l for l in labels) and any("Delete" in l for l in labels)
+    assert not any("Browser" in l or "Vkontakte" in l for l in labels) and "not added" in text

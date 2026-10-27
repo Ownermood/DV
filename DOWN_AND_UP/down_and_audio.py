@@ -482,7 +482,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
     audio_files = []
     try:
         # One progress message per download (no flood probe, pin, status or hourglass extras)
-        proc_msg = app.send_message(user_id, safe_get_messages(user_id).PROCESSING_MSG, reply_parameters=ReplyParameters(message_id=message.id))
+        proc_msg = app.send_message(user_id, progress_card("search", 0), parse_mode=enums.ParseMode.HTML, reply_parameters=ReplyParameters(message_id=message.id))
         proc_msg_id = proc_msg.id
         download_started_msg_id = proc_msg.id  # track to force-delete on error
         anim_thread = start_hourglass_animation(user_id, hourglass_msg_id, stop_anim)

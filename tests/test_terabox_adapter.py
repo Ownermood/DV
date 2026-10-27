@@ -53,8 +53,35 @@ def test_native_resolver_flow(monkeypatch):
 
 
 def test_native_resolver_needs_cookie(monkeypatch):
-    from ADAPTERS import terabox as tb
-    monkeypatch.setattr(tb, "_load_cookies", lambda: {})
+    """Without a login TeraBox lists the file but gives no dlink -> NeedCookie with name and size."""
     import pytest
-    with pytest.raises(RuntimeError):
-        tb._native_resolve("https://terabox.com/s/1AbC")
+    from ADAPTERS import terabox as tb
+
+    class Resp:
+        def __init__(self, text="", url="", js=None):
+            self.text, self.url, self._js = text, url, js
+        def raise_for_status(self):
+            pass
+        def json(self):
+            return self._js
+
+    class Sess:
+        def __init__(self):
+            self.headers, self.cookies = {}, type("C", (), {"update": lambda s, d: None})()
+        def get(self, url, params=None, **k):
+            if "share/list" in url:
+                return Resp(js={"errno": 0, "list": [{"isdir": "0", "size": "3196799587", "server_filename": "movie.mkv"}]})
+            return Resp(text="fn%28%22T%22%29 dp-logid=1&", url="https://www.1024tera.com/sharing/link?surl=X")
+
+    monkeypatch.setattr(tb, "_load_cookies", lambda: {})
+    monkeypatch.setattr(tb.requests, "Session", Sess)
+    with pytest.raises(tb.NeedCookie) as e:
+        tb._native_resolve("https://terasharelink.com/s/1X")
+    assert e.value.title == "movie.mkv" and e.value.size == 3196799587
+
+
+def test_mirror_domains_and_lookalikes():
+    from ADAPTERS import terabox as tb
+    assert tb.is_terabox_url("https://terasharelink.com/s/18Kna")
+    assert tb.is_terabox_url("https://www.1024tera.com/sharing/link?surl=x")
+    assert not tb.is_terabox_url("https://evilterabox.com/s/1")

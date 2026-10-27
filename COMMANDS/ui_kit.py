@@ -115,6 +115,12 @@ def em(key: str) -> str:
     return f'<emoji id="{cid}">{char}</emoji>' if premium_on() else char
 
 
+def pem(key: str) -> str:
+    """Emoji for senders without a plain retry: premium only once Telegram accepted premium emoji."""
+    char, cid = E[key]
+    return f'<emoji id="{cid}">{char}</emoji>' if premium_on() and state_get("premium_ok") else char
+
+
 def btn(key, text, cb=None, url=None, style=BLUE) -> InlineKeyboardButton:
     char, cid = E[key] if key else ("", None)
     kw = {"callback_data": cb} if cb else {"url": url}
@@ -253,6 +259,17 @@ T = {
         "unsupported": "That link isn't supported.",
         "send_link": "Send me a link.",
         "cmd_na": "That command isn't available. Just send a link.",
+        "cookie_menu": ("{chat} <b>Private links (cookies)</b>\n\n"
+                        "<blockquote>{lips} Private, age-restricted or login-only posts need your account's cookies.\n"
+                        "{stars} Public links never need this.</blockquote>\n\n"
+                        "{memo} <b>How to add</b>\n"
+                        "<blockquote>1. In Chrome / Firefox install <b>Get cookies.txt LOCALLY</b>\n"
+                        "2. Open the site (YouTube, Instagram, Facebook, TikTok …) logged in\n"
+                        "3. Export <b>cookies.txt</b> and send the file here</blockquote>\n\n"
+                        "{folder} Your cookie: <b>{state}</b>"),
+        "cookie_own": "{file} <b>Send your cookies.txt file now</b> (max 1 MB).",
+        "cookie_deleted": "{trash} <b>Your cookie was deleted.</b>",
+        "cookie_none": "{warn} <b>You have no saved cookie.</b>",
     },
 }
 

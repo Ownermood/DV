@@ -27,6 +27,9 @@ from COMMANDS.ui_kit import btn, em, send, edit, t, BLUE, GREEN, RED
 app = get_app()
 
 # key -> (label, emoji, domain suffixes)
+# TeraBox and all its mirror / share domains (same list as ADAPTERS/terabox.py)
+TERABOX_DOMAINS = ("terabox.com", "terabox.app", "terabox.fun", "terabox.best", "terabox.club", "terabox.click", "terabox.me", "terabox.site", "terabox.pro", "terabox.xyz", "teraboxapp.com", "teraboxlink.com", "teraboxlinke.com", "teraboxshare.com", "teraboxsharefile.com", "teraboxurl.com", "teraboxfree.com", "teraboxmod.app", "terasharelink.com", "terasharefile.com", "terashareus.com", "terafileshare.com", "terasharedrive.com", "tera1024box.com", "1024tera.com", "1024tera.co", "1024terabox.com", "1024-terabox.com", "1024box.com", "4funbox.com", "4funbox.co", "4funbox.in", "mirrobox.com", "nephobox.com", "freeterabox.com", "momerybox.com", "tibibox.com", "gibibox.com", "pebibox.com", "fancybox.in", "dubox.com", "bestclouddrive.com", "playduo.link")
+
 PLATFORMS = {
     "youtube":   ("YouTube",   "▶️", ("youtube.com", "youtu.be", "youtube-nocookie.com")),
     "instagram": ("Instagram", "📸", ("instagram.com", "instagr.am")),
@@ -34,8 +37,7 @@ PLATFORMS = {
     "tiktok":    ("TikTok",    "🎵", ("tiktok.com", "tiktokv.com")),
     "snapchat":  ("Snapchat",  "👻", ("snapchat.com", "snap.com")),
     "pinterest": ("Pinterest", "📌", ("pinterest.com", "pin.it", "pinterest.co.uk", "pinterest.fr", "pinterest.de", "pinterest.ca", "pinterest.com.au", "pinterest.ph", "pinterest.es", "pinterest.it")),
-    "terabox":   ("TeraBox",   "📦", ("terabox.com", "1024terabox.com", "1024tera.com", "terabox.app", "teraboxapp.com",
-                                       "freeterabox.com", "mirrobox.com", "nephobox.com", "4funbox.com", "momerybox.com", "tibibox.com")),
+    "terabox":   ("TeraBox",   "📦", TERABOX_DOMAINS),
 }
 
 ALLOWED_USER_COMMANDS = {"start", "help", "cookie", "cookies", "check_cookie", "save_as_cookie", "cookies_from_browser"}
@@ -73,9 +75,11 @@ def welcome_text(first_name: str = "", user_id=None) -> str:
     return t(user_id, "welcome", name=name, max_gb=_max_gb(), platforms=_platform_lines())
 
 
-# Premium logos (custom emoji IDs); Pinterest/Snapchat/TeraBox have none yet
-PLATFORM_EMOJI = {"youtube": "5934029049260150525", "instagram": "5935998223045889696",
-                  "facebook": "5933728045067145810", "tiktok": "5936080475964576264"}
+# Premium logos (custom emoji IDs) for every platform
+PLATFORM_EMOJI = {"youtube": "5355235592844095825", "instagram": "5355097780228470775",
+                  "facebook": "5355254460635428635", "tiktok": "5936080475964576264",
+                  "snapchat": "5352719553757466112", "pinterest": "5352595631066071365",
+                  "terabox": "5976766782763962762"}
 
 
 def platform_icon(key) -> str:
@@ -125,8 +129,23 @@ def _start_markup(user_id) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(rows)
 
 
-def _back_markup(user_id) -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup([[btn("back", t(user_id, "back"), cb="ui|home", style=BLUE)]])
+def _back_markup(user_id, cb="ui|home") -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([[btn("back", t(user_id, "back"), cb=cb, style=BLUE)]])
+
+
+def _user_cookie(user_id) -> str:
+    return os.path.join("users", str(user_id), os.path.basename(getattr(Config, "COOKIE_FILE_PATH", "cookie.txt")))
+
+
+def cookie_menu(user_id):
+    has = os.path.exists(_user_cookie(user_id))
+    text = t(user_id, "cookie_menu", state="saved ✓" if has else "not added")
+    kb = InlineKeyboardMarkup([
+        [btn("plus", "Upload My Cookie", cb="ui|ck|own", style=GREEN),
+         btn("search", "Check My Cookie", cb="download_cookie|check_cookie", style=BLUE)],
+        [btn("trash", "Delete My Cookie", cb="ui|ck|del", style=RED)],
+        [btn("exit", "Close", cb="ui|close", style=RED)]])
+    return text, kb
 
 
 def _start_image():
@@ -441,6 +460,9 @@ def front_door(client, message):
             from COMMANDS.admin_panel import handle_command
             if handle_command(client, message, cmd):
                 message.stop_propagation()
+        if cmd in ("cookie", "cookies") and len(text.split()) == 1:
+            send(client, chat_id, lambda: cookie_menu(chat_id))
+            message.stop_propagation()
         if cmd in ALLOWED_USER_COMMANDS or admin:
             return  # legacy handlers (cookies / admin) continue
         send(client, chat_id, lambda: (t(chat_id, "cmd_na"), None))
@@ -473,6 +495,17 @@ def ui_callbacks(client, cq):
     try:
         if action == "help":
             edit(client, msg, lambda: (help_text(uid), _back_markup(uid)))
+        elif action == "ck" and len(parts) == 3:
+            path = _user_cookie(uid)
+            if parts[2] == "own":
+                edit(client, msg, lambda: (t(uid, "cookie_own"), _back_markup(uid, "ui|ckm")))
+            elif parts[2] == "del":
+                had = os.path.exists(path)
+                if had:
+                    os.remove(path)
+                edit(client, msg, lambda: (t(uid, "cookie_deleted" if had else "cookie_none"), _back_markup(uid, "ui|ckm")))
+        elif action == "ckm":
+            edit(client, msg, lambda: cookie_menu(uid))
         elif action == "home":
             edit(client, msg, lambda: (welcome_text(cq.from_user.first_name or "", uid), _start_markup(uid)))
         elif action == "close":

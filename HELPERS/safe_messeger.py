@@ -286,6 +286,16 @@ def safe_edit_message_text(chat_id, message_id, text, **kwargs):
     Returns:
         The message object or None if editing failed
     """
+    # Old multi-line progress statuses -> one clean premium card
+    try:
+        from HELPERS.progress_ui import normalize_status
+        card = normalize_status(text)
+        if card:
+            text = card
+            kwargs["parse_mode"] = enums.ParseMode.HTML
+    except Exception:
+        pass
+
     max_retries = 3
     retry_delay = 5
 
