@@ -641,6 +641,8 @@ def _menu_kb(token, meta):
     if meta["video"]:
         top = meta["height"] or 1080
         qs = [q for q in QUALITIES if int(q) <= max(top, 480)] or ["480"]
+        if meta.get("available") is not None:  # only the copies TeraBox really gives this account
+            qs = [q for q in qs if q in meta["available"]]
         rows.append([btn("bolt" if q == "480" else "play", f"{q}p" + (" ⚡" if q == "480" else ""),
                          cb=f"tb|{token}|{q}", style=plain) for q in qs])
     size = meta["size"]
@@ -673,6 +675,17 @@ def handle_terabox(app, message) -> bool:
     if meta is None:  # old resolvers (worker / token API) still get a chance
         _run_job(app, message, url, None, "o", status)
         return True
+    if meta["video"]:  # ask TeraBox which streaming copies it gives (1080p / 720p often need Premium)
+        import concurrent.futures
+
+        def ok(q):
+            try:
+                _playlist(meta, q)
+                return q
+            except Exception:
+                return None
+        with concurrent.futures.ThreadPoolExecutor(len(QUALITIES)) as pool:
+            meta["available"] = {q for q in pool.map(ok, QUALITIES) if q}
     token = secrets.token_hex(4)
     with tempfile.TemporaryDirectory(prefix="tera-thumb-") as d:
         thumb = _download_thumb(meta["thumb"], Path(d))
@@ -684,8 +697,16 @@ def handle_terabox(app, message) -> bool:
                 app.delete_messages(message.chat.id, status.id)
             except Exception:
                 pass
-    hint = ("⚡ 480p is the fastest · 720p / 1080p sharper · Original = full quality (slowest)"
-            if meta["video"] else "")
+    avail = meta.get("available") or set()
+    if not meta["video"]:
+        hint = ""
+    elif avail and not ({"1080", "720"} & avail):
+        hint = ("⚡ 480p: fast copy · 📁 Original: the real full-quality file "
+                "(TeraBox gives 720p / 1080p copies only to Premium accounts)")
+    elif avail:
+        hint = "⚡ 480p is the fastest · higher = sharper · 📁 Original = the real full-quality file"
+    else:
+        hint = "📁 Original = the real full-quality file"
     _show(app, card, base + (f"\n<blockquote><b>{hint}</b></blockquote>" if hint else "")
           + "\n<b>Choose quality:</b>", _menu_kb(token, meta))
     now = time.time()
