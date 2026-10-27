@@ -219,3 +219,14 @@ def test_non_admin_cannot_open_panel(monkeypatch):
         except pyrogram.StopPropagation:
             pass
     assert sent and all("isn't available" in s for s in sent)
+
+
+def test_yt_preview_card():
+    info = {"id": "x", "title": "Crush <3", "upload_date": "20260927", "duration": 19, "view_count": 310700,
+            "comment_count": 46, "channel": "Emu", "channel_follower_count": 513000,
+            "formats": [{"vcodec": "none", "acodec": "mp4a", "filesize": 308000}]}
+    text = ui._yt_preview(info, {1080: ("1", 3.6e6, False), 720: ("2", 1.6e6, False)})
+    assert "Crush &lt;3" in text and "27-09-2026" in text and "310.7K views" in text and "513K subs" in text
+    assert "1. 1080p — 3.4MB" in text and "MP3 — 301KB" in text and len(text) <= 1024
+    rows = ui._choice_rows(1, "t", {1080: 1, 720: 1, 480: 1, 360: 1}, is_yt=True).inline_keyboard
+    assert [b.text.split()[-1] for b in rows[0]] == ["1080p", "720p", "480p"]

@@ -285,8 +285,10 @@ def _choice_rows(uid, token, yt_sizes=None, is_yt=False):
             sz = (yt_sizes or {}).get(hgt)
             label = {2160: "4K", 1440: "2K"}.get(hgt, f"{hgt}p") + (f" • {_human(sz)}" if sz else "")
             style = RED if sz and sz > cap else (GREEN if hgt >= 1080 else BLUE)
+            if yt_sizes:  # sizes are listed in the preview caption; 3 short buttons per row
+                label = {2160: "4K", 1440: "2K"}.get(hgt, f"{hgt}p")
             row.append(btn("play", label, cb=f"ui|g|{token}|{hgt}", style=style))
-            if len(row) == 2:
+            if len(row) == 3:
                 rows.append(row)
                 row = []
         if row:
@@ -296,6 +298,52 @@ def _choice_rows(uid, token, yt_sizes=None, is_yt=False):
                  btn("image", t(uid, "thumb"), cb=f"ui|g|{token}|t", style=BLUE)])
     rows.append([btn("trash", t(uid, "close"), cb="ui|close", style=RED)])
     return InlineKeyboardMarkup(rows)
+
+
+def _count(n) -> str:
+    n = float(n or 0)
+    for unit in ("", "K", "M", "B"):
+        if n < 1000:
+            return f"{n:.0f}{unit}" if unit == "" else f"{n:.1f}{unit}".replace(".0", "")
+        n /= 1000
+    return f"{n:.1f}T"
+
+
+def _yt_preview(info, picks) -> str:
+    """Caption: title, date / length / views / comments / channel, then every quality with its size."""
+    title = html.escape(info.get("title") or "YouTube")[:180]
+    meta = []
+    d = str(info.get("upload_date") or "")
+    if len(d) == 8:
+        meta.append(f"{em('memo')} {d[6:]}-{d[4:6]}-{d[:4]}")
+    dur = int(info.get("duration") or 0)
+    if dur:
+        meta.append(f"{em('play')} {dur // 3600}:{dur % 3600 // 60:02d}:{dur % 60:02d}" if dur >= 3600
+                    else f"{em('play')} {dur // 60}:{dur % 60:02d}")
+    if info.get("view_count"):
+        meta.append(f"{em('fire')} {_count(info['view_count'])} views")
+    if info.get("comment_count"):
+        meta.append(f"{em('chat')} {_count(info['comment_count'])}")
+    who = html.escape(info.get("channel") or info.get("uploader") or "")[:60]
+    if who:
+        meta.append(f"{em('crown')} {who}" + (f" • {_count(info['channel_follower_count'])} subs"
+                                              if info.get("channel_follower_count") else ""))
+    lines = [f"{em('play')} <b>{title}</b>", "<blockquote>" + "\n".join(meta) + "</blockquote>" if meta else ""]
+    if picks:
+        cap = _cap_bytes()
+        q = []
+        for i, hgt in enumerate(sorted(picks, reverse=True), 1):
+            sz = picks[hgt][1]
+            name = {2160: "4K", 1440: "2K"}.get(hgt, f"{hgt}p")
+            q.append(f"{i}. {name} — {_human(sz) if sz else '?'}" + (" ⛔" if sz and sz > cap else ""))
+        lines.append(f"{em('play')} <b>Video</b>\n<blockquote expandable>" + "\n".join(q) + "</blockquote>")
+    fmts = info.get("formats") or []
+    aud = max((f.get("filesize") or f.get("filesize_approx") or 0 for f in fmts
+               if f.get("vcodec") == "none" and f.get("acodec") not in (None, "none")), default=0)
+    if aud:
+        lines.append(f"{em('music')} <b>Audio</b>\n<blockquote>MP3 — {_human(aud)}</blockquote>")
+    lines.append(f"{em('down')} <b>Choose a quality (up to {_max_gb()} GB):</b>")
+    return "\n".join(x for x in lines if x)[:1024]
 
 
 def _show_link_menu(client, message, key, label) -> None:
@@ -314,6 +362,15 @@ def _show_link_menu(client, message, key, label) -> None:
         if picks:
             _SIZES[token] = picks
         title = html.escape((info or {}).get("title") or "YouTube")[:200]
+        if info and info.get("id"):
+            try:  # preview card: thumbnail + details + sizes (like the big downloader bots)
+                kb = _choice_rows(uid, token, sizes, is_yt=True)
+                send(client, uid, lambda: (_yt_preview(info, picks), kb),
+                     photo=f"https://i.ytimg.com/vi/{info['id']}/hqdefault.jpg", reply_to_message_id=message.id)
+                menu.delete()
+                return
+            except Exception as exc:
+                logger.warning(f"[ui] yt preview failed, text menu instead: {exc}")
         try:
             edit(client, menu, lambda: (t(uid, "pick_yt", title=title, max_gb=_max_gb()),
                                         _choice_rows(uid, token, sizes, is_yt=True)))
