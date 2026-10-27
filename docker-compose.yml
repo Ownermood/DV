@@ -41,7 +41,7 @@ services:
       - mongo-data:/data/db
 
   # Optional Cloudflare WARP (free) for YouTube only, when YouTube blocks the server IP.
-  # Start: docker compose --profile warp up -d   +   YOUTUBE_PROXY=socks5://warp:1080 in .env
+  # Start: docker compose --profile warp up -d   +   YOUTUBE_PROXY=socks5h://warp:1080 in .env
   warp:
     image: caomingjun/warp:latest
     profiles: ["warp"]

@@ -152,7 +152,7 @@ def build_proxy_url(proxy_config):
             return f"http://{proxy_config['ip']}:{proxy_config['port']}"
 
 def youtube_proxy(url: str):
-    """YOUTUBE_PROXY from .env (socks5://warp:1080 with the warp container) for YouTube URLs, else None."""
+    """YOUTUBE_PROXY from .env (socks5h://warp:1080 with the warp container) for YouTube URLs, else None."""
     proxy = os.getenv("YOUTUBE_PROXY", "").strip()
     u = (url or "").lower()
     return proxy if proxy and ("youtube.com" in u or "youtu.be" in u) else None
