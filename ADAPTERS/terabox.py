@@ -397,6 +397,28 @@ def _fast_download(url, filepath: Path, cookies, size, limit, progress) -> None:
             fut.result()
 
 
+def _preview(app, message, title, size, thumb_path) -> None:
+    """Preview card (thumbnail, name, size) before the download, like the other platforms."""
+    from html import escape
+    from pyrogram import enums
+    try:
+        from COMMANDS.ui_kit import pem
+        icon, sz = pem("box"), pem("folder")
+    except Exception:
+        icon, sz = "📦", "📁"
+    size_txt = (f"{size / 1024 ** 3:.2f} GB" if size >= 1024 ** 3 else f"{size / 1024 ** 2:.1f} MB") if size else "unknown"
+    text = (f"{icon} <b>{escape(title[:180])}</b>\n<blockquote><b>{sz} Size: {size_txt}\n"
+            f"⬇️ Downloading in best quality…</b></blockquote>")
+    try:
+        if thumb_path:
+            app.send_photo(message.chat.id, thumb_path, caption=text, parse_mode=enums.ParseMode.HTML,
+                           reply_to_message_id=message.id)
+        else:
+            app.send_message(message.chat.id, text, parse_mode=enums.ParseMode.HTML, reply_to_message_id=message.id)
+    except Exception as exc:
+        print(f"[terabox] preview failed: {exc}")
+
+
 def _send_file(app, message, filepath: Path, title: str, url: str, thumb_path):
     """Send the file; videos over the Telegram limit go out in parts."""
     chat, rid = message.chat.id, message.id
@@ -449,6 +471,7 @@ def handle_terabox(app, message) -> bool:
                 filename = "terabox-video.mp4"
             filepath = folder / filename
             thumb_path = _download_thumb(thumb_url, folder)
+            _preview(app, message, title, size, thumb_path)
             total, last_update, last_step = 0, 0.0, -1
             state = {"last": 0.0, "step": -1}
 

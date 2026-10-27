@@ -250,3 +250,10 @@ def test_many_links_run_one_by_one(monkeypatch):
     assert finished.wait(5)
     assert done == [("https://youtu.be/dQw4w9WgXcQ", "b"), ("https://pin.it/4abcd", "b")]
     assert "2 link(s) added" in sent[0] and "1 unsupported" in sent[0]
+
+
+def test_preview_other_platform():
+    info = {"id": "abc", "description": "Reel text", "like_count": 1200, "uploader": "someone",
+            "formats": [{"vcodec": "h264", "acodec": "aac", "height": 720, "filesize": 5 * 1024 ** 2, "format_id": "x"}]}
+    text = ui._yt_preview(info, ui._yt_pick(info), "Instagram")
+    assert "Reel text" in text and "1.2K" in text and "someone" in text and "720p — 5.0MB" in text

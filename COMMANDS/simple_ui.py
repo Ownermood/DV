@@ -332,9 +332,26 @@ def _oembed(url) -> Optional[dict]:
         return {"id": m.group(1)}
 
 
-def _yt_preview(info, picks) -> str:
-    """Caption: title, date / length / views / comments / channel, then every quality with its size."""
-    title = html.escape(info.get("title") or "YouTube")[:180]
+def _thumb_bytes(url):
+    """Thumbnail as an in-memory file (Instagram / Facebook CDN links can't be fetched by Telegram itself)."""
+    if not url:
+        return None
+    try:
+        import io
+        import requests
+        r = requests.get(url, timeout=15, headers={"User-Agent": "Mozilla/5.0"})
+        if r.ok and r.content and len(r.content) < 10 * 1024 * 1024:
+            f = io.BytesIO(r.content)
+            f.name = "preview.jpg"
+            return f
+    except Exception as exc:
+        logger.info(f"[ui] thumbnail fetch failed: {exc}")
+    return None
+
+
+def _yt_preview(info, picks, label="YouTube") -> str:
+    """Caption: title, date / length / views / likes / comments / channel, then every quality with its size."""
+    title = html.escape(info.get("title") or info.get("description") or label)[:180]
     meta = []
     d = str(info.get("upload_date") or "")
     if len(d) == 8:
@@ -345,6 +362,8 @@ def _yt_preview(info, picks) -> str:
                     else f"{em('play')} {dur // 60}:{dur % 60:02d}")
     if info.get("view_count"):
         meta.append(f"{em('fire')} {_count(info['view_count'])} views")
+    if info.get("like_count"):
+        meta.append(f"{em('heart')} {_count(info['like_count'])}")
     if info.get("comment_count"):
         meta.append(f"{em('chat')} {_count(info['comment_count'])}")
     who = html.escape(info.get("channel") or info.get("uploader") or "")[:60]
@@ -372,10 +391,6 @@ def _yt_preview(info, picks) -> str:
 def _show_link_menu(client, message, key, label) -> None:
     uid = message.chat.id
     token = _remember(message, key)
-    if key != "youtube":
-        send(client, uid, lambda: (t(uid, "pick", platform=f"{platform_icon(key)} {label}"), _choice_rows(uid, token)),
-             reply_to_message_id=message.id)
-        return
     menu = send(client, uid, lambda: (t(uid, "loading"), None), reply_to_message_id=message.id)
 
     def work():
@@ -384,18 +399,38 @@ def _show_link_menu(client, message, key, label) -> None:
         sizes = {h: p[1] for h, p in picks.items()} if picks else None
         if picks:
             _SIZES[token] = picks
-        title = html.escape((info or {}).get("title") or "YouTube")[:200]
+        title = html.escape((info or {}).get("title") or label)[:200]
+        if not info and key != "youtube":  # photo posts / no info (gallery-dl sites): download straight away
+            try:
+                menu.delete()
+            except Exception:
+                pass
+            with _pending_lock:
+                _PENDING.pop(token, None)
+            activity.download(uid)
+            _run_choice(client, message, "b")
+            return
         if not info:  # yt-dlp blocked (server IP): title, channel and thumbnail from oEmbed still make a preview
             info = _oembed(extract_url(message.text))
         if info and info.get("id"):
             try:  # preview card: thumbnail + details + sizes (like the big downloader bots)
-                kb = _choice_rows(uid, token, sizes, is_yt=True)
-                send(client, uid, lambda: (_yt_preview(info, picks), kb),
-                     photo=f"https://i.ytimg.com/vi/{info['id']}/hqdefault.jpg", reply_to_message_id=message.id)
-                menu.delete()
+                kb = _choice_rows(uid, token, sizes, is_yt=bool(sizes) or key == "youtube")
+                photo = (f"https://i.ytimg.com/vi/{info['id']}/hqdefault.jpg" if key == "youtube"
+                         else _thumb_bytes(info.get("thumbnail")))
+                if photo:
+                    send(client, uid, lambda: (_yt_preview(info, picks, label), kb), photo=photo,
+                         reply_to_message_id=message.id)
+                    menu.delete()
+                    return
+            except Exception as exc:
+                logger.warning(f"[ui] preview failed, text menu instead: {exc}")
+        if info and key != "youtube":  # no thumbnail: same details as text
+            try:
+                edit(client, menu, lambda: (_yt_preview(info, picks, label),
+                                            _choice_rows(uid, token, sizes, is_yt=bool(sizes))))
                 return
             except Exception as exc:
-                logger.warning(f"[ui] yt preview failed, text menu instead: {exc}")
+                logger.warning(f"[ui] menu edit failed: {exc}")
         try:
             edit(client, menu, lambda: (t(uid, "pick_yt", title=title, max_gb=_max_gb()),
                                         _choice_rows(uid, token, sizes, is_yt=True)))
@@ -624,12 +659,7 @@ def front_door(client, message):
     key, label, _, _ = found
     if key == "terabox":
         return  # TeraBox adapter is a direct download
-    if key == "youtube":
-        _show_link_menu(client, message, key, label)   # quality picker (+ MP3 / Thumbnail)
-    else:
-        # other sites: best quality straight away; MP3 / Thumbnail come as buttons under the video
-        activity.download(chat_id)
-        threading.Thread(target=_run_choice, args=(client, message, "b"), daemon=True).start()
+    _show_link_menu(client, message, key, label)   # preview card + qualities; no info (photo posts) -> direct download
     message.stop_propagation()
 
 
