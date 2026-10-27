@@ -24,7 +24,7 @@ def test_card_plain_when_premium_not_verified(monkeypatch):
 def test_card_premium_ignores_old_process_text(monkeypatch):
     _premium(monkeypatch, True)
     t = ui.progress_card("download", 57, "<b>📶 Total Progress</b>", "5 MB/s")
-    assert '<emoji id="' in t and "Total Progress" not in t and "40%" in t and "5 MB/s" in t
+    assert '<emoji id="' in t and "Total Progress" not in t and "57%" in t and "5 MB/s" in t
     ents = asyncio.run(Parser(None).parse(t, enums.ParseMode.HTML))["entities"]
     names = {type(e).__name__ for e in ents}
     assert {"MessageEntityCustomEmoji", "MessageEntityBlockquote"} <= names
@@ -48,3 +48,21 @@ def test_edit_card_retries_without_premium(monkeypatch):
         return None if "<emoji" in text else object()
     assert ui.edit_card(fake, 1, 2, ui.progress_card("download", 5)) is not None
     assert len(calls) == 2 and "<emoji" not in calls[1]
+
+
+def test_race_track(monkeypatch):
+    _premium(monkeypatch, False)
+    assert ui.track(0) == "🏴‍☠️🏍━━━━━━━━━━ 🏆"
+    assert ui.track(100, "40 MB/s") == "🏴‍☠️━━━━━━━━━━🚘 🏆"
+    assert ui.track(50, "5 MB/s").count("━") == 10
+    _premium(monkeypatch, True)
+    assert '<emoji id="6012815250733142455">🚘</emoji>' in ui.track(30, "20 MB/s")
+
+
+def test_upload_progress_bar_5_args(monkeypatch):
+    _premium(monkeypatch, False)
+    from HELPERS import download_status as ds
+    edits = []
+    monkeypatch.setattr(ds, "app", type("A", (), {"edit_message_text": lambda self, *a, **k: edits.append(a[2]) or True})())
+    ds.progress_bar(50 * 1024 ** 2, 100 * 1024 ** 2, 7, 99, "status")
+    assert edits and "Uploading" in edits[-1] and "50 / 100 MB" in edits[-1] and "50%" in edits[-1]

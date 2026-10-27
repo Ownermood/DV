@@ -308,27 +308,34 @@ def start_file_progress(user_id, proc_msg_id, folder, total_bytes, stop):
     return thread
 
 
+_upload_started = {}
+
+
 def progress_bar(*args):
-    # It is expected that Pyrogram will cause Progress_BAR with five parameters:
-    # Current, Total, Speed, ETA, File_SIZE, and then additionally your Progress_args (User_id, Msg_id, Status_text)
-    if len(args) < 8:
+    """Pyrogram upload progress: progress(current, total, *progress_args) with
+    progress_args = (user_id, msg_id, status_text). Card with MB / total and speed."""
+    if len(args) == 5:
+        current, total, user_id, msg_id, status_text = args
+    elif len(args) >= 8:  # old 8-value form
+        current, total, _speed, _eta, _size, user_id, msg_id, status_text = args[:8]
+    else:
         return
-    current, total, speed, eta, file_size, user_id, msg_id, status_text = args[:8]
     from HELPERS.cancel import stop_upload
     stop_upload(user_id)  # ❌ Cancel tapped: Pyrogram aborts the upload
-    # Throttle to avoid flood: update at most once per second per message
     now = time.time()
     key = (user_id, msg_id)
+    start = _upload_started.setdefault(key, now)
     last_ts = _last_upload_update_ts.get(key, 0)
-    if now - last_ts < 1.0 and current < total:
+    if now - last_ts < 3.0 and current < total:  # Telegram allows about one edit per 3 s
         return
-    # Build a simple progress bar
     try:
         percent = (current / total * 100) if total else 0
-        blocks = int(percent // 10)
-        bar = bar_blocks(blocks)
-        text = progress_card("upload", percent, status_text)
+        speed = current / max(now - start, 0.1) / 1024 ** 2
+        detail = f"{current / 1024 ** 2:.0f} / {total / 1024 ** 2:.0f} MB · {speed:.1f} MB/s"
+        text = progress_card("upload", percent, detail=detail)
         edit_card(app.edit_message_text, user_id, msg_id, text)
         _last_upload_update_ts[key] = now
+        if current >= total:
+            _upload_started.pop(key, None)
     except Exception as e:
         logger.error(f"Error updating progress: {e}")
