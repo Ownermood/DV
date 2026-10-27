@@ -228,7 +228,7 @@ def _probe(url, user_id) -> Optional[dict]:
     from COMMANDS.cookies_cmd import shared_cookie_path
     plat = detect_platform(url)
     shared = cookie_store.first_active("youtube") if plat and plat[0] == "youtube" else shared_cookie_path(url)
-    order = [None, shared] if plat and plat[0] == "youtube" else [shared, None]  # Instagram etc.: login cookie first
+    order = [shared, None]  # admin's Cookie Manager cookie first (server IPs get YouTube's bot check without it)
     for cookie in dict.fromkeys(order):
         try:
             from HELPERS.proxy_helper import youtube_proxy
