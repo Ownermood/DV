@@ -6,11 +6,13 @@ terms and response formats can change; never treat this as a guaranteed service.
 """
 from __future__ import annotations
 
+import json
 import os
 import re
 import tempfile
 import threading
 import time
+import urllib.parse
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -299,7 +301,7 @@ def _resolve(url: str):
 
 
 # ---------------- streaming version (smaller, much faster, like other TeraBox bots) ----------------
-def _hls_download(playlist: str, out: Path, limit, progress) -> None:
+def _hls_download(playlist: str, out: Path, limit, progress, cookies=None, referer="https://www.1024tera.com/") -> None:
     """Fetch every segment with 16 connections, join them, remux to mp4 (no re-encode)."""
     import concurrent.futures
     import subprocess
@@ -307,7 +309,9 @@ def _hls_download(playlist: str, out: Path, limit, progress) -> None:
     if not segs:
         raise RuntimeError("empty playlist")
     sess = requests.Session()
-    sess.headers.update({"User-Agent": UA, "Referer": "https://www.1024tera.com/"})
+    sess.headers.update({"User-Agent": UA, "Referer": referer})  # segments answer 403 "hotlinking" without it
+    if cookies:
+        sess.cookies.update(cookies)
     adapter = requests.adapters.HTTPAdapter(pool_connections=PARTS, pool_maxsize=PARTS)
     sess.mount("https://", adapter)
     folder = out.parent / "segs"
@@ -602,6 +606,7 @@ def _meta(url, cookies):
                     timeout=(CONNECT_TIMEOUT, READ_TIMEOUT)).json()
     thumbs = f.get("thumbs") or {}
     return {"sess": sess, "base": base, "common": common, "fid": f.get("fs_id"), "video": str(f.get("category")) == "1",
+            "surl": surl,
             "uk": info.get("uk") or data.get("uk"), "shareid": info.get("shareid") or data.get("share_id"),
             "sign": info.get("sign"), "timestamp": info.get("timestamp"), "duration": float(f.get("duration") or 0),
             "title": f.get("server_filename") or "TeraBox video", "size": int(f.get("size") or 0),
@@ -622,7 +627,90 @@ def _meta_try(url):
     raise last or RuntimeError("TeraBox link failed")
 
 
+_own_lock = threading.Lock()
+OWN_DIR = "/dvbot"  # shared files are copied here: TeraBox gives 720p / 1080p only for files in your own account
+
+
+def _own_copy(meta):
+    """Copy the shared file into the cookie's own account (once per menu); returns its path there."""
+    with _own_lock:  # 720p and 1080p are checked in parallel: copy only once
+        if not meta.get("own_path"):
+            meta["own_path"] = _own_copy_now(meta)
+    return meta["own_path"]
+
+
+def _own_copy_now(meta):
+    sess, base, common = meta["sess"], meta["base"], meta["common"]
+    page = sess.get(f"{base}/main", headers={"Referer": f"{base}/"}, timeout=(CONNECT_TIMEOUT, READ_TIMEOUT)).text
+    bds = re.search(r'["\']bdstoken["\']?\s*[:=]\s*["\']([^"\']+)', page)
+    if not bds:
+        raise RuntimeError("TeraBox cookie expired (no bdstoken)")
+    meta["bdstoken"] = bds = bds.group(1)
+    info = sess.get(f"{base}/api/shorturlinfo", params={**common, "shorturl": "1" + meta["surl"], "root": "1"},
+                    timeout=(CONNECT_TIMEOUT, READ_TIMEOUT)).json()
+    randsk = urllib.parse.unquote(info.get("randsk", ""))
+    if randsk:
+        sess.cookies.set("TSID", randsk)
+    # the folder (fine if it already exists)
+    sess.post(f"{base}/api/create", params={**common, "bdstoken": bds},
+              data={"path": OWN_DIR, "isdir": "1", "block_list": "[]"}, timeout=(CONNECT_TIMEOUT, READ_TIMEOUT))
+    tr = sess.post(f"{base}/share/transfer", params={**common, "shareid": meta["shareid"], "from": meta["uk"],
+                                                     "sekey": randsk, "ondup": "newcopy", "async": "2", "bdstoken": bds},
+                   data={"fsidlist": json.dumps([int(meta["fid"])]), "path": OWN_DIR},
+                   headers={"Referer": f"{base}/", "Origin": base}, timeout=(CONNECT_TIMEOUT, 30)).json()
+    if tr.get("errno") not in (0, 4, 12):
+        raise RuntimeError(f"copy to own account failed (errno {tr.get('errno')})")
+    path = None
+    for _ in range(5):  # the copy shows up in the list after a moment
+        time.sleep(1.5)
+        lst = sess.get(f"{base}/api/list", params={**common, "dir": OWN_DIR, "num": "100", "order": "time", "desc": "1"},
+                       timeout=(CONNECT_TIMEOUT, READ_TIMEOUT)).json()
+        mine = next((f for f in lst.get("list") or [] if int(f.get("size") or 0) == meta["size"]
+                     and Path(f.get("server_filename", "")).stem.startswith(Path(meta["title"]).stem[:40])), None)
+        if mine:
+            path = mine["path"]
+            break
+    if not path:
+        raise RuntimeError("copied file not found in own account")
+    return path
+
+
+def _own_delete(meta) -> None:
+    """Remove the copy again so the account does not fill up."""
+    path = meta.get("own_path") if meta else None
+    if not path:
+        return
+    try:
+        meta["sess"].post(f"{meta['base']}/api/filemanager",
+                          params={**meta["common"], "opera": "delete", "async": "2", "bdstoken": meta.get("bdstoken", "")},
+                          data={"filelist": json.dumps([path])}, timeout=(CONNECT_TIMEOUT, READ_TIMEOUT))
+        meta["own_path"] = None
+    except Exception as exc:
+        print(f"[terabox] own copy delete failed: {exc}", flush=True)
+
+
+def _own_playlist(meta, q):
+    path = _own_copy(meta)
+    r = meta["sess"].get(f"{meta['base']}/api/streaming", params={
+        **meta["common"], "path": path, "type": f"M3U8_AUTO_{q}", "bdstoken": meta.get("bdstoken", ""),
+        "isplayer": "1", "check_blue": "1", "clienttype": "1", "resolution": f"{q}p"},
+        timeout=(CONNECT_TIMEOUT, READ_TIMEOUT))
+    if not r.text.startswith("#EXTM3U"):
+        raise RuntimeError(f"{q}p is not available for this video")
+    return r.text
+
+
 def _playlist(meta, q):
+    """Streaming copy: from the share first; 720p / 1080p via a copy in the own account (needs Premium)."""
+    try:
+        return _share_playlist(meta, q)
+    except Exception:
+        if not meta.get("logged_in") or q == "480":
+            raise
+    return _own_playlist(meta, q)
+
+
+def _share_playlist(meta, q):
     r = meta["sess"].get(f"{meta['base']}/share/streaming", params={
         **meta["common"], "uk": meta["uk"], "shareid": meta["shareid"], "type": f"M3U8_AUTO_{q}", "fid": meta["fid"],
         "sign": meta["sign"], "timestamp": meta["timestamp"], "esl": "1", "isplayer": "1", "ehps": "1"},
@@ -726,6 +814,7 @@ def on_choice(app, cq) -> None:
         with _jobs_lock:
             _JOBS.pop(token, None)
         cq.answer()
+        threading.Thread(target=_own_delete, args=(meta,), daemon=True).start()
         try:
             card.delete()
         except Exception:
@@ -738,6 +827,13 @@ def on_choice(app, cq) -> None:
 
 
 def _run_job(app, message, url, meta, q, card) -> None:
+    try:
+        _run_job_inner(app, message, url, meta, q, card)
+    finally:
+        _own_delete(meta)  # the copy in the own account is not needed any more (a retry copies again)
+
+
+def _run_job_inner(app, message, url, meta, q, card) -> None:
     """Download the chosen quality (streaming copy or original file) and send it; the card shows the progress."""
     from HELPERS.progress_ui import progress_card
     from html import escape
@@ -797,7 +893,7 @@ def _run_job(app, message, url, meta, q, card) -> None:
                 _show(app, card, (base + "\n\n" if base else "")
                       + progress_card("download", pct, detail=f"{total / 1024 ** 2:.0f}{of} · {speed:.1f} MB/s"))
             if playlist:
-                _hls_download(playlist, filepath, limit, progress)
+                _hls_download(playlist, filepath, limit, progress, meta["sess"].cookies.get_dict(), meta["base"] + "/")
             else:
                 _fast_download(direct_url, filepath, dl_cookies, size, limit, progress)
             _show(app, card, (base + "\n\n" if base else "") + progress_card("upload", 0))
