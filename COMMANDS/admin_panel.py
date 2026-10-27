@@ -520,7 +520,7 @@ def _cks_view(svc):
     if r:
         rows.append(r)
     if len(sl) < cs.MAX_SLOTS:
-        rows.append([btn("plus", f"Add Cookies ({len(sl)}/{cs.MAX_SLOTS})", cb=f"ap|cka|{svc}", style=GREEN)])
+        rows.append([btn("plus", f"Add Cookie-{len(sl) + 1}", cb=f"ap|cka|{svc}", style=GREEN)])
     text = card(key, f"{label.upper()} COOKIES", lines,
                 [f"{em('memo')} Needs a logged-in cookies.txt (login cookie: <code>{' / '.join(need)}</code>).",
                  f"{em('lips')} Use spare accounts, not your main one."])
@@ -581,20 +581,24 @@ def _cookie_input(client, message, uid, action):
         line = f"{em('ok')} {label} Cookie-{n} {'replaced' if kind == 'ckrep' else 'saved'} · {cs.exp_text(exp)}"
     else:
         line = f"{em('warn')} {name}: {escape(msg)}"
-    full = len(cs.slots(svc)) >= cs.MAX_SLOTS
+    count = len(cs.slots(svc))
+    full = count >= cs.MAX_SLOTS
+    list_btn = btn("folder", f"{label} Cookies ({count})", cb=f"ap|cks|{svc}", style=PLAIN)
     if kind == "ckrep" or full:
         _input.pop(uid, None)
         note = f"\n{em('memo')} {cs.MAX_SLOTS} cookies reached." if full and kind != "ckrep" else ""
-        kb = _back_kb(back=f"ap|cks|{svc}")
-    else:
-        note, kb = "", done_kb
-    sent = send(client, uid, lambda: (line + note + (f"\n{em('search')} Testing…" if ok and svc == "youtube" else ""), kb))
+        kb = InlineKeyboardMarkup([[list_btn]])
+    else:  # still waiting: the next file becomes the next cookie
+        note = (f"\n\n{em('plus')} <b>Add Cookie-{count + 1}?</b> Just send the next .txt file now."
+                if ok else f"\n\n{em('plus')} Send another .txt file, or tap Done.")
+        kb = InlineKeyboardMarkup([[btn("ok", "Done", cb=f"ap|cks|{svc}", style=GREEN), list_btn]])
+    sent = send(client, uid, lambda: (line + (f"\n{em('search')} Testing…" if ok and svc == "youtube" else "") + note, kb))
     if ok and svc == "youtube" and sent:  # live test right away, so a dead cookie is caught now
         sid = cs.slots(svc)[n - 1]["id"]
 
         def run():
             good, why = cs.test_slot(svc, sid)
-            edit(client, sent, lambda: (line + note + f"\n{em('ok' if good else 'warn')} Test: {escape(why)}", kb))
+            edit(client, sent, lambda: (line + f"\n{em('ok' if good else 'warn')} Test: {escape(why)}" + note, kb))
         threading.Thread(target=run, daemon=True).start()
 
 
@@ -1001,12 +1005,14 @@ def admin_callbacks(client, cq):
             else:
                 _input[uid] = f"ckadd:{arg}"
                 label = cs.SERVICES[arg][0]
-                edit(client, msg, lambda: (card("plus", f"ADD {label.upper()} COOKIES", [
-                    f"Send up to <b>{cs.MAX_SLOTS - len(cs.slots(arg))}</b> cookies.txt files — all together or one by one.",
-                    f"1. Log in to {label} in Chrome (spare account)",
-                    "2. Get cookies.txt LOCALLY → Export",
-                    "3. Send the file here. Repeat for each account."], footer=f"{em('ok')} Tap <b>Done</b> when finished."),
-                    InlineKeyboardMarkup([[btn("ok", "Done", cb=f"ap|cks|{arg}", style=GREEN)]])))
+                nxt = len(cs.slots(arg)) + 1
+                edit(client, msg, lambda: (card("plus", f"ADD {label.upper()} COOKIE-{nxt}", [
+                    f"1. New Incognito window → log in to {label} (spare account)",
+                    "2. Get cookies.txt LOCALLY → <b>Export</b>",
+                    "3. Close the Incognito window (don't log out)",
+                    f"4. Send the <b>.txt file here</b>"],
+                    footer=f"{em('ok')} After it is saved you can add Cookie-{nxt + 1} right away."),
+                    InlineKeyboardMarkup([[btn("back", "Cancel", cb=f"ap|cks|{arg}", style=PLAIN)]])))
         elif action == "ckchk":
             cq.answer("Testing all cookies…")
             edit(client, msg, lambda: (f"{em('search')} <b>Testing all cookies…</b>", None))
