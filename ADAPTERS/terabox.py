@@ -9,6 +9,7 @@ from __future__ import annotations
 import os
 import re
 import tempfile
+import threading
 import time
 from pathlib import Path
 from urllib.parse import urlparse
@@ -316,6 +317,86 @@ def _caption(title: str, url: str, part: str = "") -> str:
     return build_quoted_caption(head, "", "", "", f'<a href="{escape(url)}">🔗 TeraBox</a> @{bot}')
 
 
+PARTS = 16                    # parallel connections (TeraBox throttles each connection)
+MIN_PART = 4 * 1024 * 1024
+
+
+def _fast_download(url, filepath: Path, cookies, size, limit, progress) -> None:
+    """Parallel HTTP range download (16 connections); single stream if the server has no ranges."""
+    import concurrent.futures
+    headers = {"User-Agent": UA, "Referer": "https://terabox.com/"}
+    sess = requests.Session()
+    sess.headers.update(headers)
+    if cookies:
+        sess.cookies.update(cookies)
+    adapter = requests.adapters.HTTPAdapter(pool_connections=PARTS, pool_maxsize=PARTS)
+    sess.mount("https://", adapter)
+    sess.mount("http://", adapter)
+    probe = sess.get(url, headers={"Range": "bytes=0-0"}, stream=True, allow_redirects=True,
+                     timeout=(CONNECT_TIMEOUT, READ_TIMEOUT))
+    final, code = probe.url, probe.status_code
+    rng = probe.headers.get("Content-Range", "")
+    probe.close()
+    length = int(rng.rsplit("/", 1)[-1]) if code == 206 and "/" in rng and rng.rsplit("/", 1)[-1].isdigit() else 0
+    if length and length > limit:
+        raise RuntimeError(f"too large: {length / 1024 ** 3:.2f} GB (limit {limit / 1024 ** 3:.0f} GB)")
+    lock, done = threading.Lock(), [0]
+
+    def add(n, total_len):
+        with lock:
+            done[0] += n
+            cur = done[0]
+        if cur > limit:
+            raise RuntimeError(f"too large (limit {limit / 1024 ** 3:.0f} GB)")
+        progress(cur, total_len)
+
+    if not length or length < 2 * MIN_PART:  # no range support / small file: one stream
+        with sess.get(final, stream=True, timeout=(CONNECT_TIMEOUT, READ_TIMEOUT)) as r:
+            r.raise_for_status()
+            total_len = int(r.headers.get("Content-Length") or size or 0)
+            if total_len and total_len > limit:
+                raise RuntimeError(f"too large: {total_len / 1024 ** 3:.2f} GB (limit {limit / 1024 ** 3:.0f} GB)")
+            with filepath.open("wb") as f:
+                for chunk in r.iter_content(1024 * 1024):
+                    if chunk:
+                        f.write(chunk)
+                        add(len(chunk), total_len)
+        return
+    n = max(1, min(PARTS, length // MIN_PART))
+    step = length // n
+    ranges = [(i * step, length - 1 if i == n - 1 else (i + 1) * step - 1) for i in range(n)]
+    with filepath.open("wb") as f:
+        f.truncate(length)
+
+    def part(a, b):
+        for attempt in range(4):
+            pos = a
+            try:
+                with sess.get(final, headers={"Range": f"bytes={a}-{b}"}, stream=True,
+                              timeout=(CONNECT_TIMEOUT, READ_TIMEOUT)) as r:
+                    if r.status_code != 206:
+                        raise RuntimeError(f"range not served (HTTP {r.status_code})")
+                    with filepath.open("r+b") as f:
+                        f.seek(a)
+                        for chunk in r.iter_content(1024 * 1024):
+                            if chunk:
+                                f.write(chunk)
+                                pos += len(chunk)
+                                add(len(chunk), length)
+                if pos == b + 1:
+                    return
+                raise RuntimeError("part cut short")
+            except Exception:
+                with lock:
+                    done[0] -= pos - a  # this part restarts from its beginning
+                if attempt == 3:
+                    raise
+                time.sleep(2 * (attempt + 1))
+    with concurrent.futures.ThreadPoolExecutor(n) as pool:
+        for fut in [pool.submit(part, a, b) for a, b in ranges]:
+            fut.result()
+
+
 def _send_file(app, message, filepath: Path, title: str, url: str, thumb_path):
     """Send the file; videos over the Telegram limit go out in parts."""
     chat, rid = message.chat.id, message.id
@@ -369,28 +450,20 @@ def handle_terabox(app, message) -> bool:
             filepath = folder / filename
             thumb_path = _download_thumb(thumb_url, folder)
             total, last_update, last_step = 0, 0.0, -1
-            with requests.get(direct_url, stream=True, allow_redirects=True, cookies=dl_cookies or None,
-                              headers={"User-Agent": UA, "Referer": "https://terabox.com/"},
-                              timeout=(CONNECT_TIMEOUT, READ_TIMEOUT)) as response:
-                response.raise_for_status()
-                length = int(response.headers.get("Content-Length") or size or 0)
-                if length and length > limit:
-                    raise RuntimeError(f"too large: {length / 1024 ** 3:.2f} GB (limit {limit / 1024 ** 3:.0f} GB)")
-                with filepath.open("wb") as f:
-                    for chunk in response.iter_content(1024 * 1024):
-                        if not chunk:
-                            continue
-                        total += len(chunk)
-                        if total > limit:
-                            raise RuntimeError(f"too large (limit {limit / 1024 ** 3:.0f} GB)")
-                        f.write(chunk)
-                        now = time.monotonic()
-                        pct = total * 100 / length if length else 0
-                        if now - last_update > 4 and int(pct // 10) != last_step:
-                            last_update, last_step = now, int(pct // 10)
-                            app.edit_message_text(message.chat.id, status.id,
-                                                  progress_card("download", pct, detail=f"{total / 1024 ** 2:.0f} MB"),
-                                                  parse_mode=html_mode)
+            state = {"last": 0.0, "step": -1}
+
+            def progress(total, length):
+                now = time.monotonic()
+                pct = total * 100 / length if length else 0
+                if now - state["last"] > 4 and int(pct // 10) != state["step"]:
+                    state["last"], state["step"] = now, int(pct // 10)
+                    try:
+                        app.edit_message_text(message.chat.id, status.id,
+                                              progress_card("download", pct, detail=f"{total / 1024 ** 2:.0f} MB"),
+                                              parse_mode=html_mode)
+                    except Exception:
+                        pass
+            _fast_download(direct_url, filepath, dl_cookies, size, limit, progress)
             app.edit_message_text(message.chat.id, status.id, progress_card("upload", 0), parse_mode=html_mode)
             _send_file(app, message, filepath, title, url, thumb_path)
         app.delete_messages(message.chat.id, status.id)  # the file itself is the success signal

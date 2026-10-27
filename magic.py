@@ -87,7 +87,9 @@ app = Client(
     "magic",
     api_id=Config.API_ID,
     api_hash=Config.API_HASH,
-    bot_token=Config.BOT_TOKEN
+    bot_token=Config.BOT_TOKEN,
+    workers=32,                       # handlers for many users at once
+    max_concurrent_transmissions=8,   # default 1 = every user's upload waits for the previous one
 )
 
 # Set global app instance BEFORE importing handlers
