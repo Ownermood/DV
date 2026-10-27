@@ -650,9 +650,7 @@ def _menu_kb(token, meta):
                          cb=f"tb|{token}|{q}", style=plain) for q in qs])
     size = meta["size"]
     size_txt = (f"{size / 1024 ** 3:.2f} GB" if size >= 1024 ** 3 else f"{size / 1024 ** 2:.0f} MB") if size else ""
-    free = meta.get("available") is not None and not ({"1080", "720"} & meta["available"])
-    rows.append([btn("folder", "Original file" + (f" · {size_txt}" if size_txt else "") + (" (very slow)" if free else ""),
-                     cb=f"tb|{token}|o", style=plain)])
+    rows.append([btn("folder", "Original file" + (f" · {size_txt}" if size_txt else ""), cb=f"tb|{token}|o", style=plain)])
     rows.append([btn("trash", "Close", cb=f"tb|{token}|x", style=plain)])
     return InlineKeyboardMarkup(rows)
 
@@ -702,16 +700,8 @@ def handle_terabox(app, message) -> bool:
                 app.delete_messages(message.chat.id, status.id)
             except Exception:
                 pass
-    avail = meta.get("available") or set()
-    if not meta["video"]:
-        hint = ""
-    elif avail and not ({"1080", "720"} & avail):
-        hint = ("⚡ 480p: fast copy · 📁 Original: full quality but TeraBox limits it to a few KB/s "
-                "on free accounts (720p / 1080p copies need Premium)")
-    elif avail:
-        hint = "⚡ 480p is the fastest · higher = sharper · 📁 Original = the real full-quality file"
-    else:
-        hint = "📁 Original = the real full-quality file"
+    hint = ("⚡ Stream copies are the fastest · 📁 Original = the real full-quality file"
+            if meta["video"] else "")
     _show(app, card, base + (f"\n<blockquote><b>{hint}</b></blockquote>" if hint else "")
           + "\n<b>Choose quality:</b>", _menu_kb(token, meta))
     now = time.time()
