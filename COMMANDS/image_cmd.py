@@ -1915,7 +1915,7 @@ def image_command(app, message):
                             
                             # MAIN SENDING LOGIC - separate try-catch to prevent logging errors from triggering fallback
                             try:
-                                if nsfw_flag and is_private_chat:
+                                if nsfw_flag and is_private_chat and LimitsConfig.NSFW_PAID:
                                     logger.info(LoggerMsg.IMG_MAIN_PAID_LOGIC_LOG_MSG.format(item_count=len(media_group)))
                                     # Send as paid media album (up to 10 media files)
                                     try:
@@ -2418,7 +2418,7 @@ def image_command(app, message):
                                     is_private_chat = not (str(original_chat_id).startswith('-100') or str(original_chat_id).startswith('-'))
                                     logger.info(f"[IMG FALLBACK] FAKE MESSAGE DETECTED - original_chat_id={original_chat_id}, is_private_chat={is_private_chat}")
                                 logger.info(f"[IMG FALLBACK] nsfw_flag={nsfw_flag}, is_private_chat={is_private_chat}, len(fallback)={len(fallback)}")
-                                if nsfw_flag and is_private_chat and len(fallback) > 1:
+                                if nsfw_flag and is_private_chat and LimitsConfig.NSFW_PAID and len(fallback) > 1:
                                     # Try to send as paid media album first
                                     try:
                                         paid_media_list = []
@@ -2545,7 +2545,7 @@ def image_command(app, message):
                                     # If chat_id starts with -100, it's a group/channel (not a private chat)
                                     is_private_chat = not (str(original_chat_id).startswith('-100') or str(original_chat_id).startswith('-'))
                                     logger.info(f"[IMG INDIVIDUAL] FAKE MESSAGE DETECTED - original_chat_id={original_chat_id}, is_private_chat={is_private_chat}")
-                                if nsfw_flag and is_private_chat and len(fallback) > 1:
+                                if nsfw_flag and is_private_chat and LimitsConfig.NSFW_PAID and len(fallback) > 1:
                                     # Send as paid media album with same reply_parameters for grouping
                                     try:
                                         paid_media_list = []
@@ -2683,7 +2683,7 @@ def image_command(app, message):
                                     
                                     # Create media group for this album
                                     try:
-                                        if nsfw_flag and is_private_chat:
+                                        if nsfw_flag and is_private_chat and LimitsConfig.NSFW_PAID:
                                             # NSFW content in private chat - send as paid media album
                                             paid_media_list = []
                                             for p, t, orig in album_items:
@@ -3028,7 +3028,7 @@ def image_command(app, message):
                             # If chat_id starts with -100, it's a group/channel (not a private chat)
                             is_private_chat = not (str(original_chat_id).startswith('-100') or str(original_chat_id).startswith('-'))
                             logger.info(f"[IMG TAIL] FAKE MESSAGE DETECTED - original_chat_id={original_chat_id}, is_private_chat={is_private_chat}")
-                        if nsfw_flag and is_private_chat:
+                        if nsfw_flag and is_private_chat and LimitsConfig.NSFW_PAID:
                             # Send as paid media album (up to 10 media files)
                             sent = []  # Initialize sent variable
                             try:
@@ -3417,7 +3417,7 @@ def image_command(app, message):
                                         last_exc = None
                                         while attempts < 5:
                                             try:
-                                                if nsfw_flag and is_private_chat:
+                                                if nsfw_flag and is_private_chat and LimitsConfig.NSFW_PAID:
                                                     sent_msg = app.send_paid_media(
                                                         user_id,
                                                         media=[InputPaidMediaPhoto(media=f)],
@@ -3454,7 +3454,7 @@ def image_command(app, message):
                                         last_exc = None
                                         while attempts < 5:
                                             try:
-                                                if nsfw_flag and is_private_chat:
+                                                if nsfw_flag and is_private_chat and LimitsConfig.NSFW_PAID:
                                                     _cover = ensure_paid_cover_embedded(p, thumb)
                                                     try:
                                                         media_item = InputPaidMediaVideo(media=f, cover=_cover)

@@ -91,4 +91,6 @@ class LimitsConfig(object):
     GROUP_MULTIPLIER = 2
     #######################################################
     NSFW_STAR_COST = 1
+    # NSFW as paid media (users pay NSFW_STAR_COST stars to open it). Off: sent normally, blurred.
+    NSFW_PAID = __import__("os").getenv("NSFW_PAID", "false").strip().lower() in ("1", "true", "yes", "on")
     

@@ -5,6 +5,7 @@ import shutil as _shutil_mod  # module-level alias: functions below import shuti
 # ########################################
 
 import os
+from CONFIG.limits import LimitsConfig
 from HELPERS.logger import get_log_channel
 from CONFIG.logger_msg import LoggerMsg
 import threading
@@ -271,7 +272,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                             is_nsfw = is_porn(url, "", "", None) or user_forced_nsfw
                             logger.info(f"[FALLBACK] is_porn check for {url}: {is_porn(url, '', '', None)}, user_forced_nsfw: {user_forced_nsfw}, final is_nsfw: {is_nsfw}")
                             is_private_chat = getattr(message.chat, "type", None) == enums.ChatType.PRIVATE
-                            is_paid = is_nsfw and is_private_chat
+                            is_paid = is_nsfw and is_private_chat and LimitsConfig.NSFW_PAID
                             
                             # Get the correct log channel for reposting
                             if is_paid:
@@ -339,7 +340,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                     # Determine the correct log channel based on content type
                     # is_nsfw already determined above
                     is_private_chat = getattr(message.chat, "type", None) == enums.ChatType.PRIVATE
-                    is_paid = is_nsfw and is_private_chat
+                    is_paid = is_nsfw and is_private_chat and LimitsConfig.NSFW_PAID
                     
                     # Get the correct log channel for reposting
                     if is_paid:
@@ -1510,7 +1511,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 is_nsfw = is_porn(url, "", "", None) or user_forced_nsfw
                 logger.info(f"[FALLBACK] is_porn check for {url}: {is_porn(url, '', '', None)}, user_forced_nsfw: {user_forced_nsfw}, final is_nsfw: {is_nsfw}")
                 is_private_chat = getattr(message.chat, "type", None) == enums.ChatType.PRIVATE
-                is_paid = is_nsfw and is_private_chat
+                is_paid = is_nsfw and is_private_chat and LimitsConfig.NSFW_PAID
                 
                 # Determine file extension to decide how to send it
                 file_ext = os.path.splitext(audio_file)[1].lower()

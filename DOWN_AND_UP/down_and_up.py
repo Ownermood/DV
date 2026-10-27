@@ -2034,7 +2034,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                         is_nsfw = is_porn(url, "", "", None) or user_forced_nsfw
                         logger.info(f"[FALLBACK] is_porn check for {url}: {is_porn(url, '', '', None)}, user_forced_nsfw: {user_forced_nsfw}, final is_nsfw: {is_nsfw}")
                         is_private_chat = getattr(message.chat, "type", None) == enums.ChatType.PRIVATE
-                        is_paid = is_nsfw and is_private_chat
+                        is_paid = is_nsfw and is_private_chat and LimitsConfig.NSFW_PAID
                         logger.info(f"[VIDEO CACHE] URL analysis: url={url}, is_nsfw={is_nsfw}, is_private_chat={is_private_chat}, is_paid={is_paid}")
                         
                         # Handle different content types according to new logic
@@ -2252,7 +2252,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                 ) or (getattr(video_msg, "paid_media", None) is not None)
                             except Exception:
                                 msg_is_paid = False
-                            is_paid = msg_is_paid or (is_nsfw and is_private_chat)
+                            is_paid = msg_is_paid or (is_nsfw and is_private_chat and LimitsConfig.NSFW_PAID)
                             
                             # Handle different content types according to new logic
                             if is_paid:
@@ -2364,7 +2364,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                             ) or (getattr(video_msg, "paid_media", None) is not None)
                                         except Exception:
                                             msg_is_paid = False
-                                        is_paid = msg_is_paid or (is_nsfw and is_private_chat)
+                                        is_paid = msg_is_paid or (is_nsfw and is_private_chat and LimitsConfig.NSFW_PAID)
                                         
                                         # Handle different content types according to new logic
                                         if is_paid:
@@ -2438,7 +2438,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                 is_nsfw = is_porn(url, "", "", None) or user_forced_nsfw
                                 logger.info(f"[FALLBACK] is_porn check for {url}: {is_porn(url, '', '', None)}, user_forced_nsfw: {user_forced_nsfw}, final is_nsfw: {is_nsfw}")
                                 is_private_chat = getattr(message.chat, "type", None) == enums.ChatType.PRIVATE
-                                is_paid = is_nsfw and is_private_chat
+                                is_paid = is_nsfw and is_private_chat and LimitsConfig.NSFW_PAID
                                 
                                 # Handle different content types according to new logic
                                 if is_paid:

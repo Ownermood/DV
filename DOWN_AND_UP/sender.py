@@ -236,7 +236,7 @@ def send_videos(
                 is_private_chat = chat_type == enums.ChatType.PRIVATE
             except Exception:
                 is_private_chat = True
-            if is_spoiler and is_private_chat:
+            if is_spoiler and is_private_chat and LimitsConfig.NSFW_PAID:
                 try:
                     # Probe metadata and provide valid cover/parameters
                     try:
@@ -300,7 +300,7 @@ def send_videos(
                 height=int(v_h2) if v_h2 else height,
                 supports_streaming=True,
                 thumb=local_thumb_free,
-                has_spoiler=False,
+                has_spoiler=bool(is_spoiler),  # NSFW: blurred until tapped (paid media is off by default)
                 progress=progress_bar,
                 progress_args=(
                     user_id,
@@ -347,7 +347,7 @@ def send_videos(
                 is_private_chat = chat_type == enums.ChatType.PRIVATE
             except Exception:
                 is_private_chat = True
-            if is_spoiler and is_private_chat:
+            if is_spoiler and is_private_chat and LimitsConfig.NSFW_PAID:
                 try:
                     try:
                         v_w, v_h, v_dur = get_video_info_ffprobe(video_abs_path)
