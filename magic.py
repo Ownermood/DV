@@ -140,7 +140,6 @@ from COMMANDS.proxy_cmd import proxy_command
 from COMMANDS.cookies_cmd import download_cookie
 
 # DOWN_AND_UP (with handlers - import after app setup)
-from DOWN_AND_UP.always_ask_menu import *
 
 # Initialize global messages instance
 messages = safe_get_messages(None)

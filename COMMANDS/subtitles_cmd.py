@@ -53,7 +53,7 @@ def get_or_compute_subs_langs(user_id: int, url: str):
     try:
         # Try session cache file first (managed by Always Ask)
         try:
-            from DOWN_AND_UP.always_ask_menu import load_subs_langs_cache, save_subs_langs_cache
+            from DOWN_AND_UP.dl_state import load_subs_langs_cache, save_subs_langs_cache
             cached = load_subs_langs_cache(user_id, url)
         except Exception:
             cached = None
@@ -66,7 +66,7 @@ def get_or_compute_subs_langs(user_id: int, url: str):
         normal = get_available_subs_languages(url, user_id, auto_only=False)
         auto   = get_available_subs_languages(url, user_id, auto_only=True)
         try:
-            from DOWN_AND_UP.always_ask_menu import save_subs_langs_cache
+            from DOWN_AND_UP.dl_state import save_subs_langs_cache
             save_subs_langs_cache(user_id, url, normal, auto)
         except Exception:
             pass
@@ -1448,7 +1448,7 @@ def download_subtitles_only(app, message, url, tags, available_langs, playlist_n
             if subs_path and os.path.exists(subs_path) and os.path.getsize(subs_path) > 0:
                 # Get video information for caption - try cached info first
                 try:
-                    from DOWN_AND_UP.always_ask_menu import load_ask_info
+                    from DOWN_AND_UP.dl_state import load_ask_info
                     cached_info = load_ask_info(user_id, url)
                     if cached_info:
                         title = cached_info.get('title', 'Video')

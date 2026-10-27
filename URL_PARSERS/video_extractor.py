@@ -6,7 +6,6 @@ from HELPERS.logger import send_to_logger, send_to_all, send_error_to_user, logg
 from HELPERS.filesystem_hlp import create_directory
 from URL_PARSERS.tags import extract_url_range_tags, save_user_tags, get_auto_tags
 from URL_PARSERS.tiktok import is_tiktok_url
-from DOWN_AND_UP.always_ask_menu import ask_quality_menu
 from DOWN_AND_UP.down_and_up import down_and_up
 from HELPERS.download_status import playlist_errors, playlist_errors_lock
 from pyrogram import filters
@@ -37,38 +36,12 @@ def video_url_extractor(app, message):
     # A choice from the link menu (COMMANDS/simple_ui) overrides the saved /format.
     from COMMANDS.simple_ui import format_for
     ui_choice = getattr(message, "_ui_choice", None)
-    should_ask = False
     saved_format = getattr(message, "_ui_format", None) or format_for(ui_choice or None)
     if ui_choice is None and os.path.exists(format_file):
         with open(format_file, "r", encoding="utf-8") as f:
             fmt = f.read().strip()
-        # Do not ask only if the format is set and it is NOT "ALWAYS_ASK"
-        if fmt == "ALWAYS_ASK":
-            should_ask = True
-        elif fmt:
+        if fmt and fmt != "ALWAYS_ASK":  # the old quality menu is gone; the preview card asks now
             saved_format = fmt
-
-    if should_ask:
-        full_string = message.text
-        logger.info(f"🔍 [DEBUG] video_extractor: full_string='{full_string}'")
-        url, video_start_with, video_end_with, _, tags, _, tag_error = extract_url_range_tags(full_string)
-        logger.info(f"🔍 [DEBUG] video_extractor: after extract_url_range_tags: url='{url}', video_start_with={video_start_with}, video_end_with={video_end_with}")
-        # Add tag error check
-        if tag_error:
-            wrong, example = tag_error
-            error_msg = safe_get_messages(user_id).TAG_FORBIDDEN_CHARS_MSG.format(tag=wrong, example=example)
-            app.send_message(user_id, error_msg, reply_parameters=ReplyParameters(message_id=message.id))
-            from HELPERS.logger import log_error_to_channel
-            log_error_to_channel(message, error_msg)
-            return
-        # If a range is present, use video_start_with from parsing; otherwise 1
-        # ask_quality_menu will determine the range from original_text and update playlist_start_index
-        # For negative indices, ensure at least one number is not equal to 1
-        has_range = (video_start_with != 1 or video_end_with != 1) or (video_start_with < 0 or video_end_with < 0)
-        playlist_start_index = video_start_with if has_range else 1
-        logger.info(f"🔍 [DEBUG] video_extractor: video_start_with={video_start_with}, video_end_with={video_end_with}, has_range={has_range}, playlist_start_index={playlist_start_index}")
-        ask_quality_menu(app, message, url, tags, playlist_start_index)
-        return
 
     # This code is executed only if the user has selected a specific format
     with playlist_errors_lock:

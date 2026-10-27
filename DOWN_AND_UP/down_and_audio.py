@@ -206,7 +206,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
     
     # Check if LINK mode is enabled - if yes, get direct link instead of downloading
     try:
-        from DOWN_AND_UP.always_ask_menu import get_link_mode
+        from DOWN_AND_UP.dl_state import get_link_mode
         if get_link_mode(user_id):
             logger.info(f"LINK mode enabled for user {user_id}, getting direct link instead of downloading audio")
             
@@ -502,7 +502,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
             os.makedirs(user_dir, exist_ok=True)
 
         # Try to get download directory from ask_quality_menu first
-        from DOWN_AND_UP.always_ask_menu import get_user_download_dir, generate_download_dir_name
+        from DOWN_AND_UP.dl_state import get_user_download_dir, generate_download_dir_name
         user_folder = get_user_download_dir(user_id)
         
         # If no download directory from ask_quality_menu, create one
@@ -1845,7 +1845,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
         
         # Clean up download subdirectory after successful upload
         try:
-            from DOWN_AND_UP.always_ask_menu import get_user_download_dir
+            from DOWN_AND_UP.dl_state import get_user_download_dir
             download_dir = get_user_download_dir(user_id)
             if download_dir and os.path.exists(download_dir):
                 logger.info(f"Cleaning up download subdirectory after successful audio upload: {download_dir}")

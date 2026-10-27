@@ -172,7 +172,6 @@ def set_format(app, message):
             # We need to get the last URL from user's history or ask them to provide URL
             try:
                 # Try to get URL from user's last message or session
-                from DOWN_AND_UP.always_ask_menu import get_video_formats, analyze_format_type
                 
                 # Use format ID with fallback for both audio and video
                 # This works for audio-only, video-only, and full formats

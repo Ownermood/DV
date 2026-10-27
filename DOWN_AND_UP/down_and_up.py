@@ -72,7 +72,7 @@ def _handle_quality_key_error(e: Exception, split_msg_ids: list, is_playlist: bo
         send_to_logger(message, success_msg)
         try:
             from COMMANDS.subtitles_cmd import clear_subs_cache_for
-            from DOWN_AND_UP.always_ask_menu import delete_subs_langs_cache
+            from DOWN_AND_UP.dl_state import delete_subs_langs_cache
             delete_subs_langs_cache(user_id, url)
             cleared = clear_subs_cache_for(user_id, url)
             logger.info(f"[SUBS] End of task: cleared {cleared} subtitle cache entries for user={user_id}")
@@ -187,7 +187,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
     if clear_subs_cache_on_start:
         try:
             from COMMANDS.subtitles_cmd import clear_subs_cache_for
-            from DOWN_AND_UP.always_ask_menu import delete_subs_langs_cache
+            from DOWN_AND_UP.dl_state import delete_subs_langs_cache
             delete_subs_langs_cache(user_id, url)
             cleared = clear_subs_cache_for(user_id, url)
             logger.info(f"[SUBS] Start of task (direct): cleared {cleared} subtitle cache entries for user={user_id}")
@@ -225,7 +225,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
     
     # Check if LINK mode is enabled - if yes, get direct link instead of downloading
     try:
-        from DOWN_AND_UP.always_ask_menu import get_link_mode
+        from DOWN_AND_UP.dl_state import get_link_mode
         if get_link_mode(user_id):
             logger.info(f"LINK mode enabled for user {user_id}, getting direct link instead of downloading")
             
@@ -564,7 +564,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
             os.makedirs(user_dir, exist_ok=True)
 
         # Try to get download directory from ask_quality_menu first
-        from DOWN_AND_UP.always_ask_menu import get_user_download_dir, generate_download_dir_name
+        from DOWN_AND_UP.dl_state import get_user_download_dir, generate_download_dir_name
         user_dir_name = get_user_download_dir(user_id)
         
         # If no download directory from ask_quality_menu, create one
@@ -3207,7 +3207,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
             send_to_logger(message, success_msg)
             try:
                 from COMMANDS.subtitles_cmd import clear_subs_cache_for
-                from DOWN_AND_UP.always_ask_menu import delete_subs_langs_cache
+                from DOWN_AND_UP.dl_state import delete_subs_langs_cache
                 delete_subs_langs_cache(user_id, url)
                 cleared = clear_subs_cache_for(user_id, url)
                 logger.info(f"[SUBS] End of task: cleared {cleared} subtitle cache entries for user={user_id}")
@@ -3216,7 +3216,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
             
             # Clean up download subdirectory after successful upload
             try:
-                from DOWN_AND_UP.always_ask_menu import get_user_download_dir
+                from DOWN_AND_UP.dl_state import get_user_download_dir
                 download_dir = get_user_download_dir(user_id)
                 if download_dir and os.path.exists(download_dir):
                     logger.info(f"Cleaning up download subdirectory after successful upload: {download_dir}")
@@ -3250,7 +3250,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 send_to_logger(message, safe_get_messages(user_id).VIDEO_UPLOAD_COMPLETED_SPLITTING_LOG_MSG)
                 try:
                     from COMMANDS.subtitles_cmd import clear_subs_cache_for
-                    from DOWN_AND_UP.always_ask_menu import delete_subs_langs_cache
+                    from DOWN_AND_UP.dl_state import delete_subs_langs_cache
                     delete_subs_langs_cache(user_id, url)
                     cleared = clear_subs_cache_for(user_id, url)
                     logger.info(f"[SUBS] End of task: cleared {cleared} subtitle cache entries for user={user_id}")
