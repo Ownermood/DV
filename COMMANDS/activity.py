@@ -62,9 +62,18 @@ def _today() -> str:
     return datetime.now(IST).strftime("%Y-%m-%d")
 
 
+def _mongo():
+    from DATABASE import mongo_db
+    return mongo_db.database() if mongo_db.enabled() else None
+
+
 def touch(user_id) -> None:
     """User did something (message or button)."""
     global _dirty
+    mdb = _mongo()
+    if mdb is not None:
+        mdb["activity_seen"].update_one({"_id": int(user_id)}, {"$set": {"t": int(time.time())}}, upsert=True)
+        return
     with _lock:
         _load()["seen"][str(int(user_id))] = int(time.time())
         _dirty = True
@@ -74,6 +83,12 @@ def touch(user_id) -> None:
 def download(user_id) -> None:
     """User started a download (video, MP3 or thumbnail)."""
     global _dirty
+    mdb = _mongo()
+    if mdb is not None:
+        mdb["activity_dl"].update_one({"_id": _today()}, {"$inc": {"n": 1}}, upsert=True)
+        mdb["meta"].update_one({"_id": "dl_total"}, {"$inc": {"n": 1}}, upsert=True)
+        touch(user_id)
+        return
     with _lock:
         d = _load()
         day = _today()
@@ -90,19 +105,34 @@ def download(user_id) -> None:
 def snapshot() -> dict:
     """Active users (24h/7d/30d), downloads (today/7d/30d/all), tracking start."""
     now = time.time()
-    with _lock:
-        d = _load()
-        seen = list(d["seen"].values())
-        days = dict(d["dl"])
-        total = d.get("dl_total", 0)
-        since = d.get("since")
+    mdb = _mongo()
+    if mdb is not None:   # counted in MongoDB (indexed), no list of every user in memory
+        seen_c = mdb["activity_seen"]
+        active = [seen_c.count_documents({"t": {"$gte": now - s}}) for s in (86400, 7 * 86400, 30 * 86400)]
+        tracked = seen_c.estimated_document_count()
+        days = {d["_id"]: d.get("n", 0) for d in mdb["activity_dl"].find({})}
+        total = (mdb["meta"].find_one({"_id": "dl_total"}) or {}).get("n", 0)
+        first = mdb["meta"].find_one({"_id": "activity_since"})
+        if not first:
+            first = {"_id": "activity_since", "t": int(now)}
+            mdb["meta"].insert_one(first)
+        since = first["t"]
+    else:
+        with _lock:
+            d = _load()
+            seen = list(d["seen"].values())
+            days = dict(d["dl"])
+            total = d.get("dl_total", 0)
+            since = d.get("since")
+        active = [sum(1 for t in seen if now - t <= s) for s in (86400, 7 * 86400, 30 * 86400)]
+        tracked = len(seen)
     today = datetime.now(IST).date()
 
     def dl_last(n):
         return sum(v for k, v in days.items() if (today - datetime.strptime(k, "%Y-%m-%d").date()).days < n)
     return {
-        "active": [sum(1 for t in seen if now - t <= s) for s in (86400, 7 * 86400, 30 * 86400)],
-        "tracked": len(seen),
+        "active": active,
+        "tracked": tracked,
         "dl": [days.get(_today(), 0), dl_last(7), dl_last(30), total],
         "since": since,
     }

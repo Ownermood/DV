@@ -21,6 +21,7 @@ services:
     logging: *default-logging
     depends_on:
       - bgutil-provider
+      - mongo
     volumes:
       - .:/app
 
@@ -30,3 +31,14 @@ services:
     logging: *default-logging
     expose:
       - "4416"
+
+  # Private MongoDB for this bot only (no port published; other bots on the server are not affected)
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    logging: *default-logging
+    volumes:
+      - mongo-data:/data/db
+
+volumes:
+  mongo-data:

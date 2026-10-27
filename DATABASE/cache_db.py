@@ -45,6 +45,9 @@ _thread_lock = threading.RLock()
 def _sync_local_cache_to_file():
     """Sync local cache to file (used when USE_FIREBASE=False)."""
     global firebase_cache
+    from DATABASE import mongo_db
+    if mongo_db.enabled():
+        return  # writes already went to MongoDB
     use_firebase = getattr(Config, 'USE_FIREBASE', True)
     if not use_firebase:
         try:
@@ -60,6 +63,13 @@ def get_from_local_cache(path_parts):
     For example: get_from_local_cache (['Bot', 'Video_cache', 'Hash123', '720p'])
     """
     global firebase_cache
+    from DATABASE import mongo_db
+    if mongo_db.enabled():   # MongoDB is the source of truth: read it directly
+        try:
+            return mongo_db.read_path(path_parts)
+        except Exception as e:
+            logger.error(f"MongoDB read {path_parts} failed: {e}")
+            return None
     current = firebase_cache
     for part in path_parts:
         if isinstance(current, dict) and part in current:

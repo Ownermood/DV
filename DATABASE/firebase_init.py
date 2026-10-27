@@ -440,7 +440,16 @@ class LocalDBAdapter:
 
 # Initialize db adapter (admin, REST fallback, or local)
 use_firebase = getattr(Config, 'USE_FIREBASE', True)
-if not use_firebase:
+from DATABASE import mongo_db  # noqa: E402
+if mongo_db.enabled():
+    # MongoDB mode (MONGO_URI): same API, one document per user / cache entry
+    from DATABASE.mongo_db import MongoTreeAdapter, import_old_files
+    _cfg_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "CONFIG")
+    import_old_files(getattr(Config, 'FIREBASE_CACHE_FILE', 'dump.json'),
+                     os.path.join(_cfg_dir, ".ui_state.json"), os.path.join(_cfg_dir, ".activity.json"))
+    db = MongoTreeAdapter("/")
+    use_firebase = False   # the rest of the code takes the local-mode branches, reads come from MongoDB
+elif not use_firebase:
     # Local mode: use JSON cache file
     cache_file = getattr(Config, 'FIREBASE_CACHE_FILE', 'dump.json')
     db = LocalDBAdapter(cache_file, "/")

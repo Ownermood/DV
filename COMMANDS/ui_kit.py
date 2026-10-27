@@ -92,11 +92,17 @@ def _load():
 
 
 def state_get(key, default=None):
+    from DATABASE import mongo_db
+    if mongo_db.enabled():
+        return mongo_db.kv_get(key, default)
     with _lock:
         return _load().get(key, default)
 
 
 def state_set(key, value):
+    from DATABASE import mongo_db
+    if mongo_db.enabled():
+        return mongo_db.kv_set(key, value)
     with _lock:
         _load()[key] = value
         tmp = _STATE_FILE + ".tmp"
