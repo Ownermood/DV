@@ -1,15 +1,6 @@
 # Live Stream Downloader
 # Downloads live streams in chunks and sends them immediately
 
-import os
-import yt_dlp
-import time
-from datetime import datetime
-from CONFIG.limits import LimitsConfig
-from CONFIG.messages import safe_get_messages
-from HELPERS.logger import logger
-from DOWN_AND_UP.sender import send_videos
-from DOWN_AND_UP.ffmpeg import get_duration_thumb, get_video_info_ffprobe
 
 
 def download_live_stream_chunked(

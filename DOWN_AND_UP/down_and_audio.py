@@ -10,36 +10,28 @@ from CONFIG.logger_msg import LoggerMsg
 import threading
 import time
 import yt_dlp
-from pyrogram.errors import FloodWait
 from HELPERS.app_instance import get_app
-from HELPERS.logger import logger, send_to_logger, send_to_user, send_to_all, send_error_to_user, log_error_to_channel
-from HELPERS.limitter import TimeFormatter, humanbytes, check_user
+from HELPERS.logger import logger, send_to_logger, send_to_user, send_error_to_user, log_error_to_channel
 from HELPERS.download_status import set_active_download, clear_download_start_time, check_download_timeout, start_hourglass_animation, start_cycle_progress, playlist_errors, playlist_errors_lock
 from HELPERS.progress_ui import bar_blocks, progress_card, edit_card
 from HELPERS.safe_messeger import safe_delete_messages, safe_edit_message_text, safe_forward_messages
-from HELPERS.filesystem_hlp import sanitize_filename, sanitize_filename_strict, create_directory, check_disk_space, cleanup_user_temp_files
+from HELPERS.filesystem_hlp import create_directory, check_disk_space, cleanup_user_temp_files
 from DATABASE.firebase_init import write_logs
 from URL_PARSERS.tags import generate_final_tags
 from URL_PARSERS.nocookie import is_no_cookie_domain
 from URL_PARSERS.filter_check import is_no_filter_domain
-from URL_PARSERS.filter_utils import create_smart_match_filter, create_legacy_match_filter
+from URL_PARSERS.filter_utils import create_smart_match_filter
 from URL_PARSERS.youtube import is_youtube_url, download_thumbnail
 from URL_PARSERS.thumbnail_downloader import download_thumbnail as download_universal_thumbnail
 from HELPERS.pot_helper import add_pot_to_ytdl_opts
-from CONFIG.limits import LimitsConfig
-from HELPERS.fallback_helper import should_fallback_to_gallery_dl
 import subprocess
-from urllib.parse import urlparse
 from PIL import Image
-import io
 from CONFIG.config import Config
-from CONFIG.messages import Messages, safe_get_messages
-from COMMANDS.subtitles_cmd import is_subs_enabled, check_subs_availability, get_user_subs_auto_mode, _subs_check_cache, download_subtitles_ytdlp, is_subs_always_ask
+from CONFIG.messages import safe_get_messages
 from URL_PARSERS.playlist_utils import is_playlist_with_range
 from URL_PARSERS.normalizer import get_clean_playlist_url
 from DATABASE.cache_db import get_cached_playlist_videos, get_cached_message_ids, save_to_video_cache, save_to_playlist_cache
 from pyrogram.types import ReplyParameters
-from HELPERS.safe_messeger import safe_send_message
 from pyrogram import enums
 from URL_PARSERS.tags import extract_url_range_tags
 
@@ -178,7 +170,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
     Now if part of the playlist range is already cached, we first repost the cached indexes, then download and cache the missing ones, without finishing after reposting part of the range.
     """
     # Import required modules at the beginning
-    from COMMANDS.cookies_cmd import is_youtube_cookie_error, is_youtube_geo_error, retry_download_with_different_cookies, retry_download_with_proxy
+    from COMMANDS.cookies_cmd import is_youtube_geo_error, retry_download_with_different_cookies, retry_download_with_proxy
     
     playlist_indices = []
     playlist_msg_ids = []  
@@ -254,20 +246,14 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
     uncached_indices = []
     if quality_key and is_playlist:
         # Check if Always Ask mode is enabled - if yes, skip cache completely
-        if not is_subs_always_ask(user_id):
-            # Check if content is NSFW - if so, skip cache lookup
-            from HELPERS.porn import is_porn
-            is_nsfw = is_porn(url, "", "", None) or user_forced_nsfw
-            logger.info(f"[FALLBACK] is_porn check for {url}: {is_porn(url, '', '', None)}, user_forced_nsfw: {user_forced_nsfw}, final is_nsfw: {is_nsfw}")
-            if not is_nsfw:
-                cached_videos = get_cached_playlist_videos(get_clean_playlist_url(url), quality_key, requested_indices)
-                uncached_indices = [i for i in requested_indices if i not in cached_videos]
-            else:
-                logger.info(f"down_and_audio: skipping cache lookup for NSFW playlist content (url={url})")
-                cached_videos = {}
-                uncached_indices = requested_indices
+        from HELPERS.porn import is_porn
+        is_nsfw = is_porn(url, "", "", None) or user_forced_nsfw
+        logger.info(f"[FALLBACK] is_porn check for {url}: {is_porn(url, '', '', None)}, user_forced_nsfw: {user_forced_nsfw}, final is_nsfw: {is_nsfw}")
+        if not is_nsfw:
+            cached_videos = get_cached_playlist_videos(get_clean_playlist_url(url), quality_key, requested_indices)
+            uncached_indices = [i for i in requested_indices if i not in cached_videos]
         else:
-            logger.info(f"[AUDIO CACHE] Skipping cache check for playlist because Always Ask mode is enabled: url={url}, quality={quality_key}")
+            logger.info(f"down_and_audio: skipping cache lookup for NSFW playlist content (url={url})")
             cached_videos = {}
             uncached_indices = requested_indices
         # First, repost the cached ones (skip if send_as_file is enabled)
@@ -334,18 +320,13 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
             uncached_indices = requested_indices
     elif quality_key and not is_playlist:
         # Check if Always Ask mode is enabled - if yes, skip cache completely
-        if not is_subs_always_ask(user_id):
-            # Check if content is NSFW - if so, skip cache lookup
-            from HELPERS.porn import is_porn
-            is_nsfw = is_porn(url, "", "", None) or user_forced_nsfw
-            logger.info(f"[FALLBACK] is_porn check for {url}: {is_porn(url, '', '', None)}, user_forced_nsfw: {user_forced_nsfw}, final is_nsfw: {is_nsfw}")
-            if not is_nsfw:
-                cached_ids = get_cached_message_ids(url, quality_key)
-            else:
-                logger.info(f"down_and_audio: skipping cache lookup for NSFW single audio content (url={url})")
-                cached_ids = None
+        from HELPERS.porn import is_porn
+        is_nsfw = is_porn(url, "", "", None) or user_forced_nsfw
+        logger.info(f"[FALLBACK] is_porn check for {url}: {is_porn(url, '', '', None)}, user_forced_nsfw: {user_forced_nsfw}, final is_nsfw: {is_nsfw}")
+        if not is_nsfw:
+            cached_ids = get_cached_message_ids(url, quality_key)
         else:
-            logger.info(f"[AUDIO CACHE] Skipping cache check because Always Ask mode is enabled: url={url}, quality={quality_key}")
+            logger.info(f"down_and_audio: skipping cache lookup for NSFW single audio content (url={url})")
             cached_ids = None
         
         if cached_ids:
@@ -511,7 +492,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
             cookie_file = cookie_store.first_active("youtube")  # admin's Cookie Manager cookie, else none
         else:
             # For non-YouTube URLs, use new cookie fallback system
-            from COMMANDS.cookies_cmd import get_cookie_cache_result, try_non_youtube_cookie_fallback
+            from COMMANDS.cookies_cmd import get_cookie_cache_result
             cache_result = get_cookie_cache_result(user_id, url)
             
             if cache_result and cache_result['result']:
@@ -1481,9 +1462,7 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
             bot_mention = f' @{bot_name}' if not bot_name.startswith('@') else f' {bot_name}'
             # Create display title from MP3 metadata (artist + title)
             try:
-                import mutagen
                 from mutagen.mp3 import MP3
-                from mutagen.id3 import ID3NoHeaderError
                 
                 # Try to read metadata from the MP3 file
                 audio_metadata = MP3(audio_file)

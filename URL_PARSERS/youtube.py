@@ -2,9 +2,7 @@
 from urllib.parse import urlparse, parse_qs, urlencode
 import re
 import requests
-from CONFIG.config import Config
-from CONFIG.messages import Messages, safe_get_messages
-from HELPERS.logger import logger
+from CONFIG.messages import safe_get_messages
 
 def youtube_to_short_url(url: str) -> str:
     """Converts youtube.com/watch?v=... to youtu.be/... while preserving query parameters."""

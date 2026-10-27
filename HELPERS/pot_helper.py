@@ -3,9 +3,8 @@
 
 import requests
 import time
-import re
 from CONFIG.config import Config
-from CONFIG.messages import Messages, safe_get_messages
+from CONFIG.messages import safe_get_messages
 from URL_PARSERS.youtube import is_youtube_url
 from HELPERS.logger import logger
 

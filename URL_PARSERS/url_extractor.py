@@ -69,8 +69,6 @@ def url_distractor(app, message):
                 )
                 return
             
-            from COMMANDS.subtitles_cmd import clear_subs_check_cache
-            clear_subs_check_cache()
             # Optional isolated TeraBox adapter. It is disabled by default and
             # only receives URLs whose parsed hostname matches the allowlist.
             try:

@@ -37,10 +37,7 @@ def unwrap_redirect_url(url: str) -> str:
     except Exception:
         return url
 from CONFIG.config import Config
-from CONFIG.messages import Messages, safe_get_messages
 from CONFIG.domains import DomainsConfig
-import importlib
-import types
 from HELPERS.logger import logger
 
 # --- global lists of domains and keywords ---

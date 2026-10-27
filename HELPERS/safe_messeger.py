@@ -3,10 +3,9 @@ import re
 import time
 import logging
 import threading
-import asyncio
 from types import SimpleNamespace
 from HELPERS.app_instance import get_app
-from CONFIG.messages import Messages, safe_get_messages
+from CONFIG.messages import safe_get_messages
 from pyrogram.errors import FloodWait
 import os
 from pyrogram.types import ReplyParameters
@@ -126,7 +125,6 @@ def safe_send_message(chat_id, text, **kwargs):
             logger.info(f"[SAFE_SEND] Skipping topic routing for private chat_id={chat_id}")
     except Exception as e:
         logger.warning(f"[SAFE_SEND] Error in topic routing: {e}")
-        pass
     # Remove helper-only key
     if 'message' in kwargs:
         del kwargs['message']

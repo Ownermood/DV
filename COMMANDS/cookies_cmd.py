@@ -2,22 +2,20 @@
 # Command to Set Browser Cookies and Auto-Update YouTube Cookies
 from pyrogram import filters, enums
 from CONFIG.config import Config
-from CONFIG.messages import Messages, safe_get_messages
+from CONFIG.messages import safe_get_messages
 from CONFIG.logger_msg import LoggerMsg
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyParameters
 
 from HELPERS.app_instance import get_app
 
-from HELPERS.decorators import reply_with_keyboard, background_handler
+from HELPERS.decorators import background_handler
 from HELPERS.limitter import is_user_in_channel
-from HELPERS.logger import send_to_logger, logger, send_to_user, send_to_all
+from HELPERS.logger import send_to_logger, logger, send_to_user
 from HELPERS.filesystem_hlp import create_directory
 from HELPERS.safe_messeger import fake_message, safe_send_message, safe_edit_message_text
 from pyrogram.errors import FloodWait
-import subprocess
 import os
 import requests
-import re
 import time
 from requests import Session
 from requests.adapters import HTTPAdapter
@@ -598,7 +596,6 @@ def download_cookie(app, message):
                 return
     except Exception as e:
         logger.error(LoggerMsg.COOKIES_ERROR_FAST_COMMAND_LOG_MSG.format(e=e))
-        pass
     
     # Buttons for services
     buttons = [
@@ -1829,7 +1826,6 @@ def try_non_youtube_cookie_fallback(user_id: int, url: str, download_func, *args
     Returns:
         Download result, or None on failure
     """
-    from CONFIG.limits import LimitsConfig
     
     # Clean expired tasks before checking
     cleanup_expired_tasks()

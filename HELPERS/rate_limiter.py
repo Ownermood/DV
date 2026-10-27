@@ -7,7 +7,6 @@ import os
 import json
 import threading
 from typing import Optional, Tuple
-from CONFIG.config import Config
 from CONFIG.limits import LimitsConfig
 from HELPERS.logger import logger
 

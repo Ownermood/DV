@@ -2,16 +2,13 @@
 import os
 import re
 import subprocess
-import tempfile
-import threading
 import time
-from pyrogram import filters
-from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery, ReplyParameters, InputMediaPhoto, InputMediaVideo, InputPaidMediaPhoto, InputPaidMediaVideo
+from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyParameters, InputMediaPhoto, InputMediaVideo, InputPaidMediaPhoto, InputPaidMediaVideo
 from pyrogram import enums
 from pyrogram.errors import FloodWait
 from HELPERS.logger import send_to_logger, logger, get_log_channel, log_error_to_channel
 from CONFIG.logger_msg import LoggerMsg
-from CONFIG.messages import Messages, safe_get_messages
+from CONFIG.messages import safe_get_messages
 from CONFIG.domains import DomainsConfig
 from HELPERS.app_instance import get_app
 from HELPERS.safe_messeger import safe_send_message, safe_edit_message_text
@@ -19,7 +16,6 @@ from HELPERS.decorators import background_handler
 import HELPERS.safe_messeger as sm
 from DOWN_AND_UP.gallery_dl_hook import (
     get_image_info,
-    download_image,
     get_total_media_count,
     download_image_range,
     download_image_range_cli,

@@ -7,9 +7,7 @@ import os
 import re
 import requests
 from urllib.parse import urlparse
-from typing import Optional, Tuple
-from CONFIG.config import Config
-from CONFIG.messages import Messages, safe_get_messages
+from typing import Tuple
 from CONFIG.logger_msg import LoggerMsg
 from HELPERS.logger import logger
 

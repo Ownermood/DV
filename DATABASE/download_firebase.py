@@ -28,7 +28,7 @@ except ImportError:
 
 try:
     from CONFIG.config import Config
-    from CONFIG.messages import Messages, safe_get_messages
+    from CONFIG.messages import safe_get_messages
 except ImportError as e:
     print(f"Import error: {e}")
     print("Config not found")

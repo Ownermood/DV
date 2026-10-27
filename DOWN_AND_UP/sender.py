@@ -3,18 +3,14 @@ from pyrogram import enums
 from pyrogram.types import ReplyParameters, InputPaidMediaVideo
 from HELPERS.app_instance import get_app
 from HELPERS.logger import logger
-from HELPERS.logger import get_log_channel
 from HELPERS.download_status import progress_bar
 from HELPERS.limitter import TimeFormatter
 from HELPERS.caption import truncate_caption
 from DOWN_AND_UP.ffmpeg import get_video_info_ffprobe
-import os
 import subprocess
-import json
-from HELPERS.safe_messeger import safe_forward_messages
 from URL_PARSERS.thumbnail_downloader import download_thumbnail
 from CONFIG.config import Config
-from CONFIG.messages import Messages, safe_get_messages
+from CONFIG.messages import safe_get_messages
 from CONFIG.limits import LimitsConfig
 import time
 

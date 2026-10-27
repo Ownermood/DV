@@ -3,14 +3,14 @@ import os
 import tempfile
 from pyrogram import filters
 from CONFIG.config import Config
-from CONFIG.messages import Messages, safe_get_messages
+from CONFIG.messages import safe_get_messages
 from CONFIG.logger_msg import LoggerMsg
-from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyParameters
+from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 from HELPERS.app_instance import get_app
 from HELPERS.filesystem_hlp import create_directory
-from HELPERS.logger import send_to_logger, logger, send_to_all
-from HELPERS.safe_messeger import safe_send_message, safe_edit_message_text
+from HELPERS.logger import send_to_logger, logger
+from HELPERS.safe_messeger import safe_send_message
 from HELPERS.decorators import background_handler
 from HELPERS.limitter import is_user_in_channel
 

@@ -1,4 +1,3 @@
-from HELPERS.logger import logger
 
 def get_quality_by_min_side(width: int, height: int) -> str:
     """

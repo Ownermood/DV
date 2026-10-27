@@ -1,6 +1,6 @@
 from HELPERS.app_instance import get_app
 from CONFIG.config import Config
-from CONFIG.messages import Messages, safe_get_messages
+from CONFIG.messages import safe_get_messages
 from CONFIG.logger_msg import LoggerMsg
 from HELPERS.logger import logger, get_log_channel
 from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
@@ -9,7 +9,6 @@ import os
 from HELPERS.safe_messeger import safe_send_message
 from CONFIG.limits import LimitsConfig
 from pyrogram import enums
-from CONFIG.LANGUAGES.language_router import language_router
 
 def humanbytes(size):
     # https://stackoverflow.com/a/49361727/4723940

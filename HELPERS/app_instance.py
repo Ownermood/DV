@@ -1,7 +1,6 @@
 # Global app instance
 # This module provides a global app instance that can be imported by other modules
 
-from CONFIG.messages import Messages, safe_get_messages
 
 app = None
 

@@ -7,11 +7,10 @@ import os
 import re
 from CONFIG.config import Config
 from CONFIG.limits import LimitsConfig
-from CONFIG.messages import Messages, safe_get_messages
+from CONFIG.messages import safe_get_messages
 from HELPERS.app_instance import get_app
 from HELPERS.logger import logger
 from HELPERS.safe_messeger import safe_edit_message_text
-from HELPERS.filesystem_hlp import create_directory, cleanup_user_temp_files
 
 # Global dictionary to track active downloads and lock for thread-safe access
 active_downloads = {}

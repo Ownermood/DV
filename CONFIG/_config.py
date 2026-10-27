@@ -2,7 +2,7 @@
 # This file combines all configuration classes into one unified Config class
 
 from CONFIG.commands import CommandsConfig
-from CONFIG.messages import Messages, safe_get_messages
+from CONFIG.messages import safe_get_messages
 from CONFIG.domains import DomainsConfig
 from CONFIG.limits import LimitsConfig
 

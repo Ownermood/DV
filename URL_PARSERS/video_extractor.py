@@ -1,19 +1,16 @@
 # URL Extractor
 from HELPERS.app_instance import get_app
-from HELPERS.limitter import check_user, check_playlist_range_limits
+from HELPERS.limitter import check_playlist_range_limits
 from HELPERS.download_status import get_active_download
-from HELPERS.logger import send_to_logger, send_to_all, send_error_to_user, logger
-from HELPERS.filesystem_hlp import create_directory
+from HELPERS.logger import send_to_logger, send_error_to_user, logger
 from URL_PARSERS.tags import extract_url_range_tags, save_user_tags, get_auto_tags
 from URL_PARSERS.tiktok import is_tiktok_url
 from DOWN_AND_UP.down_and_up import down_and_up
 from HELPERS.download_status import playlist_errors, playlist_errors_lock
-from pyrogram import filters
 from CONFIG.config import Config
-from CONFIG.messages import Messages, safe_get_messages
+from CONFIG.messages import safe_get_messages
 from CONFIG.logger_msg import LoggerMsg
 import os
-from pyrogram import enums
 from pyrogram.types import ReplyParameters
 import hashlib
 

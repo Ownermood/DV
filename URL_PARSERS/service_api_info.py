@@ -1,5 +1,4 @@
 import re
-import json
 import os
 import shutil
 from functools import lru_cache
@@ -392,7 +391,6 @@ def _extract_instagram_info(url: str, user_id: int = None) -> Tuple[Optional[str
                 return (author, provider)
     except Exception as e:
         print(f"[INSTAGRAM_INFO] oEmbed error: {e}")
-        pass
     # Fallback to OpenGraph
     html = _http_get(url, user_id=user_id)
     metas = _extract_meta(html or "")
@@ -430,7 +428,6 @@ def _extract_instagram_date(url: str, user_id: int = None) -> Optional[str]:
     except Exception as e:
         # Log the error but do not interrupt the flow
         print(f"[INSTAGRAM_DATE] API error: {e}")
-        pass
     
     # Fallback: try extracting from OpenGraph meta tags
     try:
@@ -455,7 +452,6 @@ def _extract_instagram_date(url: str, user_id: int = None) -> Optional[str]:
                     return result
     except Exception as e:
         print(f"[INSTAGRAM_DATE] OpenGraph error: {e}")
-        pass
     
     return None
 
@@ -474,7 +470,6 @@ def _extract_tiktok_info(url: str, user_id: int = None) -> Tuple[Optional[str], 
                 return (author, "TikTok")
     except Exception as e:
         print(f"[TIKTOK_INFO] oEmbed with cookies error: {e}")
-        pass
     
     # Fallback to oEmbed without cookies
     try:
@@ -486,7 +481,6 @@ def _extract_tiktok_info(url: str, user_id: int = None) -> Tuple[Optional[str], 
                 return (author, "TikTok")
     except Exception as e:
         print(f"[TIKTOK_INFO] oEmbed without cookies error: {e}")
-        pass
     
     # Final fallback to OpenGraph
     try:
@@ -501,7 +495,6 @@ def _extract_tiktok_info(url: str, user_id: int = None) -> Tuple[Optional[str], 
                     return (candidate.strip(), "TikTok")
     except Exception as e:
         print(f"[TIKTOK_INFO] OpenGraph error: {e}")
-        pass
     
     return (None, "TikTok")
 
@@ -517,7 +510,6 @@ def _extract_tiktok_date(url: str, user_id: int = None) -> Optional[str]:
                 return _parse_date_string(date_str)
     except Exception as e:
         print(f"[TIKTOK_DATE] API with cookies error: {e}")
-        pass
     
     # Fallback without cookies
     try:
@@ -528,7 +520,6 @@ def _extract_tiktok_date(url: str, user_id: int = None) -> Optional[str]:
                 return _parse_date_string(date_str)
     except Exception as e:
         print(f"[TIKTOK_DATE] API without cookies error: {e}")
-        pass
     
     # Final fallback to OpenGraph
     try:
@@ -539,7 +530,6 @@ def _extract_tiktok_date(url: str, user_id: int = None) -> Optional[str]:
             return _parse_date_string(date_str)
     except Exception as e:
         print(f"[TIKTOK_DATE] OpenGraph error: {e}")
-        pass
     
     return None
 
@@ -558,7 +548,6 @@ def _extract_x_info(url: str, user_id: int = None) -> Tuple[Optional[str], Optio
                 return (author, "X")
     except Exception as e:
         print(f"[X_INFO] oEmbed with cookies error: {e}")
-        pass
     
     # Fallback to oEmbed without cookies
     try:
@@ -570,7 +559,6 @@ def _extract_x_info(url: str, user_id: int = None) -> Tuple[Optional[str], Optio
                 return (author, "X")
     except Exception as e:
         print(f"[X_INFO] oEmbed without cookies error: {e}")
-        pass
     
     # Final fallback: meta twitter:site or title
     try:
@@ -590,7 +578,6 @@ def _extract_x_info(url: str, user_id: int = None) -> Tuple[Optional[str], Optio
                     return (candidate.strip(), "X")
     except Exception as e:
         print(f"[X_INFO] OpenGraph error: {e}")
-        pass
     
     return (None, "X")
 
@@ -606,7 +593,6 @@ def _extract_x_date(url: str, user_id: int = None) -> Optional[str]:
                 return _parse_date_string(date_str)
     except Exception as e:
         print(f"[X_DATE] API with cookies error: {e}")
-        pass
     
     # Fallback without cookies
     try:
@@ -617,7 +603,6 @@ def _extract_x_date(url: str, user_id: int = None) -> Optional[str]:
                 return _parse_date_string(date_str)
     except Exception as e:
         print(f"[X_DATE] API without cookies error: {e}")
-        pass
     
     # Final fallback to OpenGraph
     try:
@@ -628,7 +613,6 @@ def _extract_x_date(url: str, user_id: int = None) -> Optional[str]:
             return _parse_date_string(date_str)
     except Exception as e:
         print(f"[X_DATE] OpenGraph error: {e}")
-        pass
     
     return None
 
@@ -673,7 +657,6 @@ def _extract_vk_info(url: str, user_id: int = None) -> Tuple[Optional[str], Opti
                     continue
     except Exception as e:
         print(f"[VK_INFO] Wall parsing error: {e}")
-        pass
     
     # Fallback: use current page OG/title heuristics with cookies
     try:
@@ -691,7 +674,6 @@ def _extract_vk_info(url: str, user_id: int = None) -> Tuple[Optional[str], Opti
                     return (cleaned, site)
     except Exception as e:
         print(f"[VK_INFO] OpenGraph error: {e}")
-        pass
     
     return (None, site)
 
@@ -709,7 +691,6 @@ def _extract_youtube_info(url: str, user_id: int = None) -> Tuple[Optional[str],
             return (name, provider or "YouTube")
     except Exception as e:
         print(f"[YOUTUBE_INFO] oEmbed with cookies error: {e}")
-        pass
     
     # Fallback to oEmbed without cookies
     try:
@@ -720,7 +701,6 @@ def _extract_youtube_info(url: str, user_id: int = None) -> Tuple[Optional[str],
             return (name, provider or "YouTube")
     except Exception as e:
         print(f"[YOUTUBE_INFO] oEmbed without cookies error: {e}")
-        pass
     
     # Final fallback to OpenGraph
     try:
@@ -744,7 +724,6 @@ def _extract_youtube_date(url: str, user_id: int = None) -> Optional[str]:
                 return _parse_date_string(date_str)
     except Exception as e:
         print(f"[YOUTUBE_DATE] API with cookies error: {e}")
-        pass
     
     # Fallback without cookies
     try:
@@ -755,7 +734,6 @@ def _extract_youtube_date(url: str, user_id: int = None) -> Optional[str]:
                 return _parse_date_string(date_str)
     except Exception as e:
         print(f"[YOUTUBE_DATE] API without cookies error: {e}")
-        pass
     
     # Final fallback to OpenGraph
     try:
@@ -766,7 +744,6 @@ def _extract_youtube_date(url: str, user_id: int = None) -> Optional[str]:
             return _parse_date_string(date_str)
     except Exception as e:
         print(f"[YOUTUBE_DATE] OpenGraph error: {e}")
-        pass
     
     return None
 
@@ -784,7 +761,6 @@ def _extract_reddit_info(url: str, user_id: int = None) -> Tuple[Optional[str], 
             return (name, provider or "Reddit")
     except Exception as e:
         print(f"[REDDIT_INFO] oEmbed with cookies error: {e}")
-        pass
     
     # Fallback to oEmbed without cookies
     try:
@@ -795,7 +771,6 @@ def _extract_reddit_info(url: str, user_id: int = None) -> Tuple[Optional[str], 
             return (name, provider or "Reddit")
     except Exception as e:
         print(f"[REDDIT_INFO] oEmbed without cookies error: {e}")
-        pass
     
     # Final fallback to OpenGraph
     try:
@@ -837,7 +812,6 @@ def _extract_flickr_info(url: str, user_id: int = None) -> Tuple[Optional[str], 
             return (name, provider or "Flickr")
     except Exception as e:
         print(f"[FLICKR_INFO] oEmbed with cookies error: {e}")
-        pass
     
     # Fallback to oEmbed without cookies
     try:
@@ -848,7 +822,6 @@ def _extract_flickr_info(url: str, user_id: int = None) -> Tuple[Optional[str], 
             return (name, provider or "Flickr")
     except Exception as e:
         print(f"[FLICKR_INFO] oEmbed without cookies error: {e}")
-        pass
     
     # Final fallback to OpenGraph
     try:
@@ -874,7 +847,6 @@ def _extract_deviantart_info(url: str, user_id: int = None) -> Tuple[Optional[st
             return (name, provider or "DeviantArt")
     except Exception as e:
         print(f"[DEVIANTART_INFO] oEmbed with cookies error: {e}")
-        pass
     
     # Fallback to oEmbed without cookies
     try:
@@ -885,7 +857,6 @@ def _extract_deviantart_info(url: str, user_id: int = None) -> Tuple[Optional[st
             return (name, provider or "DeviantArt")
     except Exception as e:
         print(f"[DEVIANTART_INFO] oEmbed without cookies error: {e}")
-        pass
     
     # Final fallback to OpenGraph
     try:
@@ -911,7 +882,6 @@ def _extract_imgur_info(url: str, user_id: int = None) -> Tuple[Optional[str], O
             return (name, provider or "Imgur")
     except Exception as e:
         print(f"[IMGUR_INFO] oEmbed with cookies error: {e}")
-        pass
     
     # Fallback to oEmbed without cookies
     try:
@@ -922,7 +892,6 @@ def _extract_imgur_info(url: str, user_id: int = None) -> Tuple[Optional[str], O
             return (name, provider or "Imgur")
     except Exception as e:
         print(f"[IMGUR_INFO] oEmbed without cookies error: {e}")
-        pass
     
     # Final fallback to OpenGraph
     try:
@@ -948,7 +917,6 @@ def _extract_tumblr_info(url: str, user_id: int = None) -> Tuple[Optional[str], 
             return (name, provider or "Tumblr")
     except Exception as e:
         print(f"[TUMBLR_INFO] oEmbed with cookies error: {e}")
-        pass
     
     # Fallback to oEmbed without cookies
     try:
@@ -959,7 +927,6 @@ def _extract_tumblr_info(url: str, user_id: int = None) -> Tuple[Optional[str], 
             return (name, provider or "Tumblr")
     except Exception as e:
         print(f"[TUMBLR_INFO] oEmbed without cookies error: {e}")
-        pass
     
     # Final fallback to OpenGraph
     try:
@@ -987,7 +954,6 @@ def _extract_pixiv_info(url: str, user_id: int = None) -> Tuple[Optional[str], O
             return (title, site)
     except Exception as e:
         print(f"[PIXIV_INFO] OpenGraph with cookies error: {e}")
-        pass
     
     # Fallback to OpenGraph without cookies
     try:
@@ -999,7 +965,6 @@ def _extract_pixiv_info(url: str, user_id: int = None) -> Tuple[Optional[str], O
             return (title, site)
     except Exception as e:
         print(f"[PIXIV_INFO] OpenGraph without cookies error: {e}")
-        pass
     
     # Final fallback: try to parse user from URL
     try:
@@ -1010,7 +975,6 @@ def _extract_pixiv_info(url: str, user_id: int = None) -> Tuple[Optional[str], O
             return (parts[1], "Pixiv")
     except Exception as e:
         print(f"[PIXIV_INFO] URL parsing error: {e}")
-        pass
     
     return (None, "Pixiv")
 
@@ -1130,7 +1094,6 @@ def _extract_behance_info(url: str, user_id: int = None) -> Tuple[Optional[str],
             return (title, site)
     except Exception as e:
         print(f"[BEHANCE_INFO] OpenGraph error: {e}")
-        pass
     
     # Fallback: try to parse author from URL path
     try:
@@ -1141,7 +1104,6 @@ def _extract_behance_info(url: str, user_id: int = None) -> Tuple[Optional[str],
             return (seg[0], "Behance")
     except Exception as e:
         print(f"[BEHANCE_INFO] URL parsing error: {e}")
-        pass
     
     return (None, "Behance")
 
@@ -1282,7 +1244,6 @@ def get_service_date(url: str, user_id: int = None) -> Optional[str]:
             except Exception as e:
                 # Log error but do not interrupt the flow
                 print(f"[SERVICE_DATE] {service} API error: {e}")
-                pass
         
         # Fallback: try extracting from OpenGraph meta tags
         try:
@@ -1307,11 +1268,9 @@ def get_service_date(url: str, user_id: int = None) -> Optional[str]:
                         return result
         except Exception as e:
             print(f"[SERVICE_DATE] OpenGraph error: {e}")
-            pass
             
     except Exception as e:
         print(f"[SERVICE_DATE] General error: {e}")
-        pass
     
     return None
 

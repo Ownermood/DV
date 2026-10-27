@@ -1,9 +1,7 @@
-import yt_dlp
 import logging
 import os
-from urllib.parse import quote
 from COMMANDS.proxy_cmd import get_proxy_config, get_proxy_2_config  # None when no real proxy is set
-from CONFIG.messages import Messages, safe_get_messages
+from CONFIG.messages import safe_get_messages
 
 logger = logging.getLogger(__name__)
 
@@ -71,7 +69,6 @@ def add_proxy_to_ytdl_opts(ytdl_opts: dict, url: str, user_id: int = None) -> di
                         return ytdl_opts
         except Exception as e:
             logger.warning(f"Error checking proxy for user {user_id}: {e}")
-            pass
     
     # Priority 2: Check if domain requires specific proxy (only if user proxy is OFF)
     logger.info(f"Checking domain-specific proxy for {url}")
@@ -266,7 +263,6 @@ def add_proxy_to_gallery_dl_config(config: dict, url: str, user_id: int = None) 
                         return config
         except Exception as e:
             logger.warning(f"Error checking proxy for user {user_id}: {e}")
-            pass
     
     # Priority 2: Check if domain requires specific proxy (only if user proxy is OFF)
     logger.info(f"Checking domain-specific proxy for {url}")

@@ -1,5 +1,4 @@
 # Filter utilities for yt-dlp
-import yt_dlp
 from CONFIG.config import Config
 from CONFIG.limits import LimitsConfig
 from HELPERS.logger import logger
@@ -61,16 +60,3 @@ def create_smart_match_filter():
     
     return match_filter
 
-def create_legacy_match_filter():
-    """
-    Create the legacy match_filter for backward compatibility.
-    Respects ENABLE_LIVE_STREAM_BLOCKING.
-    
-    Returns:
-        function: Filter function for yt-dlp
-    """
-    if LimitsConfig.ENABLE_LIVE_STREAM_BLOCKING:
-        return yt_dlp.utils.match_filter_func(f'!is_live & duration <= {Config.MAX_VIDEO_DURATION}')
-    else:
-        # If live stream detection is disabled, only check duration
-        return yt_dlp.utils.match_filter_func(f'duration <= {Config.MAX_VIDEO_DURATION}')

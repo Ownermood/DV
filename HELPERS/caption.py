@@ -2,10 +2,9 @@
 import re
 from typing import Tuple
 from CONFIG.config import Config
-from CONFIG.messages import Messages, safe_get_messages
+from CONFIG.messages import safe_get_messages
 from HELPERS.app_instance import get_app
 from HELPERS.logger import send_to_logger
-from pyrogram import filters
 
 # Get app instance for decorators
 app = get_app()

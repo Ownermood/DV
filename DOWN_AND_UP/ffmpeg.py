@@ -3,16 +3,12 @@ import os
 import math
 import hashlib
 import subprocess
-import shutil
-import logging
 import time
 import re
-from moviepy.editor import VideoFileClip
-from moviepy.video.fx.all import resize
 from HELPERS.app_instance import get_app
 from HELPERS.logger import logger, send_to_all, send_to_logger
 from CONFIG.config import Config
-from CONFIG.messages import Messages, safe_get_messages
+from CONFIG.messages import safe_get_messages
 from HELPERS.safe_messeger import safe_forward_messages
 from pyrogram import enums
 

@@ -1,4 +1,3 @@
-from CONFIG.messages import Messages, safe_get_messages
 
 class LoggerMsg(object):
     # Generic user/admin/access - removed unused variables

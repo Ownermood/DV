@@ -6,7 +6,6 @@ import hashlib
 import json
 import os
 
-from CONFIG.logger_msg import LoggerMsg
 from HELPERS.filesystem_hlp import create_directory
 from HELPERS.logger import logger
 

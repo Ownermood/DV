@@ -10,7 +10,6 @@ from HELPERS.logger import logger
 from HELPERS.limitter import humanbytes
 from CONFIG.config import Config
 from CONFIG.logger_msg import LoggerMsg
-from pyrogram import enums
 
 # Get app instance for decorators
 app = get_app()
@@ -167,32 +166,6 @@ def cleanup_media_in_download_folder(folder_path):
     except Exception as e:
         logger.error(f"Error cleaning media in download folder {folder_path}: {e}")
 
-def cleanup_subtitle_files(user_id):
-    """Clean up subtitle files for a specific user after embedding (only in root directory, not in protected subdirectories)"""
-    user_dir = os.path.join("users", str(user_id))
-    if not os.path.exists(user_dir):
-        return
-    
-    logger.info(LoggerMsg.FILESYSTEM_CLEANING_SUBTITLE_FILES_LOG_MSG.format(user_id=user_id))
-    
-    try:
-        # Only clean files in root directory, not in subdirectories (which might be protected)
-        for filename in os.listdir(user_dir):
-            file_path = os.path.join(user_dir, filename)
-            # Skip subdirectories (they might be protected download folders)
-            if os.path.isdir(file_path):
-                continue
-                
-            # Remove subtitle files
-            if filename.endswith(('.srt', '.vtt', '.ass', '.ssa', '.json', '.jsonl')):
-                try:
-                    if os.path.isfile(file_path):
-                        os.remove(file_path)
-                        logger.info(LoggerMsg.FILESYSTEM_REMOVED_SUBTITLE_FILE_LOG_MSG.format(filename=filename))
-                except Exception as e:
-                    logger.error(LoggerMsg.FILESYSTEM_FAILED_REMOVE_SUBTITLE_FILE_LOG_MSG.format(filename=filename, error=e))
-    except Exception as e:
-        logger.error(LoggerMsg.FILESYSTEM_ERROR_CLEANING_SUBTITLE_FILES_LOG_MSG.format(user_id=user_id, error=e))
 
 # Register handlers for the most common termination signals
 signal.signal(signal.SIGINT, signal_handler)

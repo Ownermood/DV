@@ -1,14 +1,12 @@
 # --- receiving formats and metadata via yt-dlp ---
 import os
 import yt_dlp
-from CONFIG.config import Config
-from CONFIG.messages import Messages, safe_get_messages
-from HELPERS.logger import logger, send_error_to_user
-from HELPERS.filesystem_hlp import create_directory
+from CONFIG.messages import safe_get_messages
+from HELPERS.logger import logger
 from URL_PARSERS.nocookie import is_no_cookie_domain
 from URL_PARSERS.youtube import is_youtube_url
 from URL_PARSERS.filter_check import is_no_filter_domain
-from URL_PARSERS.filter_utils import create_smart_match_filter, create_legacy_match_filter
+from URL_PARSERS.filter_utils import create_smart_match_filter
 from HELPERS.pot_helper import add_pot_to_ytdl_opts
 from CONFIG.limits import LimitsConfig
 from HELPERS.fallback_helper import should_fallback_to_gallery_dl
@@ -97,7 +95,7 @@ def get_video_formats(url, user_id=None, playlist_start_index=1, cookies_already
             cookie_file = cookie_store.first_active("youtube")
         else:
             # For non-YouTube URLs, use new cookie fallback system
-            from COMMANDS.cookies_cmd import get_cookie_cache_result, try_non_youtube_cookie_fallback
+            from COMMANDS.cookies_cmd import get_cookie_cache_result
             cache_result = get_cookie_cache_result(user_id, url)
             
             if cache_result and cache_result['result']:

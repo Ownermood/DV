@@ -15,8 +15,6 @@ def capture_message_context(message) -> None:
     return None
 
 
-def update_download_progress(*args, **kwargs) -> None:
-    return None
 
 
 def wrap_db_adapter(db_adapter: Any) -> Any:

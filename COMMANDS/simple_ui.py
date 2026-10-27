@@ -15,8 +15,7 @@ from typing import Optional, Tuple
 from urllib.parse import urlparse
 
 from pyrogram import filters, enums
-from pyrogram.types import (InlineKeyboardButton, InlineKeyboardMarkup,
-                            ReplyKeyboardRemove, BotCommand)
+from pyrogram.types import (InlineKeyboardMarkup, BotCommand)
 
 from CONFIG.config import Config
 from HELPERS.app_instance import get_app

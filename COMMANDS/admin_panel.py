@@ -25,7 +25,7 @@ from pyrogram.types import InlineKeyboardMarkup, BotCommand, BotCommandScopeChat
 from CONFIG.config import Config
 from COMMANDS import activity
 from COMMANDS.ui_kit import (btn, em, send, edit, state_get, state_set, premium_on, card, row, heading,
-                             small_caps, SEP, BOT_TITLE, BLUE, GREEN, RED)
+                             small_caps, SEP, BOT_TITLE, GREEN, RED)
 from pyrogram.enums import ButtonStyle
 
 PLAIN = ButtonStyle.DEFAULT  # navigation; GREEN = add / send / working, RED = delete / stop / not working

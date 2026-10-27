@@ -1,7 +1,6 @@
 import re
 from urllib.parse import urlparse
 from CONFIG.config import Config
-from HELPERS.logger import logger
 
 def get_clean_url_for_tagging(url: str) -> str:
     """

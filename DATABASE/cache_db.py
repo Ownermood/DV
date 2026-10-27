@@ -13,14 +13,12 @@ def encode_playlist_cache_index(index: int) -> str:
         return str(idx)
     except (TypeError, ValueError):
         return str(index)
-import re
 from datetime import datetime, timedelta
-from urllib.parse import urlparse
 from CONFIG.config import Config
-from CONFIG.messages import Messages, safe_get_messages
+from CONFIG.messages import safe_get_messages
 from CONFIG.logger_msg import LoggerMsg
 from HELPERS.app_instance import get_app
-from HELPERS.logger import logger, send_to_user, send_to_logger
+from HELPERS.logger import logger
 
 from DATABASE.firebase_init import db
 # NOTE: To avoid circular imports during module load, import URL_PARSERS modules lazily inside functions.
@@ -832,19 +830,6 @@ def save_to_video_cache(url: str, quality_key: str, message_ids: list, clear: bo
     from URL_PARSERS.youtube import is_youtube_url, youtube_to_short_url, youtube_to_long_url
     from URL_PARSERS.playlist_utils import is_playlist_with_range
     found_type = None
-    if user_id is not None:
-        # Lazy import to avoid circular imports at module level
-        try:
-            from COMMANDS.subtitles_cmd import (
-                check_subs_availability,
-                is_subs_enabled,
-                get_user_subs_auto_mode,
-                is_subs_always_ask,
-            )
-        except Exception:
-            check_subs_availability = None
-            is_subs_enabled = lambda _uid: False
-            get_user_subs_auto_mode = lambda _uid: False
 
         # Always save to cache regardless of subtitles or Always Ask mode
         # The cache will be used for display purposes (rocket emoji) but not for reposting

@@ -13,7 +13,7 @@ import gallery_dl
 import json
 
 from CONFIG.config import Config
-from CONFIG.messages import Messages, safe_get_messages
+from CONFIG.messages import safe_get_messages
 from HELPERS.logger import logger, log_error_to_channel
 from HELPERS.filesystem_hlp import create_directory
 from URL_PARSERS.nocookie import is_no_cookie_domain
@@ -132,7 +132,7 @@ def _prepare_user_cookies_and_proxy(url: str, user_id, use_proxy: bool, config: 
     # cookies - use new caching system for non-YouTube sites
     if not is_youtube_url(url):
         # For non-YouTube URLs, use new cookie fallback system
-        from COMMANDS.cookies_cmd import get_cookie_cache_result, try_non_youtube_cookie_fallback, shared_cookie_path
+        from COMMANDS.cookies_cmd import get_cookie_cache_result, shared_cookie_path
         cache_result = get_cookie_cache_result(user_id, url)
         shared_cookie = shared_cookie_path(url)  # Cookie Manager cookie for this site (Admin Panel -> Cookie Manager)
         
@@ -662,8 +662,9 @@ def _get_instagram_media_count(url: str, user_id, use_proxy: bool, cfg_path: str
         
         # Add proxy if enabled
         if use_proxy:
-            from HELPERS.proxy_helper import get_proxy_for_url
-            proxy = get_proxy_for_url(url)
+            from HELPERS.proxy_helper import select_proxy_for_domain, build_proxy_url
+            cfg = select_proxy_for_domain(url)
+            proxy = build_proxy_url(cfg) if cfg else None
             if proxy:
                 instagram_config["extractor"]["proxy"] = proxy
         

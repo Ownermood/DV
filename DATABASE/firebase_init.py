@@ -5,14 +5,12 @@ import os
 import json
 from typing import Any, Dict, List, Optional
 
-import requests
 from requests import Session
-from requests.adapters import HTTPAdapter
 import firebase_admin
 from firebase_admin import credentials, db as admin_db
 
 from CONFIG.config import Config
-from CONFIG.messages import Messages, safe_get_messages
+from CONFIG.messages import safe_get_messages
 from HELPERS.logger import logger
 from HELPERS.filesystem_hlp import create_directory
 from HELPERS.logger import send_to_all
@@ -435,7 +433,6 @@ class LocalDBAdapter:
     
     def close(self):
         """Close the adapter (no-op for local mode)."""
-        pass
 
 
 # Initialize db adapter (admin, REST fallback, or local)

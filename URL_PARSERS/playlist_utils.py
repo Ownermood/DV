@@ -2,7 +2,6 @@
 # This module contains functions for playlist detection and processing
 
 import re
-from HELPERS.logger import logger
 
 def is_playlist_with_range(text: str) -> bool:
     """
