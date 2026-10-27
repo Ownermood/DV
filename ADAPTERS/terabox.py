@@ -647,7 +647,9 @@ def _menu_kb(token, meta):
                          cb=f"tb|{token}|{q}", style=plain) for q in qs])
     size = meta["size"]
     size_txt = (f"{size / 1024 ** 3:.2f} GB" if size >= 1024 ** 3 else f"{size / 1024 ** 2:.0f} MB") if size else ""
-    rows.append([btn("folder", "Original file" + (f" · {size_txt}" if size_txt else ""), cb=f"tb|{token}|o", style=plain)])
+    free = meta.get("available") is not None and not ({"1080", "720"} & meta["available"])
+    rows.append([btn("folder", "Original file" + (f" · {size_txt}" if size_txt else "") + (" (very slow)" if free else ""),
+                     cb=f"tb|{token}|o", style=plain)])
     rows.append([btn("trash", "Close", cb=f"tb|{token}|x", style=plain)])
     return InlineKeyboardMarkup(rows)
 
@@ -701,8 +703,8 @@ def handle_terabox(app, message) -> bool:
     if not meta["video"]:
         hint = ""
     elif avail and not ({"1080", "720"} & avail):
-        hint = ("⚡ 480p: fast copy · 📁 Original: the real full-quality file "
-                "(TeraBox gives 720p / 1080p copies only to Premium accounts)")
+        hint = ("⚡ 480p: fast copy · 📁 Original: full quality but TeraBox limits it to a few KB/s "
+                "on free accounts (720p / 1080p copies need Premium)")
     elif avail:
         hint = "⚡ 480p is the fastest · higher = sharper · 📁 Original = the real full-quality file"
     else:
