@@ -987,10 +987,10 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 # Max speed: parallel fragments + 10MB chunks (YouTube throttles unchunked https)
                 'concurrent_fragment_downloads': 16,
                 'http_chunk_size': 10485760,
-                # aria2c: 16 connections per file for plain https downloads (YouTube, Facebook ...)
+                # aria2c: 16 connections per file; not for YouTube (googlevideo throttles / refuses many parallel ranges)
                 **({'external_downloader': {'http': 'aria2c'},
                    'external_downloader_args': {'aria2c': ['-x', '16', '-s', '16', '-k', '1M', '--file-allocation=none']}}
-                   if _shutil_mod.which('aria2c') else {}),
+                   if _shutil_mod.which('aria2c') and not is_youtube_url(url) else {}),
                 'retries': 10,
                 'fragment_retries': 10,
                 #'socket_timeout': 60,  # Increase socket timeout
