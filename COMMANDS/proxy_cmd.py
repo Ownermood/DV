@@ -129,8 +129,16 @@ def is_proxy_enabled(user_id):
         return False
 
 
+def _real(ip) -> bool:
+    """False for the "X.X.X.X" placeholder / empty IP: no proxy is set up."""
+    ip = str(ip or "").strip()
+    return bool(ip) and "X" not in ip.upper()
+
+
 def get_proxy_config():
-    """Get proxy configuration from config"""
+    """Get proxy configuration from config (None when no real proxy is set)"""
+    if not _real(Config.PROXY_IP):
+        return None
     return {
         'type': Config.PROXY_TYPE,
         'ip': Config.PROXY_IP,
@@ -140,7 +148,9 @@ def get_proxy_config():
     }
 
 def get_proxy_2_config():
-    """Get second proxy configuration from config"""
+    """Get second proxy configuration from config (None when no real proxy is set)"""
+    if not _real(Config.PROXY_2_IP):
+        return None
     return {
         'type': Config.PROXY_2_TYPE,
         'ip': Config.PROXY_2_IP,

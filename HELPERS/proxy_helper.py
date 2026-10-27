@@ -2,7 +2,7 @@ import yt_dlp
 import logging
 import os
 from urllib.parse import quote
-from COMMANDS.proxy_cmd import get_proxy_config
+from COMMANDS.proxy_cmd import get_proxy_config, get_proxy_2_config  # None when no real proxy is set
 from CONFIG.messages import Messages, safe_get_messages
 
 logger = logging.getLogger(__name__)
@@ -162,59 +162,11 @@ def try_with_proxy_fallback(ytdl_opts: dict, url: str, user_id: int = None, oper
         return None
 
 
-def get_proxy_config():
-    """Get proxy configuration from config"""
-    from CONFIG.config import Config
-    
-    return {
-        'type': Config.PROXY_TYPE,
-        'ip': Config.PROXY_IP,
-        'port': Config.PROXY_PORT,
-        'user': Config.PROXY_USER,
-        'password': Config.PROXY_PASSWORD
-    }
 
-def get_proxy_2_config():
-    """Get second proxy configuration from config"""
-    from CONFIG.config import Config
-    
-    return {
-        'type': Config.PROXY_2_TYPE,
-        'ip': Config.PROXY_2_IP,
-        'port': Config.PROXY_2_PORT,
-        'user': Config.PROXY_2_USER,
-        'password': Config.PROXY_2_PASSWORD
-    }
 
 def get_all_proxy_configs():
-    """Get all available proxy configurations"""
-    from CONFIG.config import Config
-    
-    configs = []
-    
-    # First proxy
-    if hasattr(Config, 'PROXY_TYPE') and hasattr(Config, 'PROXY_IP') and hasattr(Config, 'PROXY_PORT'):
-        if Config.PROXY_IP and Config.PROXY_PORT:
-            configs.append({
-                'type': Config.PROXY_TYPE,
-                'ip': Config.PROXY_IP,
-                'port': Config.PROXY_PORT,
-                'user': Config.PROXY_USER,
-                'password': Config.PROXY_PASSWORD
-            })
-    
-    # Second proxy
-    if hasattr(Config, 'PROXY_2_TYPE') and hasattr(Config, 'PROXY_2_IP') and hasattr(Config, 'PROXY_2_PORT'):
-        if Config.PROXY_2_IP and Config.PROXY_2_PORT:
-            configs.append({
-                'type': Config.PROXY_2_TYPE,
-                'ip': Config.PROXY_2_IP,
-                'port': Config.PROXY_2_PORT,
-                'user': Config.PROXY_2_USER,
-                'password': Config.PROXY_2_PASSWORD
-            })
-    
-    return configs
+    """All real proxies from the config (the "X.X.X.X" placeholders are skipped)"""
+    return [c for c in (get_proxy_config(), get_proxy_2_config()) if c]
 
 def extract_domain_from_url(url):
     """Extract domain from URL, handling subdomains properly"""

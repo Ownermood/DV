@@ -14,3 +14,13 @@ def test_health_snapshot_reports_failures(monkeypatch):
     from HELPERS import alerts
     monkeypatch.setattr(alerts, "CHECKS", {"good": lambda: True, "bad": lambda: 1 / 0})
     assert alerts.health_snapshot() == {"good": True, "bad": False}
+
+
+def test_placeholder_proxy_is_no_proxy(monkeypatch):
+    from COMMANDS import proxy_cmd
+    from HELPERS import proxy_helper
+    monkeypatch.setattr(proxy_cmd.Config, "PROXY_IP", "X.X.X.X", raising=False)
+    monkeypatch.setattr(proxy_cmd.Config, "PROXY_2_IP", "", raising=False)
+    assert proxy_cmd.get_proxy_config() is None and proxy_helper.get_all_proxy_configs() == []
+    monkeypatch.setattr(proxy_cmd.Config, "PROXY_IP", "1.2.3.4", raising=False)
+    assert proxy_cmd.get_proxy_config()["ip"] == "1.2.3.4"
