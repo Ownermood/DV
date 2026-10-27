@@ -26,7 +26,6 @@ from DOWN_AND_UP.ffmpeg import get_duration_thumb, get_video_info_ffprobe, embed
 from DOWN_AND_UP.sender import send_videos
 from DATABASE.firebase_init import write_logs
 from URL_PARSERS.tags import generate_final_tags, save_user_tags
-from services.stats_events import update_download_progress
 from URL_PARSERS.youtube import is_youtube_url, download_thumbnail, extract_youtube_id
 from URL_PARSERS.nocookie import is_no_cookie_domain
 from URL_PARSERS.filter_check import is_no_filter_domain
@@ -36,8 +35,6 @@ from HELPERS.pot_helper import add_pot_to_ytdl_opts
 from CONFIG.config import Config
 from CONFIG.limits import LimitsConfig
 from COMMANDS.subtitles_cmd import is_subs_enabled, check_subs_availability, get_user_subs_auto_mode, _subs_check_cache, download_subtitles_ytdlp, get_user_subs_language, clear_subs_check_cache, is_subs_always_ask
-from COMMANDS.split_sizer import get_user_split_size
-from COMMANDS.mediainfo_cmd import send_mediainfo_if_enabled
 from URL_PARSERS.playlist_utils import is_playlist_with_range
 from URL_PARSERS.normalizer import get_clean_playlist_url
 from urllib.parse import urlparse
@@ -224,73 +221,6 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
         return
     
     # Check if LINK mode is enabled - if yes, get direct link instead of downloading
-    try:
-        from DOWN_AND_UP.dl_state import get_link_mode
-        if get_link_mode(user_id):
-            logger.info(f"LINK mode enabled for user {user_id}, getting direct link instead of downloading")
-            
-            # Import link function
-            from COMMANDS.link_cmd import get_direct_link
-            
-            # Convert quality key to quality argument
-            quality_arg = None
-            if quality_key and quality_key != "best" and quality_key != "mp3":
-                quality_arg = quality_key
-            
-            # Get direct link
-            result = get_direct_link(url, user_id, quality_arg, cookies_already_checked=cookies_already_checked, use_proxy=True)
-            
-            if result.get('success'):
-                title = result.get('title', 'Unknown')
-                duration = result.get('duration', 0)
-                video_url = result.get('video_url')
-                audio_url = result.get('audio_url')
-                format_spec = result.get('format', 'best')
-                
-                # Form response
-                response = safe_get_messages(user_id).DIRECT_LINK_OBTAINED_MSG
-                response += safe_get_messages(user_id).TITLE_FIELD_MSG.format(title=title)
-                try:
-                    duration_val = float(duration) if duration is not None else 0
-                    if duration_val > 0:
-                        response += safe_get_messages(user_id).DURATION_FIELD_MSG.format(duration=duration_val)
-                except (TypeError, ValueError):
-                    pass
-                response += safe_get_messages(user_id).FORMAT_FIELD_MSG.format(format_spec=format_spec)
-                
-                if video_url:
-                    response += safe_get_messages(user_id).VIDEO_STREAM_FIELD_MSG.format(video_url=video_url)
-                
-                if audio_url:
-                    response += safe_get_messages(user_id).AUDIO_STREAM_FIELD_MSG.format(audio_url=audio_url)
-                
-                if not video_url and not audio_url:
-                    response += safe_get_messages(user_id).FAILED_STREAM_LINKS_MSG
-                
-                # Send response
-                app.send_message(
-                    user_id, 
-                    response, 
-                    reply_parameters=ReplyParameters(message_id=message.id),
-                    parse_mode=enums.ParseMode.HTML
-                )
-                
-                send_to_logger(message, safe_get_messages(user_id).DIRECT_LINK_EXTRACTED_DOWN_UP_LOG_MSG.format(user_id=user_id, url=url))
-                
-            else:
-                error_msg = result.get('error', 'Unknown error')
-                app.send_message(
-                    user_id,
-                    safe_get_messages(user_id).ERROR_GETTING_LINK_MSG.format(error=error_msg),
-                    reply_parameters=ReplyParameters(message_id=message.id),
-                    parse_mode=enums.ParseMode.HTML
-                )
-                
-                log_error_to_channel(message, safe_get_messages(user_id).DIRECT_LINK_FAILED_DOWN_UP_LOG_MSG.format(user_id=user_id, url=url, error=error_msg), url)
-            
-            return
-    except Exception as e:
-        logger.error(f"Error checking LINK mode for user {user_id}: {e}")
         # Continue with normal download if LINK mode check fails
     subs_enabled = is_subs_enabled(user_id)
     need_subs = False
@@ -818,37 +748,6 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 raise Exception(f"Download timeout exceeded ({safe_get_messages(user_id).DOWNLOAD_TIMEOUT // 3600} hours)")
             current_time = time.time()
             
-            def build_progress_metadata(downloaded_bytes, total_bytes):
-                info_dict = d.get("info_dict") or {}
-                fmt = selected_format or {}
-                width = fmt.get("width") or info_dict.get("width")
-                height = fmt.get("height") or info_dict.get("height")
-                resolution = f"{width}x{height}" if width and height else None
-                filesize = (
-                    total_bytes
-                    or fmt.get("filesize")
-                    or fmt.get("filesize_approx")
-                    or info_dict.get("filesize")
-                    or info_dict.get("filesize_approx")
-                )
-                duration_val = (
-                    fmt.get("duration")
-                    or info_dict.get("duration")
-                )
-                metadata_payload = {
-                    "downloaded_bytes": downloaded_bytes,
-                    "total_bytes": total_bytes,
-                    "filesize": filesize,
-                    "duration": duration_val,
-                    "resolution": resolution,
-                    "quality": fmt.get("format_note") or safe_quality_key,
-                    "ext": fmt.get("ext") or info_dict.get("ext"),
-                    "speed": d.get("speed"),
-                    "eta": d.get("eta"),
-                    "domain": urlparse(url).netloc,
-                    "thumbnail": info_dict.get("thumbnail"),
-                }
-                return {k: v for k, v in metadata_payload.items() if v is not None}
             
             # Calculate elapsed time and minutes passed
             elapsed = max(0, current_time - progress_start_time)
@@ -873,16 +772,6 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 bar = bar_blocks(blocks)
                 
                 # Update progress in stats
-                try:
-                    update_download_progress(
-                        user_id=user_id,
-                        progress=percent,
-                        url=url,
-                        title=title,
-                        metadata=build_progress_metadata(downloaded, total),
-                    )
-                except Exception as e:
-                    logger.debug(f"Failed to update download progress: {e}")
                 
                 # For HLS, update progress data for cycle animation
                 if is_hls and hasattr(progress_func, 'progress_data') and progress_func.progress_data:
@@ -915,16 +804,6 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 # Update progress to 100% on completion
                 total = d.get("total_bytes") or d.get("total_bytes_estimate") or 0
                 try:
-                    update_download_progress(
-                        user_id=user_id,
-                        progress=100.0,
-                        url=url,
-                        title=title,
-                        metadata=build_progress_metadata(total or 0, total or 0),
-                    )
-                except Exception as e:
-                    logger.debug(f"Failed to update download progress on finish: {e}")
-                try:
                     safe_edit_message_text(user_id, proc_msg_id, safe_get_messages(user_id).VIDEO_DOWNLOAD_COMPLETE_MSG.format(process=current_total_process, bar=full_bar))
                 except Exception as e:
                     logger.error(f"Error updating progress: {e}")
@@ -935,16 +814,6 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 # Reset progress on error
                 downloaded = d.get("downloaded_bytes", 0)
                 total = d.get("total_bytes") or d.get("total_bytes_estimate") or 0
-                try:
-                    update_download_progress(
-                        user_id=user_id,
-                        progress=None,
-                        url=url,
-                        title=title,
-                        metadata=build_progress_metadata(downloaded, total),
-                    )
-                except Exception as e:
-                    logger.debug(f"Failed to update download progress on error: {e}")
                 logger.error("Error occurred during download.")
                 send_error_to_user(message, safe_get_messages(user_id).DOWNLOAD_ERROR_GENERIC)
             last_update = current_time
@@ -1128,23 +997,11 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
             # Always use progress_hooks, even for HLS
             common_opts['progress_hooks'] = [progress_func]
             # Respect MKV toggle: remux to mkv when MKV is ON; otherwise prefer mp4
-            try:
-                from COMMANDS.format_cmd import get_user_mkv_preference
-                mkv_on = get_user_mkv_preference(user_id)
-            except Exception:
-                mkv_on = False
+            mkv_on = False  # always MP4 (the old /format MKV switch is gone)
 
             # Adjust attempts' merge_output_format based on WEBM preference
             try:
-                if mkv_on:
-                    for _attempt in attempts:
-                        if isinstance(_attempt, dict):
-                            _attempt['merge_output_format'] = 'mkv'
-                else:
-                    for _attempt in attempts:
-                        if isinstance(_attempt, dict) and 'merge_output_format' not in _attempt:
-                            # Use user's preferred format
-                            _attempt['merge_output_format'] = user_merge_format
+                pass
             except Exception:
                 pass
 
@@ -1192,10 +1049,6 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
             ytdl_opts = add_pot_to_ytdl_opts(ytdl_opts, url)
             
             # If MKV is ON, remux to mkv; else to mp4
-            if mkv_on:
-                ytdl_opts['remux_video'] = 'mkv'
-            else:
-                ytdl_opts['remux_video'] = 'mp4'
             try:
                 logger.info(f"Starting yt-dlp extraction for URL: {url}")
                 logger.info(f"yt-dlp options: {ytdl_opts}")
@@ -2361,7 +2214,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
 
             video_size_in_bytes = os.path.getsize(user_vid_path)
             video_size = humanbytes(int(video_size_in_bytes))
-            max_size = get_user_split_size(user_id)  # 1.95 GB - close to Telegram's 2GB limit with 50MB safety margin
+            max_size = 1950 * 1024 * 1024  # 1.95 GB - close to Telegram's 2GB limit with 50MB safety margin
             if int(video_size_in_bytes) > max_size:
                 safe_edit_message_text(user_id, proc_msg_id,
                     f"{info_text}\n{full_bar}   100.0%\n<i>⚠️ Your video size ({video_size}) is too large.</i>\n<i>Splitting file...</i> ✂️")
@@ -2608,7 +2461,6 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                         pass
                     if os.path.exists(splited_thumb_dir):
                         os.remove(splited_thumb_dir)
-                    send_mediainfo_if_enabled(user_id, path_lst[p], message)
                     if os.path.exists(path_lst[p]):
                         os.remove(path_lst[p])
                 
@@ -3188,7 +3040,6 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                                     logger.error(f"Error in manual forward after error: {e2}")
                         safe_edit_message_text(user_id, proc_msg_id,
                             f"{info_text}\n{full_bar}   100.0%\n<b>{safe_get_messages(user_id).DOWN_UP_VIDEO_DURATION_MSG}</b> <i>{TimeFormatter(duration * 1000)}</i>\n{safe_get_messages(user_id).DOWN_UP_ONE_FILE_UPLOADED_MSG}")
-                        send_mediainfo_if_enabled(user_id, after_rename_abs_path, message)
                         
                         # Clean up video file and thumbnail
                         if os.path.exists(after_rename_abs_path):

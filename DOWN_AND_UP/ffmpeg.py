@@ -14,7 +14,6 @@ from HELPERS.logger import logger, send_to_all, send_to_logger
 from CONFIG.config import Config
 from CONFIG.messages import Messages, safe_get_messages
 from HELPERS.safe_messeger import safe_forward_messages
-from COMMANDS.format_cmd import get_user_mkv_preference
 from pyrogram import enums
 
 # Get app instance for decorators
@@ -466,7 +465,7 @@ def embed_subs_to_video(video_path, user_id, tg_update_callback=None, app=None, 
         
         # If container is MKV, do a soft subtitle mux (no burn-in)
         try:
-            mkv_selected = bool(get_user_mkv_preference(user_id))
+            mkv_selected = False  # always MP4
         except Exception:
             mkv_selected = False
         is_mkv_file = video_path.lower().endswith('.mkv')

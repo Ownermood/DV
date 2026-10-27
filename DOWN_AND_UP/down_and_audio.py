@@ -20,7 +20,6 @@ from HELPERS.safe_messeger import safe_delete_messages, safe_edit_message_text, 
 from HELPERS.filesystem_hlp import sanitize_filename, sanitize_filename_strict, create_directory, check_disk_space, cleanup_user_temp_files
 from DATABASE.firebase_init import write_logs
 from URL_PARSERS.tags import generate_final_tags
-from services.stats_events import update_download_progress
 from URL_PARSERS.nocookie import is_no_cookie_domain
 from URL_PARSERS.filter_check import is_no_filter_domain
 from URL_PARSERS.filter_utils import create_smart_match_filter, create_legacy_match_filter
@@ -36,7 +35,6 @@ import io
 from CONFIG.config import Config
 from CONFIG.messages import Messages, safe_get_messages
 from COMMANDS.subtitles_cmd import is_subs_enabled, check_subs_availability, get_user_subs_auto_mode, _subs_check_cache, download_subtitles_ytdlp, is_subs_always_ask
-from COMMANDS.mediainfo_cmd import send_mediainfo_if_enabled
 from URL_PARSERS.playlist_utils import is_playlist_with_range
 from URL_PARSERS.normalizer import get_clean_playlist_url
 from DATABASE.cache_db import get_cached_playlist_videos, get_cached_message_ids, save_to_video_cache, save_to_playlist_cache
@@ -205,69 +203,6 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
         user_forced_nsfw = False
     
     # Check if LINK mode is enabled - if yes, get direct link instead of downloading
-    try:
-        from DOWN_AND_UP.dl_state import get_link_mode
-        if get_link_mode(user_id):
-            logger.info(f"LINK mode enabled for user {user_id}, getting direct link instead of downloading audio")
-            
-            # Import link function
-            from COMMANDS.link_cmd import get_direct_link
-            
-            # Convert quality key to quality argument
-            quality_arg = None
-            if quality_key and quality_key != "best" and quality_key != "mp3":
-                quality_arg = quality_key
-            
-            # Get direct link
-            result = get_direct_link(url, user_id, quality_arg, cookies_already_checked=cookies_already_checked, use_proxy=True)
-            
-            if result.get('success'):
-                title = result.get('title', 'Unknown')
-                duration = result.get('duration', 0)
-                video_url = result.get('video_url')
-                audio_url = result.get('audio_url')
-                format_spec = result.get('format', 'best')
-                
-                # Form response
-                response = safe_get_messages(user_id).DIRECT_LINK_OBTAINED_MSG
-                response += safe_get_messages(user_id).TITLE_FIELD_MSG.format(title=title)
-                if duration and duration > 0:
-                    response += safe_get_messages(user_id).DURATION_FIELD_MSG.format(duration=duration)
-                response += safe_get_messages(user_id).FORMAT_FIELD_MSG.format(format_spec=format_spec)
-                
-                if video_url:
-                    response += safe_get_messages(user_id).VIDEO_STREAM_FIELD_MSG.format(video_url=video_url)
-                
-                if audio_url:
-                    response += safe_get_messages(user_id).AUDIO_STREAM_FIELD_MSG.format(audio_url=audio_url)
-                
-                if not video_url and not audio_url:
-                    response += safe_get_messages(user_id).DOWN_UP_FAILED_STREAM_LINKS_MSG
-                
-                # Send response
-                app.send_message(
-                    user_id, 
-                    response, 
-                    reply_parameters=ReplyParameters(message_id=message.id),
-                    parse_mode=enums.ParseMode.HTML
-                )
-                
-                send_to_logger(message, safe_get_messages(user_id).DIRECT_LINK_EXTRACTED_DOWN_AUDIO_LOG_MSG.format(user_id=user_id, url=url))
-                
-            else:
-                error_msg = result.get('error', 'Unknown error')
-                app.send_message(
-                    user_id,
-                    safe_get_messages(user_id).DOWN_UP_ERROR_GETTING_LINK_MSG.format(error_msg=error_msg),
-                    reply_parameters=ReplyParameters(message_id=message.id),
-                    parse_mode=enums.ParseMode.HTML
-                )
-                
-                log_error_to_channel(message, safe_get_messages(user_id).DIRECT_LINK_FAILED_DOWN_AUDIO_LOG_MSG.format(user_id=user_id, url=url, error=error_msg), url)
-            
-            return
-    except Exception as e:
-        logger.error(f"Error checking LINK mode for user {user_id}: {e}")
         # Continue with normal download if LINK mode check fails
     
     # We define a playlist not only by the number of videos, but also by the presence of a range in the URL
@@ -615,29 +550,6 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 raise Exception(f"Download timeout exceeded ({Config.DOWNLOAD_TIMEOUT // 3600} hours)")
             current_time = time.time()
             
-            def build_progress_metadata(downloaded_bytes, total_bytes):
-                info_dict = d.get("info_dict") or {}
-                fmt = info_dict.get("requested_formats", [{}])[-1] if info_dict.get("requested_formats") else info_dict
-                filesize = (
-                    total_bytes
-                    or fmt.get("filesize")
-                    or fmt.get("filesize_approx")
-                    or info_dict.get("filesize")
-                    or info_dict.get("filesize_approx")
-                )
-                metadata_payload = {
-                    "downloaded_bytes": downloaded_bytes,
-                    "total_bytes": total_bytes,
-                    "filesize": filesize,
-                    "duration": info_dict.get("duration"),
-                    "bitrate": fmt.get("abr") or info_dict.get("abr"),
-                    "ext": fmt.get("ext") or info_dict.get("ext"),
-                    "speed": d.get("speed"),
-                    "eta": d.get("eta"),
-                    "domain": urlparse(url).netloc,
-                    "thumbnail": info_dict.get("thumbnail"),
-                }
-                return {k: v for k, v in metadata_payload.items() if v is not None}
             
             # Calculate elapsed time and minutes passed
             elapsed = max(0, current_time - progress_start_time)
@@ -660,16 +572,6 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 bar = bar_blocks(blocks)
                 
                 # Update progress in stats
-                try:
-                    update_download_progress(
-                        user_id=user_id,
-                        progress=percent,
-                        url=url,
-                        title=title,
-                        metadata=build_progress_metadata(downloaded, total),
-                    )
-                except Exception as e:
-                    logger.debug(f"Failed to update download progress: {e}")
                 
                 # For HLS audio, update progress data for cycle animation
                 if hasattr(progress_hook, 'progress_data') and progress_hook.progress_data:
@@ -685,16 +587,6 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 # Update progress to 100% on completion
                 total = d.get("total_bytes") or d.get("total_bytes_estimate") or 0
                 try:
-                    update_download_progress(
-                        user_id=user_id,
-                        progress=100.0,
-                        url=url,
-                        title=title,
-                        metadata=build_progress_metadata(total or 0, total or 0),
-                    )
-                except Exception as e:
-                    logger.debug(f"Failed to update download progress on finish: {e}")
-                try:
                     full_bar = bar_blocks(10)
                     safe_edit_message_text(user_id, proc_msg_id,
                         f"{current_total_process}\n{safe_get_messages(user_id).ALWAYS_ASK_DOWNLOADING_QUALITY_MSG} audio:\n{full_bar}   100.0%\n{safe_get_messages(user_id).AUDIO_DOWNLOAD_FINISHED_PROCESSING_MSG}")
@@ -705,16 +597,6 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 # Reset progress on error
                 downloaded = d.get("downloaded_bytes", 0)
                 total = d.get("total_bytes") or d.get("total_bytes_estimate") or 0
-                try:
-                    update_download_progress(
-                        user_id=user_id,
-                        progress=None,
-                        url=url,
-                        title=title,
-                        metadata=build_progress_metadata(downloaded, total),
-                    )
-                except Exception as e:
-                    logger.debug(f"Failed to update download progress on error: {e}")
                 try:
                     safe_edit_message_text(user_id, proc_msg_id, safe_get_messages(user_id).AUDIO_DOWNLOAD_ERROR_MSG)
                 except Exception as e:
@@ -1819,7 +1701,6 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
 
             # Clean up the audio file after sending
             try:
-                send_mediainfo_if_enabled(user_id, audio_file, message)
                 os.remove(audio_file)
             except Exception as e:
                 logger.error(f"Failed to delete audio file {audio_file}: {e}")
