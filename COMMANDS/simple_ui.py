@@ -313,6 +313,25 @@ def _count(n) -> str:
     return f"{n:.1f}T"
 
 
+_YT_ID = re.compile(r"(?:v=|youtu\.be/|shorts/|live/|embed/)([\w-]{11})")
+
+
+def _oembed(url) -> Optional[dict]:
+    """Basic info from YouTube's public oEmbed (no bot check): id, title, channel."""
+    m = _YT_ID.search(url or "")
+    if not m:
+        return None
+    try:
+        import requests
+        r = requests.get("https://www.youtube.com/oembed", params={"url": f"https://www.youtube.com/watch?v={m.group(1)}",
+                                                                  "format": "json"}, timeout=10)
+        d = r.json() if r.ok else {}
+        return {"id": m.group(1), "title": d.get("title"), "channel": d.get("author_name")}
+    except Exception as exc:
+        logger.info(f"[ui] oembed failed: {exc}")
+        return {"id": m.group(1)}
+
+
 def _yt_preview(info, picks) -> str:
     """Caption: title, date / length / views / comments / channel, then every quality with its size."""
     title = html.escape(info.get("title") or "YouTube")[:180]
@@ -366,6 +385,8 @@ def _show_link_menu(client, message, key, label) -> None:
         if picks:
             _SIZES[token] = picks
         title = html.escape((info or {}).get("title") or "YouTube")[:200]
+        if not info:  # yt-dlp blocked (server IP): title, channel and thumbnail from oEmbed still make a preview
+            info = _oembed(extract_url(message.text))
         if info and info.get("id"):
             try:  # preview card: thumbnail + details + sizes (like the big downloader bots)
                 kb = _choice_rows(uid, token, sizes, is_yt=True)
