@@ -42,7 +42,7 @@ from URL_PARSERS.playlist_utils import is_playlist_with_range
 from URL_PARSERS.normalizer import get_clean_playlist_url
 from urllib.parse import urlparse
 from DATABASE.cache_db import get_cached_playlist_videos, get_cached_message_ids, save_to_video_cache, save_to_playlist_cache
-from HELPERS.qualifier import get_quality_by_min_side
+from HELPERS.qualifier import get_quality_by_min_side, ceil_to_popular
 from HELPERS.logger import send_to_all  # Imported at the very end to guarantee visibility
 from HELPERS.safe_messeger import safe_forward_messages  # Duplicate import to avoid visibility issues
 from pyrogram import enums
@@ -1099,97 +1099,6 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     from COMMANDS import cookie_store
                     common_opts['cookiefile'] = cookie_store.first_active("youtube")  # admin's Cookie Manager cookie, else none
                     logger.info(f"YouTube cookie for user {user_id}: {bool(common_opts['cookiefile'])}")
-                elif False:
-                    from COMMANDS.cookies_cmd import get_youtube_cookie_urls, test_youtube_cookies_on_url, _download_content
-                    
-                    # Always check existing cookies first on user's URL for maximum speed
-                    if os.path.exists(user_cookie_path):
-                        logger.info(f"Checking existing YouTube cookies on user's URL for user {user_id}")
-                        if test_youtube_cookies_on_url(user_cookie_path, url, user_id):
-                            common_opts['cookiefile'] = user_cookie_path
-                            logger.info(f"Existing YouTube cookies work on user's URL for user {user_id} - using them")
-                        else:
-                            logger.info(f"Existing YouTube cookies failed on user's URL, trying to get new ones for user {user_id}")
-                            cookie_urls = get_youtube_cookie_urls()
-                            if cookie_urls:
-                                # Use only unchecked sources for this user
-                                from COMMANDS.cookies_cmd import get_unchecked_cookie_sources, mark_cookie_source_checked
-                                unchecked_indices = get_unchecked_cookie_sources(user_id, cookie_urls)
-                                if not unchecked_indices:
-                                    logger.warning(f"All cookie sources have been checked for user {user_id}, no more sources to try")
-                                    common_opts['cookiefile'] = None
-                                else:
-                                    success = False
-                                    for i, idx in enumerate(unchecked_indices, 1):
-                                        cookie_url = cookie_urls[idx]
-                                        logger.info(f"Trying YouTube cookie source {idx + 1}/{len(cookie_urls)} for user {user_id}")
-                                        
-                                        # Mark this source as checked
-                                        mark_cookie_source_checked(user_id, idx)
-                                        
-                                        try:
-                                            ok, status, content, err = _download_content(cookie_url, timeout=30, user_id=user_id)
-                                            if ok and content and len(content) <= 1024 * 1024:
-                                                with open(user_cookie_path, "wb") as cf:
-                                                    cf.write(content)
-                                                if test_youtube_cookies_on_url(user_cookie_path, url, user_id):
-                                                    common_opts['cookiefile'] = user_cookie_path
-                                                    logger.info(f"YouTube cookies from source {idx + 1} work on user's URL for user {user_id} - saved to user folder")
-                                                    success = True
-                                                    break
-                                                else:
-                                                    if os.path.exists(user_cookie_path):
-                                                        os.remove(user_cookie_path)
-                                        except Exception as e:
-                                            logger.error(f"Error processing YouTube cookie source {idx + 1} for user {user_id}: {e}")
-                                            continue
-                                    if not success:
-                                        common_opts['cookiefile'] = None
-                                        logger.warning(f"All YouTube cookie sources failed for user {user_id}, will try without cookies")
-                            else:
-                                common_opts['cookiefile'] = None
-                                logger.warning(f"No YouTube cookie sources configured for user {user_id}, will try without cookies")
-                    else:
-                        logger.info(f"No YouTube cookies found for user {user_id}, attempting to get new ones")
-                        cookie_urls = get_youtube_cookie_urls()
-                        if cookie_urls:
-                            # Use only unchecked sources for this user
-                            from COMMANDS.cookies_cmd import get_unchecked_cookie_sources, mark_cookie_source_checked
-                            unchecked_indices = get_unchecked_cookie_sources(user_id, cookie_urls)
-                            if not unchecked_indices:
-                                logger.warning(f"All cookie sources have been checked for user {user_id}, no more sources to try")
-                                common_opts['cookiefile'] = None
-                            else:
-                                success = False
-                                for i, idx in enumerate(unchecked_indices, 1):
-                                    cookie_url = cookie_urls[idx]
-                                    logger.info(f"Trying YouTube cookie source {idx + 1}/{len(cookie_urls)} for user {user_id}")
-                                    
-                                    # Mark this source as checked
-                                    mark_cookie_source_checked(user_id, idx)
-                                    
-                                    try:
-                                        ok, status, content, err = _download_content(cookie_url, timeout=30, user_id=user_id)
-                                        if ok and content and len(content) <= 1024 * 1024:
-                                            with open(user_cookie_path, "wb") as cf:
-                                                cf.write(content)
-                                            if test_youtube_cookies_on_url(user_cookie_path, url, user_id):
-                                                common_opts['cookiefile'] = user_cookie_path
-                                                logger.info(f"YouTube cookies from source {idx + 1} work on user's URL for user {user_id} - saved to user folder")
-                                                success = True
-                                                break
-                                            else:
-                                                if os.path.exists(user_cookie_path):
-                                                    os.remove(user_cookie_path)
-                                    except Exception as e:
-                                        logger.error(f"Error processing YouTube cookie source {idx + 1} for user {user_id}: {e}")
-                                        continue
-                                if not success:
-                                    common_opts['cookiefile'] = None
-                                    logger.warning(f"All YouTube cookie sources failed for user {user_id}, will try without cookies")
-                        else:
-                            common_opts['cookiefile'] = None
-                            logger.warning(f"No YouTube cookie sources configured for user {user_id}, will try without cookies")
                 else:
                     # For non-YouTube URLs, use new cookie fallback system
                     from COMMANDS.cookies_cmd import get_cookie_cache_result, try_non_youtube_cookie_fallback
