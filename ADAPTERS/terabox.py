@@ -389,6 +389,9 @@ def _fast_download(url, filepath: Path, cookies, size, limit, progress) -> None:
     length = int(rng.rsplit("/", 1)[-1]) if code == 206 and "/" in rng and rng.rsplit("/", 1)[-1].isdigit() else 0
     if length and length > limit:
         raise RuntimeError(f"too large: {length / 1024 ** 3:.2f} GB (limit {limit / 1024 ** 3:.0f} GB)")
+    if size and length and length < size * 0.9:  # TeraBox answers some servers with a small placeholder file
+        raise RuntimeError(f"TeraBox sent {length / 1024 ** 2:.1f} MB instead of {size / 1024 ** 2:.0f} MB "
+                           f"(original blocked for this account)")
     lock, done = threading.Lock(), [0]
 
     def add(n, total_len):
@@ -815,6 +818,8 @@ def _run_job(app, message, url, meta, q, card) -> None:
             body = (f"File: {exc.title[:80]} ({exc.size / 1024 ** 3:.2f} GB)\n"
                     "TeraBox gives download links only to a logged-in account. "
                     "Admin: add TeraBox cookies in Admin Panel → Cookie Manager.")
+        elif "instead of" in str(exc):
+            body = "TeraBox does not give the original file to this account. Try ⚡ 480p, it is fast."
         elif "too large" in str(exc) or "not available" in str(exc) or "preview" in str(exc):
             body = str(exc)[:200]
         elif q == "o" and meta:  # the share opened fine, so the original file itself stalled
