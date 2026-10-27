@@ -1067,7 +1067,12 @@ def url_distractor(app, message):
                 if handle_terabox(app, message):
                     return
             except Exception as terabox_error:
-                logger.error(f"TeraBox adapter error: {terabox_error}")
+                logger.exception(f"TeraBox adapter error: {terabox_error}")
+                from ADAPTERS.terabox import is_terabox_url
+                from COMMANDS.simple_ui import extract_url
+                if is_terabox_url(extract_url(message.text or "") or ""):  # yt-dlp / gallery-dl can't open TeraBox
+                    send_to_user(message, "📦 TeraBox download failed. Please try again in a minute.")
+                    return
 
             # Centralized router to gallery-dl for certain links
             try:
