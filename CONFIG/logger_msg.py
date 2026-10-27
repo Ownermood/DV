@@ -13,9 +13,6 @@ class LoggerMsg(object):
     # Removed - these are user messages, not logger messages
     
     # URL Extractor / start logs
-    USER_STARTED_BOT = "{chat_id} - user started the bot"
-    HELP_SENT_TO_USER = "Send help txt to user"
-    ADD_BOT_TO_GROUP_SENT = "Send add_bot_to_group txt to user"
 
     # Image command logs
     IMG_HELP_SHOWN = "Showed /img help"
@@ -40,9 +37,6 @@ class LoggerMsg(object):
     IMG_FILE_DATE_MODIFICATION_INVALID_LOG_MSG = "[FILE_DATE] File modification date {date_str} is invalid"
 
     # Search helper logs
-    SEARCH_HELPER_OPENED = "User {user_id} opened search helper"
-    SEARCH_HELPER_CLOSED = "User {user_id} closed search command"
-    SEARCH_CALLBACK_ERROR = "Error in search callback handler: {error}"
 
     # Cache and sends
     PLAYLIST_VIDEOS_SENT_FROM_CACHE = "Playlist videos sent from cache (quality={quality}) to user {user_id}"
@@ -56,11 +50,6 @@ class LoggerMsg(object):
     # Cookies command logs
     COOKIES_FAILED_START_BROWSER_LOG_MSG = "Failed to start cookies_from_browser: {e}"
     COOKIES_ERROR_FAST_COMMAND_LOG_MSG = "Error in fast command handling: {e}"
-    COOKIES_YOUTUBE_TEST_FAILED_NO_INFO_LOG_MSG = "YouTube cookies test failed on user URL - no info returned for {cookie_file_path}"
-    COOKIES_YOUTUBE_TEST_FAILED_MISSING_INFO_LOG_MSG = "YouTube cookies test failed on user URL - missing basic info for {cookie_file_path}"
-    COOKIES_YOUTUBE_TEST_FAILED_INSUFFICIENT_FORMATS_LOG_MSG = "YouTube cookies test failed on user URL - insufficient formats ({formats_count}) for {cookie_file_path}"
-    COOKIES_YOUTUBE_COOKIES_WORK_LOG_MSG = "YouTube cookies work on user URL for {cookie_file_path}"
-    COOKIES_YOUTUBE_TEST_FAILED_USER_URL_LOG_MSG = "YouTube cookies test failed on user URL for {cookie_file_path}: {e}"
     COOKIES_YOUTUBE_TEST_FAILED_NO_INFO_RETURNED_LOG_MSG = "YouTube cookies test failed - no info returned for {cookie_file_path}"
     COOKIES_YOUTUBE_TEST_FAILED_MISSING_FIELDS_LOG_MSG = "YouTube cookies test failed - missing fields: {missing_fields} for {cookie_file_path}"
     COOKIES_YOUTUBE_TEST_FAILED_AVAILABLE_FIELDS_LOG_MSG = "Available fields: {available_fields}"
@@ -140,8 +129,6 @@ class LoggerMsg(object):
     COOKIES_YOUTUBE_RETRY_SOURCE_FAILED_VALIDATION_LOG_MSG = "Cookie source {source_index} failed validation for user {user_id}"
     COOKIES_YOUTUBE_RETRY_PROCESSING_ERROR_LOG_MSG = "Error processing cookie source {source_index} for user {user_id}: {e}"
     COOKIES_YOUTUBE_RETRY_ALL_SOURCES_FAILED_LOG_MSG = "All cookie sources failed for retry download for user {user_id}"
-    COOKIES_YOUTUBE_CACHE_CLEARED_LOG_MSG = "Cleared YouTube cookie validation cache for user {user_id}"
-    COOKIES_YOUTUBE_CACHE_NO_ENTRY_LOG_MSG = "No cache entry found for user {user_id}"
     COOKIES_YOUTUBE_TEST_FAILED_MISSING_FIELDS_LOG_MSG = "YouTube cookies test failed - missing fields: {missing_fields} for {cookie_file_path}"
     COOKIES_YOUTUBE_TEST_FAILED_NO_FORMATS_LOG_MSG = "YouTube cookies test failed - no formats available for {cookie_file_path}"
     COOKIES_YOUTUBE_TEST_FAILED_INVALID_DURATION_LOG_MSG = "YouTube cookies test failed - invalid duration: {duration} for {cookie_file_path}"
@@ -165,8 +152,6 @@ class LoggerMsg(object):
     # Image command specific logs
     IMG_PAID_EMBEDDED_COVER_LOG_MSG = "[IMG PAID] Embedded cover into video: {video_path}"
     IMG_PAID_FAILED_EMBED_COVER_LOG_MSG = "[IMG PAID] Failed to embed cover into video {video_path}: {e}"
-    IMG_LOG_OPEN_COPY_SENT_LOG_MSG = "[IMG LOG] Open copy sent to NSFW channel for history: {file_path}"
-    IMG_LOG_FAILED_SEND_OPEN_COPY_LOG_MSG = "[IMG LOG] Failed to send open copy to NSFW channel: {e}"
     IMG_CACHE_SKIP_NSFW_LOG_MSG = "[IMG CACHE] Skipping cache save for NSFW content: index={album_index}, channel_type={channel_type}"
     IMG_CACHE_SAVE_ALBUM_LOG_MSG = "[IMG CACHE] About to save album: index={album_index}, ids={message_ids}, channel_type={channel_type}"
     IMG_CACHE_SAVE_REQUESTED_LOG_MSG = "[IMG CACHE] Save requested for index={album_index}, channel_type={channel_type}"
@@ -243,14 +228,8 @@ class LoggerMsg(object):
     URL_EXTRACTOR_VIDEO_EXTRACTOR_FAILED_LOG_MSG = "video_url_extractor failed, fallback to gallery-dl: {e}"
     URL_EXTRACTOR_GALLERY_DL_FALLBACK_FAILED_LOG_MSG = "gallery-dl fallback also failed: {e2}"
     URL_EXTRACTOR_NO_MATCHING_COMMAND_LOG_MSG = "{user_id} No matching command processed."
-    URL_EXTRACTOR_ADD_GROUP_HELPER_CLOSED_LOG_MSG = "🤖 Add bot to group helper closed"
-    URL_EXTRACTOR_ADD_GROUP_CALLBACK_ERROR_LOG_MSG = "Error in add_group_msg callback handler: {e}"
-    URL_EXTRACTOR_REMOVED_FILE_LOG_MSG = "Removed file: {file_path}"
-    URL_EXTRACTOR_FAILED_REMOVE_FILE_LOG_MSG = "Failed to remove file {file_path}: {e}"
-    URL_EXTRACTOR_FAILED_CLEAR_YOUTUBE_CACHE_LOG_MSG = "Failed to clear YouTube cookie cache: {e}"
     
     # Magic.py logs
-    MAGIC_ALLOWED_GROUP_CHECK_LOG_MSG = "[ALLOWED_GROUP_CHECK] chat_id={chat_id} allowed={allowed} list={list}"
     
     # Proxy command logs
     PROXY_CMD_ERROR_WRITING_FILE_LOG_MSG = "Error writing file {file_path}: {error}"
@@ -260,7 +239,6 @@ class LoggerMsg(object):
     PROXY_CMD_USER_IS_IN_CHANNEL_LOG_MSG = "[PROXY] User {user_id} is in channel: {is_in_channel}"
     PROXY_CMD_USER_ACCESS_DENIED_LOG_MSG = "[PROXY] User {user_id} access denied - not admin and not in channel"
     PROXY_CMD_USER_ACCESS_GRANTED_LOG_MSG = "[PROXY] User {user_id} access granted"
-    PROXY_CMD_CALLBACK_LOG_MSG = "[PROXY] callback: {callback_data}"
     PROXY_CMD_ERROR_READING_FILE_LOG_MSG = "Error reading proxy file {proxy_file}: {error}"
     PROXY_CMD_UNEXPECTED_ERROR_READING_FILE_LOG_MSG = "Unexpected error reading proxy file {proxy_file}: {error}"
     PROXY_CMD_SELECT_PROXY_FOR_DOMAIN_LOG_MSG = "select_proxy_for_domain: URL={url}, extracted_domain={domain}"
@@ -277,9 +255,6 @@ class LoggerMsg(object):
     
     # Database cache logs
     DB_FIREBASE_CACHE_ACCESS_LOG_MSG = "Firebase local-cache access: {path} -> {status}"
-    DB_CONFIG_NOT_FOUND_LOG_MSG = "config.py not found at {path}"
-    DB_FAILED_PERSIST_RELOAD_CACHE_EVERY_LOG_MSG = "Failed to persist RELOAD_CACHE_EVERY to config.py: {error}"
-    DB_AUTO_CACHE_HANDLER_ERROR_LOG_MSG = "/auto_cache handler error: {error}"
     DB_QUALITY_KEY_EMPTY_LOG_MSG = "quality_key is empty, skipping cache save for playlist: {playlist_url}"
     DB_PLAYLIST_CACHE_PATH_INVALID_LOG_MSG = "PLAYLIST_CACHE_DB_PATH is invalid, skipping write for: {playlist_url}"
     DB_NORMALIZED_PLAYLIST_URLS_LOG_MSG = "Normalized playlist URLs: {urls}"
@@ -334,23 +309,16 @@ class LoggerMsg(object):
     # Args command logs
     ARGS_ERROR_READING_USER_ARGS_LOG_MSG = "Error reading user args for {user_id}: {error}"
     ARGS_ERROR_SAVING_USER_ARGS_LOG_MSG = "Error saving user args for {user_id}: {error}"
-    ARGS_ERROR_CALLBACK_HANDLER_LOG_MSG = "Error in args callback handler: {error}"
     ARGS_ERROR_HANDLING_TEXT_INPUT_LOG_MSG = "Error handling args text input: {error}"
     ARGS_CRITICAL_ERROR_LOG_MSG = "args_text_handler critical error: {error}"
     
     # Cookies command logs
     COOKIES_ERROR_PROCESSING_SOURCE_LOG_MSG = "Error processing cookie source {idx} for user {user_id}: {error}"
-    COOKIES_CLEARED_CACHE_LOG_MSG = "Cleared all YouTube cookie validation cache"
     
     # Format command logs
-    FORMAT_CALLBACK_LOG_MSG = "[FORMAT] callback: {callback_data}"
     
     # Always ask menu logs
     ALWAYS_ASK_ERROR_READING_USER_ARGS_LOG_MSG = "Error reading user args for {user_id}: {error}"
-    ALWAYS_ASK_IMPORTED_LOG_MSG = "always_ask_menu.py imported, app instance: {app_available}"
-    ALWAYS_ASK_ERROR_RETRIEVING_CALLBACK_LOG_MSG = "Error retrieving original data from callback: {error}"
-    ALWAYS_ASK_CALLBACK_RECEIVED_LOG_MSG = "[ASKF] callback received: {callback_data}"
-    ALWAYS_ASK_PARSED_LOG_MSG = "[ASKF] parsed: kind={kind}, value={value}"
     
     # Down and up logs
     DOWN_UP_SKIPPING_CACHE_SEND_AS_FILE_LOG_MSG = "[VIDEO CACHE] Skipping cache save for user {user_id} with send_as_file enabled: url={url}, quality={quality}"
@@ -361,10 +329,6 @@ class LoggerMsg(object):
     DOWN_UP_SAVE_FAILED_LOG_MSG = "[VIDEO CACHE] Save failed for quality={quality}: {error}"
     
     # URL extractor logs
-    URL_EXTRACTOR_DISTRACTOR_CALLED_LOG_MSG = "url_distractor called with text: {text}..."
-    URL_EXTRACTOR_FOUND_ARGS_TEMPLATE_LOG_MSG = "Found potential args import template in message from user {user_id}"
-    URL_EXTRACTOR_SETTINGS_CHECK_LOG_MSG = "has_settings_line: {has_settings_line}, has_forward_instruction: {has_forward_instruction}, has_separator: {has_separator}"
-    URL_EXTRACTOR_CALLING_ARGS_IMPORT_LOG_MSG = "Calling args_import_handler for user {user_id}"
     URL_EXTRACTOR_ENGINE_ROUTER_ERROR_LOG_MSG = "Engine router error: {error}"
     
     # Thumbnail downloader logs
@@ -411,52 +375,8 @@ class LoggerMsg(object):
     THUMBNAIL_DOWNLOADER_SUCCESS_LOG_MSG = "Successfully downloaded {service} thumbnail to {dest}"
     THUMBNAIL_DOWNLOADER_SERVICE_FAILED_LOG_MSG = "Service-specific thumbnail download failed for {service}, will use fallback"
     THUMBNAIL_DOWNLOADER_ERROR_LOG_MSG = "Error in universal thumbnail downloader: {e}"
-    THUMBNAIL_DOWNLOADER_TELEGRAM_EMBED_FAILED_LOG_MSG = "Failed to get Telegram embed thumbnail: {e}"
     
     # Always Ask Menu Log Messages
-    ALWAYS_ASK_ERROR_READING_AVAILABLE_FORMATS_FROM_CACHE_LOG_MSG = "Error reading available formats from cache"
-    ALWAYS_ASK_ERROR_FILTERING_QUALITIES_LOG_MSG = "Error filtering qualities"
-    ALWAYS_ASK_ERROR_SETTING_LINK_MODE_LOG_MSG = "Error setting link mode for user"
-    ALWAYS_ASK_CALLBACK_LOG_MSG = "[ASKQ] callback"
-    ALWAYS_ASK_CLEANED_UP_OLD_FORMAT_CACHE_LOG_MSG = "Cleaned up old format cache"
-    ALWAYS_ASK_FAILED_TO_REMOVE_OLD_CACHE_FILE_LOG_MSG = "Failed to remove old cache file"
-    ALWAYS_ASK_CLEANED_UP_OLD_FORMAT_CACHE_FILES_BEFORE_CLOSING_LOG_MSG = "Cleaned up old format cache files before closing menu"
-    ALWAYS_ASK_ERROR_CLEANING_UP_OLD_FORMAT_CACHE_FILES_BEFORE_CLOSING_LOG_MSG = "Error cleaning up old format cache files before closing menu"
-    ALWAYS_ASK_FAILED_TO_DELETE_ALWAYS_ASK_MENU_LOG_MSG = "Failed to delete Always Ask menu"
-    ALWAYS_ASK_ERROR_SENDING_FORMATS_FILE_LOG_MSG = "Error sending formats file"
-    ALWAYS_ASK_FALLBACK_DEBUG_ORIGINAL_MESSAGE_TEXT_LOG_MSG = "[ASKQ FALLBACK DEBUG] original_message.text"
-    ALWAYS_ASK_FALLBACK_DEBUG_ORIGINAL_MESSAGE_CAPTION_LOG_MSG = "[ASKQ FALLBACK DEBUG] original_message.caption"
-    ALWAYS_ASK_FALLBACK_DEBUG_URL_TEXT_LOG_MSG = "[ASKQ FALLBACK DEBUG] url_text"
-    ALWAYS_ASK_FALLBACK_DEBUG_FOUND_RANGE_URL_LOG_MSG = "[ASKQ FALLBACK DEBUG] FOUND RANGE URL"
-    ALWAYS_ASK_FALLBACK_DEBUG_NO_RANGE_FOUND_LOG_MSG = "[ASKQ FALLBACK DEBUG] NO RANGE FOUND, using url"
-    ALWAYS_ASK_FALLBACK_IS_PORN_CHECK_LOG_MSG = "[ASKQ FALLBACK] is_porn check for"
-    ALWAYS_ASK_FALLBACK_USER_FORCED_NSFW_TAG_DETECTED_LOG_MSG = "[ASKQ FALLBACK] User forced NSFW tag detected for"
-    ALWAYS_ASK_FALLBACK_CONVERTING_RANGE_LOG_MSG = "[ASKQ FALLBACK] Converting range"
-    ALWAYS_ASK_FALLBACK_NO_RANGE_DETECTED_LOG_MSG = "[ASKQ FALLBACK] No range detected, fallback_text"
-    ALWAYS_ASK_FALLBACK_ADDED_NSFW_TAG_LOG_MSG = "[ASKQ FALLBACK] Added #nsfw tag for NSFW content"
-    ALWAYS_ASK_FALLBACK_FAKE_MSG_DETAILS_LOG_MSG = "[ASKQ FALLBACK] fake_msg.chat.id"
-    ALWAYS_ASK_FALLBACK_ORIGINAL_MESSAGE_TYPE_LOG_MSG = "[ASKQ FALLBACK] original_message type"
-    ALWAYS_ASK_FALLBACK_ORIGINAL_MESSAGE_ATTRIBUTES_LOG_MSG = "[ASKQ FALLBACK] original_message attributes"
-    ALWAYS_ASK_IMAGE_FALLBACK_FAILED_LOG_MSG = "[ASKQ] IMAGE fallback failed"
-    ALWAYS_ASK_OPENING_SUBS_MENU_LOG_MSG = "[ASKQ] Opening SUBS menu for user"
-    ALWAYS_ASK_NO_ORIGINAL_MESSAGE_FOUND_FOR_SUBS_MENU_LOG_MSG = "[ASKQ] No original message found for SUBS menu"
-    ALWAYS_ASK_EXTRACTED_URL_LOG_MSG = "[ASKQ] Extracted URL"
-    ALWAYS_ASK_CHECKING_SUBTITLE_AVAILABILITY_LOG_MSG = "[ASKQ] Checking subtitle availability for"
-    ALWAYS_ASK_FOUND_LANGUAGES_LOG_MSG = "[ASKQ] Found languages - normal"
-    ALWAYS_ASK_ERROR_CHECKING_SUBTITLES_LOG_MSG = "[ASKQ] Error checking subtitles"
-    ALWAYS_ASK_NO_SUBTITLES_FOUND_LOG_MSG = "[ASKQ] No subtitles found for"
-    ALWAYS_ASK_BUILDING_KEYBOARD_WITH_LANGUAGES_LOG_MSG = "[ASKQ] Building keyboard with"
-    ALWAYS_ASK_SUCCESSFULLY_UPDATED_MESSAGE_WITH_SUBS_KEYBOARD_LOG_MSG = "[ASKQ] Successfully updated message with SUBS keyboard"
-    ALWAYS_ASK_ERROR_UPDATING_MESSAGE_LOG_MSG = "[ASKQ] Error updating message"
-    ALWAYS_ASK_CLEANED_UP_OLD_FORMAT_CACHE_FILES_DURING_NAVIGATION_LOG_MSG = "Cleaned up old format cache files during navigation"
-    ALWAYS_ASK_ERROR_CLEANING_UP_OLD_FORMAT_CACHE_FILES_DURING_NAVIGATION_LOG_MSG = "Error cleaning up old format cache files during navigation"
-    ALWAYS_ASK_CLEANED_UP_OLD_FORMAT_CACHE_FILES_BEFORE_RETURNING_TO_MAIN_MENU_LOG_MSG = "Cleaned up old format cache files before returning to main menu"
-    ALWAYS_ASK_ERROR_CLEANING_UP_OLD_FORMAT_CACHE_FILES_BEFORE_RETURNING_TO_MAIN_MENU_LOG_MSG = "Error cleaning up old format cache files before returning to main menu"
-    ALWAYS_ASK_PLAYLIST_WITH_RANGE_DETECTED_LOG_MSG = "Playlist with range detected, checking playlist cache for URL"
-    ALWAYS_ASK_NO_CACHE_FOR_QUALITY_KEY_LOG_MSG = "askq_callback: no cache for quality_key"
-    ALWAYS_ASK_FOUND_CACHE_WITH_BEST_QUALITY_LOG_MSG = "askq_callback: found cache with best quality, cached"
-    ALWAYS_ASK_SKIPPING_CACHE_CHECK_FOR_PLAYLIST_LOG_MSG = "[VIDEO CACHE] Skipping cache check for playlist because Always Ask mode is enabled"
-    ALWAYS_ASK_URL_ANALYSIS_LOG_MSG = "[VIDEO CACHE] URL analysis"
     
     # Subtitles Command Log Messages
     SUBS_429_TOO_MANY_REQUESTS_LOG_MSG = "429 Too Many Requests (attempt {attempt+1}/{MAX_RETRIES})"
@@ -493,27 +413,14 @@ class LoggerMsg(object):
     NSFW_USER_IS_IN_CHANNEL_LOG_MSG = "[NSFW] User {user_id} is in channel: {is_in_channel}"
     
     # List Command Log Messages
-    LIST_ERROR_IN_HELP_CALLBACK_LOG_MSG = "Error in list help callback: {e}"
-    LIST_USING_PROXY_LOG_MSG = "[LIST] Using {reason} proxy for user {user_id}: {proxy_url}"
     
     # Link Command Log Messages
     LINK_FAILED_COPY_GLOBAL_COOKIE_LOG_MSG = "Failed to copy global cookie file for user {user_id}: {e}"
     
     # Emoji Command Log Messages
-    EMOJI_CLEAN_TRIGGERED_LOG_MSG = "🧹 Emoji triggered - cleaning all files and folders for user {user_id}"
-    EMOJI_CLEAN_COMPLETED_LOG_MSG = "🧹 Emoji completed - all files and folders cleaned for user {user_id}"
-    EMOJI_STATS_TRIGGERED_LOG_MSG = "📃 Emoji triggered - showing usage stats for user {user_id}"
-    EMOJI_STATS_COMPLETED_LOG_MSG = "📃 Emoji completed - usage stats shown for user {user_id}"
-    EMOJI_UNKNOWN_COMMAND_LOG_MSG = "Unknown emoji command: {mapped}"
     
     # File Operations Log Messages
-    URL_EXTRACTOR_REMOVED_DIRECTORY_LOG_MSG = "Removed directory: {path}"
-    URL_EXTRACTOR_ERROR_SCANNING_DIRECTORY_LOG_MSG = "Error scanning directory {path}: {e}"
-    URL_EXTRACTOR_FAILED_CLEAR_YOUTUBE_CACHE_LOG_MSG = "Failed to clear YouTube cookie cache: {e}"
     URL_EXTRACTOR_GALLERY_DL_FALLBACK_LOG_MSG = "Gallery-dl fallback executed: {fallback_text}"
-    URL_EXTRACTOR_LANGUAGE_CALLBACK_ERROR_LOG_MSG = "Language callback error: {e}"
-    URL_EXTRACTOR_AUDIO_HINT_CALLBACK_ERROR_LOG_MSG = "Audio hint callback error: {e}"
-    URL_EXTRACTOR_LINK_HINT_CALLBACK_ERROR_LOG_MSG = "Link hint callback error: {e}"
     LINK_USING_DOMAIN_SPECIFIC_PROXY_LOG_MSG = "Using domain-specific proxy for link extraction: {proxy_url}"
     LINK_FAILED_BUILD_PROXY_URL_LOG_MSG = "Failed to build proxy URL for domain-specific proxy"
     LINK_USER_PROXY_DISABLED_LOG_MSG = "User proxy disabled and domain doesn't require proxy - using direct connection for {url}"
