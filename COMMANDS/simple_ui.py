@@ -215,7 +215,7 @@ def _human(n) -> str:
 
 def _ydl_opts(cookie: Optional[str] = None) -> dict:
     opts = {"quiet": True, "no_warnings": True, "skip_download": True, "noplaylist": True,
-            "socket_timeout": 20}
+            "socket_timeout": 15, "extractor_retries": 1, "retries": 1}  # the menu must answer fast
     if cookie:
         opts["cookiefile"] = cookie
     return opts
@@ -228,7 +228,8 @@ def _probe(url, user_id) -> Optional[dict]:
     from COMMANDS.cookies_cmd import shared_cookie_path
     plat = detect_platform(url)
     shared = cookie_store.first_active("youtube") if plat and plat[0] == "youtube" else shared_cookie_path(url)
-    for cookie in dict.fromkeys([None, shared]):
+    order = [None, shared] if plat and plat[0] == "youtube" else [shared, None]  # Instagram etc.: login cookie first
+    for cookie in dict.fromkeys(order):
         try:
             from HELPERS.proxy_helper import youtube_proxy
             opts = _ydl_opts(cookie)
@@ -408,6 +409,15 @@ def _show_link_menu(client, message, key, label) -> None:
             with _pending_lock:
                 _PENDING.pop(token, None)
             activity.download(uid)
+            if key in ("instagram", "pinterest", "facebook", "snapchat"):  # photo post: gallery-dl straight away
+                try:
+                    from COMMANDS.image_cmd import image_command
+                    from HELPERS.safe_messeger import fake_message
+                    image_command(client, fake_message(f"/img {extract_url(message.text)}", uid,
+                                                       original_chat_id=uid, original_message=message))
+                    return
+                except Exception as exc:
+                    logger.warning(f"[ui] image download failed, trying the video pipeline: {exc}")
             _run_choice(client, message, "b")
             return
         if not info:  # yt-dlp blocked (server IP): title, channel and thumbnail from oEmbed still make a preview

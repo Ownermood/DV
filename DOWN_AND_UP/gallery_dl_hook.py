@@ -95,24 +95,22 @@ def get_user_gallery_dl_args(user_id: int) -> dict:
         logger.error(f"Error getting user gallery-dl args for user {user_id}: {e}")
         return {}
 
+FAST_SLEEP = 0.5  # seconds between site API calls (gallery-dl's Instagram default is 6-12 s)
+
+
 def _add_cookies_to_cmd(cmd: list, url: str, user_id: int) -> list:
     """
     Add cookies to gallery-dl CLI command for all sites
     """
-    user_dir = os.path.join("users", str(user_id))
-    user_cookie_path = os.path.join(user_dir, "cookie.txt")
-    if os.path.exists(user_cookie_path):
-        # Insert --cookies and path before the URL (last argument)
+    user_cookie_path = os.path.join("users", str(user_id), "cookie.txt")
+    from COMMANDS.cookies_cmd import shared_cookie_path
+    cookie = shared_cookie_path(url) or (user_cookie_path if os.path.exists(user_cookie_path) else None)
+    if cookie:  # Cookie Manager cookie for this site first
         cmd.insert(-1, "--cookies")
-        cmd.insert(-1, user_cookie_path)
-        logger.info(f"[gallery-dl] Added --cookies {user_cookie_path} for {url}")
-    else:
-        from COMMANDS.cookies_cmd import shared_cookie_path
-        shared = shared_cookie_path(url)  # admin's cookie for this site (Instagram, Facebook ...)
-        if shared:
-            cmd.insert(-1, "--cookies")
-            cmd.insert(-1, shared)
-            logger.info(f"[gallery-dl] Added shared --cookies for {url}")
+        cmd.insert(-1, cookie)
+        logger.info(f"[gallery-dl] Added --cookies {cookie} for {url}")
+    cmd.insert(-1, "-o")
+    cmd.insert(-1, f"sleep-request={FAST_SLEEP}")
     return cmd
 
 def _gdl_set(section: str, key: str, value):
@@ -138,6 +136,8 @@ def _apply_config(config: dict, user_id=None):
         "output": {"mode": "info"|"download", "directory": "..."}
       }
     """
+    # gallery-dl waits 6-12 s between Instagram API calls by default: far too slow for one post
+    config.setdefault("extractor", {}).setdefault("sleep-request", FAST_SLEEP)
     for section, opts in config.items():
         if not isinstance(opts, dict):
             # Rare case: set a whole section value (not typical in gallery-dl)
@@ -218,7 +218,10 @@ def _prepare_user_cookies_and_proxy(url: str, user_id, use_proxy: bool, config: 
         cache_result = get_cookie_cache_result(user_id, url)
         shared_cookie = shared_cookie_path(url)  # Cookie Manager cookie for this site (Admin Panel -> Cookie Manager)
         
-        if cache_result and cache_result['result']:
+        if shared_cookie:  # admin's Cookie Manager cookie first (an old users/<id>/cookie.txt may be another site's)
+            config['extractor']['cookies'] = shared_cookie
+            logger.info(f"Using Cookie Manager cookie for gallery-dl: {url}")
+        elif cache_result and cache_result['result']:
             # Use cached successful cookies
             config['extractor']['cookies'] = cache_result['cookie_path']
             logger.info(f"Using cached cookies for gallery-dl non-YouTube URL: {url}")
