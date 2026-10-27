@@ -408,7 +408,7 @@ def _fast_download(url, filepath: Path, cookies, size, limit, progress) -> None:
             if total_len and total_len > limit:
                 raise RuntimeError(f"too large: {total_len / 1024 ** 3:.2f} GB (limit {limit / 1024 ** 3:.0f} GB)")
             with filepath.open("wb") as f:
-                for chunk in r.iter_content(1024 * 1024):
+                for chunk in r.iter_content(256 * 1024):
                     if chunk:
                         f.write(chunk)
                         add(len(chunk), total_len)
@@ -429,7 +429,7 @@ def _fast_download(url, filepath: Path, cookies, size, limit, progress) -> None:
                         raise RuntimeError(f"range not served (HTTP {r.status_code})")
                     with filepath.open("r+b") as f:
                         f.seek(a)
-                        for chunk in r.iter_content(1024 * 1024):
+                        for chunk in r.iter_content(256 * 1024):
                             if chunk:
                                 f.write(chunk)
                                 pos += len(chunk)
@@ -771,7 +771,9 @@ def _run_job(app, message, url, meta, q, card) -> None:
                 playlist = _playlist(meta, q)
             title, thumb_url, size, direct_url, dl_cookies = meta["title"], meta["thumb"], 0, None, None
         else:
+            t0 = time.monotonic()
             direct_url, thumb_url, title, size, dl_cookies = _resolve(url)
+            print(f"[terabox] original link resolved in {time.monotonic() - t0:.1f}s", flush=True)
             if size and size > limit:
                 raise RuntimeError(f"too large: {size / 1024 ** 3:.2f} GB (limit {limit / 1024 ** 3:.0f} GB)")
             if not base:
