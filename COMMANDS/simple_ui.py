@@ -663,6 +663,16 @@ def front_door(client, message):
     message.stop_propagation()
 
 
+@app.on_callback_query(filters.regex(r"^tb\|"), group=-1)
+def terabox_choice(client, cq):
+    from ADAPTERS.terabox import on_choice
+    try:
+        on_choice(client, cq)
+    except Exception as exc:
+        logger.warning(f"[ui] terabox choice failed: {exc}")
+    cq.stop_propagation()
+
+
 @app.on_callback_query(filters.regex(r"^ui\|"), group=-1)
 def ui_callbacks(client, cq):
     parts = cq.data.split("|")

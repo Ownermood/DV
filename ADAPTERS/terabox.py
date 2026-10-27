@@ -299,63 +299,6 @@ def _resolve(url: str):
 
 
 # ---------------- streaming version (smaller, much faster, like other TeraBox bots) ----------------
-STREAM_TYPES = ("M3U8_AUTO_720", "M3U8_AUTO_480")
-
-
-def _stream_resolve(url: str, cookies: dict):
-    """(playlist text, title, thumb, quality) of TeraBox's streaming copy; needs a logged-in cookie
-    (without login TeraBox only gives a 30 s preview, which is rejected here)."""
-    sess = requests.Session()
-    sess.headers.update({"User-Agent": UA, "Accept-Language": "en-US,en;q=0.9"})
-    sess.cookies.update(cookies)
-    page = sess.get(url, timeout=(CONNECT_TIMEOUT, READ_TIMEOUT), allow_redirects=True)
-    page.raise_for_status()
-    js_token = _between(page.text, "fn%28%22", "%22%29") or _between(page.text, '"jsToken":"', '"')
-    logid = _between(page.text, "dp-logid=", "&") or ""
-    m = re.search(r"/s/1?([\w-]+)", urlparse(url).path) or re.search(r"/s/1?([\w-]+)", urlparse(page.url).path)
-    from urllib.parse import parse_qs
-    final = urlparse(page.url)
-    surl = (parse_qs(final.query).get("surl") or [""])[0] or (m.group(1) if m else "")
-    if not js_token or not surl:
-        raise RuntimeError("TeraBox page changed or the link is invalid")
-    base = f"{final.scheme}://{final.hostname}"
-    common = {"app_id": "250528", "web": "1", "channel": "dubox", "clienttype": "0", "jsToken": js_token}
-    data = sess.get(f"{base}/share/list", params={**common, "dplogid": logid, "page": "1", "num": "20", "order": "time",
-                                                  "desc": "1", "site_referer": page.url, "shorturl": surl, "root": "1"},
-                    timeout=(CONNECT_TIMEOUT, READ_TIMEOUT)).json()
-    files = [f for f in data.get("list") or [] if not int(f.get("isdir") or 0) and str(f.get("category")) == "1"]
-    if not files:
-        raise RuntimeError("no video in this share")
-    f = max(files, key=lambda x: int(x.get("size") or 0))
-    info = sess.get(f"{base}/api/shorturlinfo", params={**common, "shorturl": "1" + surl, "root": "1"},
-                    timeout=(CONNECT_TIMEOUT, READ_TIMEOUT)).json()
-    duration = float(f.get("duration") or 0)
-    for typ in STREAM_TYPES:
-        r = sess.get(f"{base}/share/streaming", params={
-            **common, "uk": info.get("uk") or data.get("uk"), "shareid": info.get("shareid") or data.get("share_id"),
-            "type": typ, "fid": f.get("fs_id"), "sign": info.get("sign"), "timestamp": info.get("timestamp"),
-            "esl": "1", "isplayer": "1", "ehps": "1"}, timeout=(CONNECT_TIMEOUT, READ_TIMEOUT))
-        text = r.text
-        if not text.startswith("#EXTM3U"):
-            continue
-        length = sum(float(x) for x in re.findall(r"#EXTINF:([\d.]+)", text))
-        if duration and length < duration * 0.9:  # 30 s preview of a not-logged-in session
-            raise RuntimeError(f"only a {length:.0f}s preview (cookie not logged in)")
-        thumbs = f.get("thumbs") or {}
-        return text, f.get("server_filename") or "TeraBox video", thumbs.get("url3") or thumbs.get("url2"), typ[-3:] + "p"
-    raise RuntimeError("no streaming copy")
-
-
-def _stream_try(url):
-    """Streaming copy with each TeraBox cookie in turn, or None."""
-    for path in _cookie_files():
-        try:
-            return _stream_resolve(url, _load_cookies(path))
-        except Exception as exc:
-            print(f"[terabox] stream: {exc}", flush=True)
-    return None
-
-
 def _hls_download(playlist: str, out: Path, limit, progress) -> None:
     """Fetch every segment with 16 connections, join them, remux to mp4 (no re-encode)."""
     import concurrent.futures
@@ -529,14 +472,15 @@ def _preview(app, message, title, size, thumb_path, quality=""):
         return None, base
 
 
-def _show(app, msg, text) -> None:
+def _show(app, msg, text, markup=None) -> None:
     """Edit the job card (photo caption or text)."""
     from pyrogram import enums
     try:
         if getattr(msg, "photo", None):
-            app.edit_message_caption(msg.chat.id, msg.id, text[:1024], parse_mode=enums.ParseMode.HTML)
+            app.edit_message_caption(msg.chat.id, msg.id, text[:1024], parse_mode=enums.ParseMode.HTML,
+                                     reply_markup=markup)
         else:
-            app.edit_message_text(msg.chat.id, msg.id, text, parse_mode=enums.ParseMode.HTML)
+            app.edit_message_text(msg.chat.id, msg.id, text, parse_mode=enums.ParseMode.HTML, reply_markup=markup)
     except Exception:
         pass
 
@@ -546,8 +490,10 @@ _CACHE_MAX = 3000
 
 
 def _share_key(url):
+    """Share code (+ '#720' etc. for a streaming copy), same for every mirror domain."""
     m = re.search(r"(?:/s/|surl=)1?([\w-]+)", url or "")
-    return m.group(1) if m else None
+    q = (url or "").partition("#")[2]
+    return (m.group(1) + (f"#{q}" if q else "")) if m else None
 
 
 def _cache_get(url):
@@ -615,8 +561,96 @@ def _send_file(app, message, filepath: Path, title: str, url: str, thumb_path):
                            reply_to_message_id=rid, supports_streaming=True) for n, p in enumerate(paths, 1)]
 
 
+# ---------------- quality menu ----------------
+QUALITIES = ("1080", "720", "480")
+_JOBS = {}                 # token -> (message, url, meta, card message, ts)
+_JOBS_TTL = 6 * 3600
+_jobs_lock = threading.Lock()
+
+
+def _meta(url, cookies):
+    """Share details needed for the menu and the streaming copies."""
+    sess = requests.Session()
+    sess.headers.update({"User-Agent": UA, "Accept-Language": "en-US,en;q=0.9"})
+    sess.cookies.update(cookies)
+    page = sess.get(url, timeout=(CONNECT_TIMEOUT, READ_TIMEOUT), allow_redirects=True)
+    page.raise_for_status()
+    js_token = _between(page.text, "fn%28%22", "%22%29") or _between(page.text, '"jsToken":"', '"')
+    logid = _between(page.text, "dp-logid=", "&") or ""
+    from urllib.parse import parse_qs
+    final = urlparse(page.url)
+    m = re.search(r"/s/1?([\w-]+)", urlparse(url).path) or re.search(r"/s/1?([\w-]+)", final.path)
+    surl = (parse_qs(final.query).get("surl") or [""])[0] or (m.group(1) if m else "")
+    if not js_token or not surl:
+        raise RuntimeError("TeraBox page changed or the link is invalid")
+    base = f"{final.scheme}://{final.hostname}"
+    common = {"app_id": "250528", "web": "1", "channel": "dubox", "clienttype": "0", "jsToken": js_token}
+    data = sess.get(f"{base}/share/list", params={**common, "dplogid": logid, "page": "1", "num": "20", "order": "time",
+                                                  "desc": "1", "site_referer": page.url, "shorturl": surl, "root": "1"},
+                    timeout=(CONNECT_TIMEOUT, READ_TIMEOUT)).json()
+    if data.get("errno") not in (0, None):
+        raise RuntimeError(f"TeraBox refused the share (errno {data.get('errno')})")
+    files = [f for f in data.get("list") or [] if not int(f.get("isdir") or 0)]
+    if not files:
+        raise RuntimeError("No file in this TeraBox share")
+    f = max(files, key=lambda x: int(x.get("size") or 0))
+    info = sess.get(f"{base}/api/shorturlinfo", params={**common, "shorturl": "1" + surl, "root": "1"},
+                    timeout=(CONNECT_TIMEOUT, READ_TIMEOUT)).json()
+    thumbs = f.get("thumbs") or {}
+    return {"sess": sess, "base": base, "common": common, "fid": f.get("fs_id"), "video": str(f.get("category")) == "1",
+            "uk": info.get("uk") or data.get("uk"), "shareid": info.get("shareid") or data.get("share_id"),
+            "sign": info.get("sign"), "timestamp": info.get("timestamp"), "duration": float(f.get("duration") or 0),
+            "title": f.get("server_filename") or "TeraBox video", "size": int(f.get("size") or 0),
+            "height": max(int(f.get("height") or 0), int(f.get("width") or 0) * 9 // 16),  # 1920x800 counts as 1080p "thumb": thumbs.get("url3") or thumbs.get("url2"),
+            "logged_in": "ndus" in cookies}
+
+
+def _meta_try(url):
+    """Meta with the first TeraBox cookie that works (logged in = full streaming copies), else without one."""
+    last = None
+    for path in _cookie_files() + [None]:
+        try:
+            return _meta(url, _load_cookies(path) if path else {})
+        except Exception as exc:
+            last = exc
+    raise last or RuntimeError("TeraBox link failed")
+
+
+def _playlist(meta, q):
+    r = meta["sess"].get(f"{meta['base']}/share/streaming", params={
+        **meta["common"], "uk": meta["uk"], "shareid": meta["shareid"], "type": f"M3U8_AUTO_{q}", "fid": meta["fid"],
+        "sign": meta["sign"], "timestamp": meta["timestamp"], "esl": "1", "isplayer": "1", "ehps": "1"},
+        timeout=(CONNECT_TIMEOUT, READ_TIMEOUT))
+    text = r.text
+    if not text.startswith("#EXTM3U"):
+        raise RuntimeError(f"{q}p is not available for this video")
+    length = sum(float(x) for x in re.findall(r"#EXTINF:([\d.]+)", text))
+    if meta["duration"] and length < meta["duration"] * 0.9:
+        raise RuntimeError("only a 30 s preview (TeraBox cookie missing or logged out)")
+    return text
+
+
+def _menu_kb(token, meta):
+    from pyrogram.types import InlineKeyboardMarkup
+    from COMMANDS.ui_kit import btn
+    from pyrogram.enums import ButtonStyle
+    plain = ButtonStyle.DEFAULT
+    rows = []
+    if meta["video"]:
+        top = meta["height"] or 1080
+        qs = [q for q in QUALITIES if int(q) <= max(top, 480)] or ["480"]
+        rows.append([btn("bolt" if q == "480" else "play", f"{q}p" + (" ⚡" if q == "480" else ""),
+                         cb=f"tb|{token}|{q}", style=plain) for q in qs])
+    size = meta["size"]
+    size_txt = (f"{size / 1024 ** 3:.2f} GB" if size >= 1024 ** 3 else f"{size / 1024 ** 2:.0f} MB") if size else ""
+    rows.append([btn("folder", "Original file" + (f" · {size_txt}" if size_txt else ""), cb=f"tb|{token}|o", style=plain)])
+    rows.append([btn("trash", "Close", cb=f"tb|{token}|x", style=plain)])
+    return InlineKeyboardMarkup(rows)
+
+
 def handle_terabox(app, message) -> bool:
-    """Handle a TeraBox URL; return True if this adapter owns the message."""
+    """TeraBox link: preview card with qualities (streaming copies are fast, the original is full quality)."""
+    import secrets
     from HELPERS.progress_ui import progress_card
     from pyrogram import enums
     text = (getattr(message, "text", None) or "").strip()
@@ -627,50 +661,115 @@ def handle_terabox(app, message) -> bool:
     if not ENABLED:
         app.send_message(message.chat.id, "TeraBox support is disabled.", reply_to_message_id=message.id)
         return True
-
-    html_mode = enums.ParseMode.HTML
-    cached = _cache_get(url)
-    if cached and _send_cached(app, message, url, cached):
+    status = app.send_message(message.chat.id, progress_card("search", 0), parse_mode=enums.ParseMode.HTML,
+                              reply_to_message_id=message.id)
+    try:
+        meta = _meta_try(url)
+    except Exception as exc:
+        print(f"[terabox] {url}: {exc}")
+        meta = None
+    if meta is None:  # old resolvers (worker / token API) still get a chance
+        _run_job(app, message, url, None, "o", status)
         return True
-    status = app.send_message(message.chat.id, progress_card("search", 0), parse_mode=html_mode, reply_to_message_id=message.id)
-    card = status  # becomes the preview card (thumbnail + name + size + progress) once the file is known
+    token = secrets.token_hex(4)
+    with tempfile.TemporaryDirectory(prefix="tera-thumb-") as d:
+        thumb = _download_thumb(meta["thumb"], Path(d))
+        card, base = _preview(app, message, meta["title"], meta["size"], thumb)
+        if card is None:
+            card = status
+        else:
+            try:
+                app.delete_messages(message.chat.id, status.id)
+            except Exception:
+                pass
+    hint = ("⚡ 480p is the fastest · 720p / 1080p sharper · Original = full quality (slowest)"
+            if meta["video"] else "")
+    _show(app, card, base + (f"\n<blockquote><b>{hint}</b></blockquote>" if hint else "")
+          + "\n<b>Choose quality:</b>", _menu_kb(token, meta))
+    now = time.time()
+    with _jobs_lock:
+        for k in [k for k, v in _JOBS.items() if now - v[4] > _JOBS_TTL]:
+            _JOBS.pop(k, None)
+        _JOBS[token] = (message, url, meta, card, now)
+    return True
+
+
+def on_choice(app, cq) -> None:
+    """Button under the TeraBox card: tb|token|1080/720/480/o/x."""
+    _, token, q = (cq.data.split("|") + ["", ""])[:3]
+    with _jobs_lock:
+        job = _JOBS.get(token)
+    if not job or job[0].chat.id != cq.from_user.id:
+        cq.answer("This menu expired. Send the link again.", show_alert=True)
+        return
+    message, url, meta, card, _ = job
+    if q == "x":
+        with _jobs_lock:
+            _JOBS.pop(token, None)
+        cq.answer()
+        try:
+            card.delete()
+        except Exception:
+            pass
+        return
+    with _jobs_lock:
+        _JOBS.pop(token, None)  # one download per card
+    cq.answer("Started")
+    threading.Thread(target=_run_job, args=(app, message, url, meta, q, card), daemon=True).start()
+
+
+def _run_job(app, message, url, meta, q, card) -> None:
+    """Download the chosen quality (streaming copy or original file) and send it; the card shows the progress."""
+    from HELPERS.progress_ui import progress_card
+    from html import escape
+    key = url + ("" if q == "o" else f"#{q}")
+    cached = _cache_get(key)
+    if cached and _send_cached(app, message, url, cached):
+        try:
+            card.delete()
+        except Exception:
+            pass
+        return
     base = ""
+    if meta:
+        size = meta["size"]
+        line = (f"Quality: {q}p (fast)" if q != "o" else
+                f"Original · {size / 1024 ** 3:.2f} GB" if size >= 1024 ** 3 else f"Original · {size / 1024 ** 2:.0f} MB")
+        base = f"📦 <b>{escape(meta['title'][:180])}</b>\n<b>{line}</b>"
     limit = _max_bytes()
     try:
-        stream = _stream_try(url)  # streaming copy first: smaller and much faster (needs a TeraBox cookie)
-        if stream:
-            playlist, title, thumb_url, quality = stream
-            direct_url, size, dl_cookies = None, 0, None
+        _show(app, card, (base + "\n\n" if base else "") + progress_card("search", 0))
+        playlist = None
+        if q != "o":
+            try:
+                playlist = _playlist(meta, q)
+            except Exception:  # sign / timestamp expire: fresh share details once
+                meta = _meta_try(url)
+                playlist = _playlist(meta, q)
+            title, thumb_url, size, direct_url, dl_cookies = meta["title"], meta["thumb"], 0, None, None
         else:
-            playlist, quality = None, ""
             direct_url, thumb_url, title, size, dl_cookies = _resolve(url)
-        if size and size > limit:
-            raise RuntimeError(f"too large: {size / 1024 ** 3:.2f} GB (limit {limit / 1024 ** 3:.0f} GB)")
+            if size and size > limit:
+                raise RuntimeError(f"too large: {size / 1024 ** 3:.2f} GB (limit {limit / 1024 ** 3:.0f} GB)")
+            if not base:
+                base = f"📦 <b>{escape(title[:180])}</b>"
         with tempfile.TemporaryDirectory(prefix="all-downloader-tera-") as temp_dir:
             folder = Path(temp_dir)
-            name = (Path(title).stem + ".mp4") if playlist else (
+            name = (Path(title).stem + f".{q}p.mp4") if playlist else (
                 title if "." in title else (Path(urlparse(direct_url).path).name or "terabox-video.mp4"))
             filename = re.sub(r"[^\w .()\-]+", "_", name)[:120]
             if not filename or filename in {".", ".."}:
                 filename = "terabox-video.mp4"
             filepath = folder / filename
             thumb_path = _download_thumb(thumb_url, folder)
-            pmsg, base = _preview(app, message, title, size, thumb_path, quality)
-            if pmsg is not None:
-                try:
-                    app.delete_messages(message.chat.id, status.id)
-                except Exception:
-                    pass
-                card = pmsg
             state = {"last": 0.0, "start": time.monotonic()}
-            length_hint = size or 0
 
             def progress(total, length):
                 now = time.monotonic()
                 if now - state["last"] < 4:  # every 4 s: MB done / total and speed
                     return
                 state["last"] = now
-                length = length or length_hint
+                length = length or size or 0
                 pct = total * 100 / length if length else 0
                 speed = total / max(now - state["start"], 0.1) / 1024 ** 2
                 of = f" / {length / 1024 ** 2:.0f} MB" if length else " MB"
@@ -681,22 +780,24 @@ def handle_terabox(app, message) -> bool:
             else:
                 _fast_download(direct_url, filepath, dl_cookies, size, limit, progress)
             _show(app, card, (base + "\n\n" if base else "") + progress_card("upload", 0))
-            _cache_put(url, _send_file(app, message, filepath, title, url, thumb_path) or [], title)
+            _cache_put(key, _send_file(app, message, filepath, title, url, thumb_path) or [], title)
         app.delete_messages(message.chat.id, card.id)  # the file itself is the success signal
     except Exception as exc:
-        print(f"[terabox] {url}: {exc}")
+        print(f"[terabox] {url} ({q}): {exc}")
         if isinstance(exc, NeedCookie):
             body = (f"File: {exc.title[:80]} ({exc.size / 1024 ** 3:.2f} GB)\n"
                     "TeraBox gives download links only to a logged-in account. "
                     "Admin: add TeraBox cookies in Admin Panel → Cookie Manager.")
-        elif "too large" in str(exc):
+        elif "too large" in str(exc) or "not available" in str(exc) or "preview" in str(exc):
             body = str(exc)[:200]
         else:
             body = "The link may be private, deleted or need a password."
-        try:
-            from html import escape
-            _show(app, card, (base + "\n\n" if base else "")
-                  + f"📦 <b>TeraBox download failed.</b>\n<blockquote><b>{escape(body)}</b></blockquote>")
-        except Exception:
-            pass
-    return True
+        retry = None
+        if meta and q != "o":  # another quality may still work
+            import secrets
+            token = secrets.token_hex(4)
+            with _jobs_lock:
+                _JOBS[token] = (message, url, meta, card, time.time())
+            retry = _menu_kb(token, meta)
+        _show(app, card, (base + "\n\n" if base else "")
+              + f"📦 <b>TeraBox download failed.</b>\n<blockquote><b>{escape(body)}</b></blockquote>", retry)
