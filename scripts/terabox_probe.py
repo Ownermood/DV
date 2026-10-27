@@ -67,7 +67,8 @@ def main(link):
     if randsk:
         s.cookies.set("TSID", randsk)
     common = {"app_id": "250528", "web": "1", "channel": "dubox", "clienttype": "0", "jsToken": js}
-    s.post(f"{base}/api/create",  # the /dvbot folder (fine if it exists) params={**common, "bdstoken": bds}, data={"path": ROOT, "isdir": "1", "block_list": "[]"}, timeout=20)
+    # the /dvbot folder (fine if it already exists)
+    s.post(f"{base}/api/create", params={**common, "bdstoken": bds}, data={"path": ROOT, "isdir": "1", "block_list": "[]"}, timeout=20)
     t0 = time.time()
     tr = s.post(f"{base}/share/transfer", params={**common, "shareid": m["shareid"], "from": m["uk"], "sekey": randsk,
                                                   "ondup": "newcopy", "async": "2", "bdstoken": bds},
