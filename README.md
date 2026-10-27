@@ -16,9 +16,9 @@ exported from a spare YouTube account. Every user without their own cookie then 
 
 ## Instagram / Facebook / TeraBox
 - Instagram blocks most server IPs without a login: Admin Panel → **Cookie Manager** → Instagram (spare accounts, up to 10).
-- Facebook public videos work without anything; private ones need **Facebook Cookie**.
+- Facebook public videos work without anything; private ones need a Facebook cookie in the Cookie Manager.
 - TeraBox: Admin Panel → **Cookie Manager** → TeraBox (cookies.txt with `ndus`, up to 10). The bot then reads
-  the share itself; without it, it tries the external extraction service. TeraBox files are sent up to 1.9 GB.
+  the share itself; without it, it tries the external extraction service. TeraBox files up to MAX_FILE_SIZE_GB (4 GB); videos over 2 GB arrive in parts.
 
 ## Private links
 Private / age-restricted / login-only posts: the user sends `/cookie` once and uploads a `cookies.txt`
