@@ -84,7 +84,6 @@ def add_pot_to_ytdl_opts(ytdl_opts: dict, url: str) -> dict:
     
     # Get provider base URL
     base_url = getattr(Config, 'YOUTUBE_POT_BASE_URL', 'http://127.0.0.1:4416')
-    disable_innertube = getattr(Config, 'YOUTUBE_POT_DISABLE_INNERTUBE', False)
     
     # Check PO token provider availability
     if not check_pot_provider_availability(base_url):
@@ -92,42 +91,13 @@ def add_pot_to_ytdl_opts(ytdl_opts: dict, url: str) -> dict:
         logger.warning(messages.HELPER_POT_PROVIDER_NOT_AVAILABLE_MSG.format(base_url=base_url))
         return ytdl_opts
 
-    # Add extractor_args to yt-dlp options
-    if 'extractor_args' not in ytdl_opts:
-        ytdl_opts['extractor_args'] = {}
-    
-    # Add YouTube PO token provider args in the correct format (nightly ≥ 2025-09-13)
-    # Structure:
-    # extractor_args: {
-    #   'youtubepot': {
-    #       'providers': ['bgutilhttp'],
-    #       'bgutilhttp': { 'base_url': ['http://...'] },
-    #       'disable_innertube': ['1']  # optional
-    #   }
-    # }
-    pot_args = ytdl_opts['extractor_args'].get('youtubepot', {})
-    pot_args['providers'] = list(dict.fromkeys((pot_args.get('providers') or []) + ['bgutilhttp']))
-    bg_cfg = pot_args.get('bgutilhttp', {})
-    bg_cfg['base_url'] = [base_url]
-    pot_args['bgutilhttp'] = bg_cfg
-    if disable_innertube:
-        pot_args['disable_innertube'] = ["1"]
-    ytdl_opts['extractor_args']['youtubepot'] = pot_args
-    
-    # Enable verbose for detailed PO token logging
-    ytdl_opts['verbose'] = True
-    
-    # Add a debug hook for PO tokens
-    ytdl_opts = add_pot_debug_hook(ytdl_opts)
-    
-    # Explicit logs to show active providers
-    active_providers = ytdl_opts['extractor_args'].get('youtubepot', {}).get('providers', [])
-    logger.info(f"🔑 PO TOKEN PROVIDER ENABLED for YouTube URL: {url}")
-    logger.info(f"🔗 PO Token Base URL: {base_url}")
-    logger.info(f"🧩 PO Token Providers: {active_providers}")
-    logger.info(f"⚙️  PO Token Config: disable_innertube={disable_innertube}")
-    logger.info(f"📋 extractor_args.youtubepot: {ytdl_opts['extractor_args'].get('youtubepot')}")
-    
+    # yt-dlp reads provider settings from extractor_args["youtubepot-<provider>"]
+    # (CLI: --extractor-args "youtubepot-bgutilhttp:base_url=..."). A nested
+    # extractor_args["youtubepot"]["bgutilhttp"] is ignored, and the plugin then
+    # falls back to 127.0.0.1:4416, which is empty inside the app container.
+    ytdl_opts['extractor_args'] = dict(ytdl_opts.get('extractor_args') or {})
+    ytdl_opts['extractor_args']['youtubepot-bgutilhttp'] = {'base_url': [base_url]}
+    logger.info(f"PO token provider for YouTube: {base_url}")
     return ytdl_opts
 
 def is_pot_enabled() -> bool:

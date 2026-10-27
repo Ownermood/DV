@@ -232,7 +232,8 @@ def _probe(url, user_id) -> Optional[dict]:
     for cookie in dict.fromkeys(order):
         try:
             from HELPERS.proxy_helper import youtube_proxy
-            opts = _ydl_opts(cookie)
+            from HELPERS.pot_helper import add_pot_to_ytdl_opts
+            opts = add_pot_to_ytdl_opts(_ydl_opts(cookie), url)  # PO token provider (bgutil) for YouTube
             if youtube_proxy(url):
                 opts["proxy"] = youtube_proxy(url)
             with yt_dlp.YoutubeDL(opts) as ydl:

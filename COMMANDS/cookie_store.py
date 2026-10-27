@@ -324,8 +324,9 @@ def _youtube_live(path):
     tmp = tempfile.NamedTemporaryFile(suffix=".txt", delete=False).name
     try:
         shutil.copyfile(path, tmp)
-        opts = {"quiet": True, "no_warnings": True, "skip_download": True, "noplaylist": True,
-                "socket_timeout": 20, "cookiefile": tmp}
+        from HELPERS.pot_helper import add_pot_to_ytdl_opts
+        opts = add_pot_to_ytdl_opts({"quiet": True, "no_warnings": True, "skip_download": True, "noplaylist": True,
+                                     "socket_timeout": 20, "cookiefile": tmp}, "https://www.youtube.com/")
         with yt_dlp.YoutubeDL(opts) as ydl:
             info = ydl.extract_info(os.getenv("YOUTUBE_COOKIE_TEST_URL") or "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
                                     download=False)
