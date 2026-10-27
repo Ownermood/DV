@@ -292,10 +292,11 @@ def _choice_rows(uid, token, yt_sizes=None, is_yt=False):
                 row = []
         if row:
             rows.append(row)
-    rows.append([btn("bolt", t(uid, "best"), cb=f"ui|g|{token}|b", style=GREEN)])
-    rows.append([btn("music", t(uid, "mp3"), cb=f"ui|g|{token}|a", style=BLUE),
-                 btn("image", t(uid, "thumb"), cb=f"ui|g|{token}|t", style=BLUE)])
-    rows.append([btn("trash", t(uid, "close"), cb="ui|close", style=RED)])
+    plain = enums.ButtonStyle.DEFAULT
+    rows.append([btn("bolt", t(uid, "best"), cb=f"ui|g|{token}|b", style=plain)])
+    rows.append([btn("music", t(uid, "mp3"), cb=f"ui|g|{token}|a", style=plain),
+                 btn("image", t(uid, "thumb"), cb=f"ui|g|{token}|t", style=plain)])
+    rows.append([btn("trash", t(uid, "close"), cb="ui|close", style=plain)])
     return InlineKeyboardMarkup(rows)
 
 
@@ -405,8 +406,8 @@ def _too_big_view(uid, token, size, fits):
             row = []
     if row:
         rows.append(row)
-    rows.append([btn("music", "MP3", cb=f"ui|g|{token}|a", style=BLUE),
-                 btn("trash", "Close", cb="ui|close", style=RED)])
+    rows.append([btn("music", "MP3", cb=f"ui|g|{token}|a", style=enums.ButtonStyle.DEFAULT),
+                 btn("trash", "Close", cb="ui|close", style=enums.ButtonStyle.DEFAULT)])
     return text, InlineKeyboardMarkup(rows)
 
 
