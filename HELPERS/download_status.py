@@ -28,12 +28,6 @@ download_start_times_lock = threading.Lock()
 # Get app instance for decorators
 app = get_app()
 
-def set_download_start_time(user_id):
-    """
-    Sets the download start time for a user
-    """
-    with download_start_times_lock:
-        download_start_times[user_id] = time.time()
 
 
 def clear_download_start_time(user_id):

@@ -372,96 +372,6 @@ load_firebase_cache()
 
 # ================= /auto_cache command =================
 
-def auto_cache_command(app, message):
-    messages = safe_get_messages(message.chat.id)
-    """Command handler to control automatic Firebase cache loading.
-
-    Supports:
-      /auto_cache on
-      /auto_cache off
-      /auto_cache N   (N in 1..168 hours)
-    """
-    try:
-        if int(message.chat.id) not in Config.ADMIN:
-            send_to_user(message, safe_get_messages().DB_AUTO_CACHE_ACCESS_DENIED_MSG)
-            return
-
-        text = (message.text or "").strip()
-        parts = text.split()
-        arg = parts[1].lower() if len(parts) > 1 else None
-
-        if arg in ("on", "off"):
-            enable = arg == "on"
-            set_auto_cache_enabled(enable)
-            status = "✅ ENABLED" if enable else "❌ DISABLED"
-            if enable:
-                interval = max(1, int(reload_interval_hours))
-                next_exec = get_next_reload_time(interval)
-                delta_min = int((next_exec - datetime.now()).total_seconds() // 60)
-                send_to_user(
-                    message,
-                    safe_get_messages().DB_AUTO_CACHE_RELOADING_UPDATED_MSG.format(
-                        status=status,
-                        interval=interval,
-                        next_exec=next_exec.strftime('%H:%M'),
-                        delta_min=delta_min
-                    )
-                )
-                send_to_logger(message, safe_get_messages().DB_AUTO_CACHE_RELOAD_ENABLED_LOG_MSG.format(next_exec=next_exec))
-            else:
-                send_to_user(message, safe_get_messages().DB_AUTO_CACHE_RELOADING_STOPPED_MSG)
-                send_to_logger(message, safe_get_messages().DB_AUTO_CACHE_RELOAD_DISABLED_LOG_MSG)
-            return
-
-        # Try numeric interval
-        if arg is not None:
-            try:
-                n = int(arg)
-            except Exception:
-                send_to_user(message, safe_get_messages().DB_AUTO_CACHE_INVALID_ARGUMENT_MSG)
-                return
-            if n and n < 1 or n > 168:
-                send_to_user(message, safe_get_messages().DB_AUTO_CACHE_INTERVAL_RANGE_MSG)
-                return
-            ok = set_reload_interval_hours(n)
-            if not ok:
-                send_to_user(message, safe_get_messages().DB_AUTO_CACHE_FAILED_SET_INTERVAL_MSG)
-                return
-            interval = max(1, int(reload_interval_hours))
-            next_exec = get_next_reload_time(interval)
-            delta_min = int((next_exec - datetime.now()).total_seconds() // 60)
-            send_to_user(
-                message,
-                safe_get_messages().DB_AUTO_CACHE_INTERVAL_UPDATED_MSG.format(
-                    status='✅ ENABLED' if auto_cache_enabled else '❌ DISABLED',
-                    interval=interval,
-                    next_exec=next_exec.strftime('%H:%M'),
-                    delta_min=delta_min
-                )
-            )
-            send_to_logger(message, safe_get_messages().DB_AUTO_CACHE_INTERVAL_SET_LOG_MSG.format(interval=interval, next_exec=next_exec))
-            return
-
-        # No args: toggle legacy behavior
-        new_state = toggle_auto_cache_reloader()
-        interval = max(1, int(reload_interval_hours))
-        if new_state:
-            next_exec = get_next_reload_time(interval)
-            delta_min = int((next_exec - datetime.now()).total_seconds() // 60)
-            send_to_user(
-                message,
-                safe_get_messages().DB_AUTO_CACHE_RELOADING_STARTED_MSG.format(
-                    interval=interval,
-                    next_exec=next_exec.strftime('%H:%M'),
-                    delta_min=delta_min
-                )
-            )
-            send_to_logger(message, safe_get_messages().DB_AUTO_CACHE_RELOAD_STARTED_LOG_MSG.format(next_exec=next_exec))
-        else:
-            send_to_user(message, safe_get_messages().DB_AUTO_CACHE_RELOADING_STOPPED_BY_ADMIN_MSG)
-            send_to_logger(message, safe_get_messages().DB_AUTO_CACHE_RELOAD_STOPPED_LOG_MSG)
-    except Exception as e:
-        logger.error(LoggerMsg.DB_AUTO_CACHE_HANDLER_ERROR_LOG_MSG.format(error=e))
 
 
 # Added playlist caching - separate functions for saving and retrieving playlist cache
@@ -707,27 +617,7 @@ def get_cached_playlist_qualities(playlist_url: str) -> set:
         return set()
 
 
-def is_any_playlist_index_cached(playlist_url, quality_key, indices):
-    """Checks if at least one index from the range is in the playlist cache."""
-    cached = get_cached_playlist_videos(playlist_url, quality_key, indices)
-    return bool(cached)
 
-def get_cached_qualities(url: str) -> set:
-    """He gets all the castle qualities for the URL."""
-    from URL_PARSERS.normalizer import normalize_url_for_cache
-    try:
-        url_hash = get_url_hash(normalize_url_for_cache(url))
-        
-        # We use local cache instead of Firebase
-        path_parts = ["bot", "video_cache", url_hash]
-        data = get_from_local_cache(path_parts)
-        
-        if data and isinstance(data, dict):
-            return set(data.keys())
-        return set()
-    except Exception as e:
-        logger.error(f"Failed to get cached qualities: {e}")
-        return set()
 
 # --- Quickly get the number of cached videos for quality ---
 def get_cached_playlist_count(playlist_url: str, quality_key: str, indices: list = None) -> int:

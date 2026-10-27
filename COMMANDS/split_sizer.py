@@ -117,44 +117,6 @@ safe_get_messages(user_id).SPLIT_MENU_TITLE_MSG,
     )
     send_to_logger(message, safe_get_messages(user_id).SPLIT_MENU_OPENED_LOG_MSG)
 
-@app.on_callback_query(filters.regex(r"^split_size\|"))
-# @reply_with_keyboard
-def split_size_callback(app, callback_query):
-    user_id = callback_query.from_user.id
-    messages = safe_get_messages(user_id)
-    logger.info(f"[SPLIT] callback: {callback_query.data}")
-    data = callback_query.data.split("|")[1]
-    if data == "close":
-        try:
-            callback_query.message.delete()
-        except Exception:
-            # Fallback: clear inline keyboard safely (works in topics)
-            try:
-                from HELPERS.safe_messeger import safe_edit_reply_markup
-                safe_edit_reply_markup(callback_query.message.chat.id, callback_query.message.id, reply_markup=None, _callback_query=callback_query)
-            except Exception:
-                try:
-                    callback_query.edit_message_reply_markup(reply_markup=None)
-                except Exception:
-                    pass
-        try:
-            callback_query.answer(safe_get_messages(user_id).SPLIT_MENU_CLOSED_MSG)
-        except Exception:
-            pass
-        send_to_logger(callback_query.message, safe_get_messages(user_id).SPLIT_SELECTION_CLOSED_LOG_MSG)
-        return
-    try:
-        size = int(data)
-    except Exception:
-        callback_query.answer(safe_get_messages(user_id).SPLIT_INVALID_SIZE_CALLBACK_MSG)
-        return
-    user_dir = os.path.join("users", str(user_id))
-    create_directory(user_dir)
-    split_file = os.path.join(user_dir, "split.txt")
-    with open(split_file, "w", encoding="utf-8") as f:
-        f.write(str(size))
-    safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, safe_get_messages(user_id).SPLIT_SIZE_SET_MSG.format(size=humanbytes(size)))
-    send_to_logger(callback_query.message, safe_get_messages(user_id).SPLIT_SIZE_SET_CALLBACK_LOG_MSG.format(size=size))
 
 # --- Function for reading split.txt ---
 def get_user_split_size(user_id):

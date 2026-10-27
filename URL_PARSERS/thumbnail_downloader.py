@@ -852,20 +852,3 @@ def download_thumbnail(url: str, dest: str) -> bool:
         return False
 
 
-def get_thumbnail_from_telegram_embed(url: str, dest: str) -> bool:
-    """
-    Attempt to extract thumbnail from Telegram's video embed
-    This is a placeholder for future implementation
-    """
-    try:
-        # TODO: Implement Telegram embed thumbnail extraction
-        # This would require:
-        # 1. Getting the embed data from Telegram
-        # 2. Extracting thumbnail URL from embed
-        # 3. Downloading the thumbnail
-        
-        # For now, return False to use fallback
-        return False
-    except Exception as e:
-        logger.warning(LoggerMsg.THUMBNAIL_DOWNLOADER_TELEGRAM_EMBED_FAILED_LOG_MSG.format(e=e))
-        return False

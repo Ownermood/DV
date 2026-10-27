@@ -5,8 +5,6 @@ callers keep working without collecting anything."""
 from typing import Any
 
 
-def emit_db_event(path: str, operation: str, payload: Any) -> None:
-    return None
 
 
 def emit_download_event(*args, **kwargs) -> None:

@@ -100,45 +100,9 @@ def add_pot_to_ytdl_opts(ytdl_opts: dict, url: str) -> dict:
     logger.info(f"PO token provider for YouTube: {base_url}")
     return ytdl_opts
 
-def is_pot_enabled() -> bool:
-    """
-    Check whether the PO token provider is enabled in config.
-    
-    Returns:
-        bool: True if enabled, otherwise False
-    """
-    return getattr(Config, 'YOUTUBE_POT_ENABLED', False)
 
-def get_pot_base_url() -> str:
-    """
-    Return the PO token provider base URL.
-    
-    Returns:
-        str: Provider base URL
-    """
-    return getattr(Config, 'YOUTUBE_POT_BASE_URL', 'http://127.0.0.1:4416')
 
-def clear_pot_provider_cache():
-    messages = safe_get_messages(None)
-    """
-    Reset the PO token provider availability cache.
-    Useful to force a re-check after provider recovery.
-    """
-    global _pot_provider_cache
-    _pot_provider_cache['available'] = None
-    _pot_provider_cache['last_check'] = 0
-    messages = safe_get_messages()
-    logger.info(messages.HELPER_POT_PROVIDER_CACHE_CLEARED_MSG)
 
-def is_pot_provider_available() -> bool:
-    """
-    Check whether the PO token provider is available (with caching).
-    
-    Returns:
-        bool: True if available, otherwise False
-    """
-    base_url = getattr(Config, 'YOUTUBE_POT_BASE_URL', 'http://127.0.0.1:4416')
-    return check_pot_provider_availability(base_url)
 
 def create_pot_debug_hook():
     messages = safe_get_messages(None)
@@ -190,49 +154,4 @@ def create_pot_debug_hook():
             
     return pot_debug_hook
 
-def add_pot_debug_hook(ytdl_opts: dict) -> dict:
-    """
-    Add a PO token debug hook to yt-dlp options.
-    
-    Args:
-        ytdl_opts (dict): yt-dlp options dict
-        
-    Returns:
-        dict: Updated yt-dlp options dict
-    """
-    if 'progress_hooks' not in ytdl_opts:
-        ytdl_opts['progress_hooks'] = []
-    
-    # Add our PO token debug hook
-    ytdl_opts['progress_hooks'].append(create_pot_debug_hook())
-    
-    return ytdl_opts
 
-def build_cli_extractor_args(url: str) -> list[str]:
-    """
-    Build yt-dlp CLI args (--extractor-args) with PO token support.
-    Returns ["--extractor-args", VALUE] or an empty list when not needed.
-    """
-    try:
-        # Check enablement and domain
-        if not getattr(Config, 'YOUTUBE_POT_ENABLED', False):
-            return []
-        if not is_youtube_url(url):
-            return []
-        base_url = getattr(Config, 'YOUTUBE_POT_BASE_URL', 'http://127.0.0.1:4416')
-        disable_innertube = getattr(Config, 'YOUTUBE_POT_DISABLE_INNERTUBE', False)
-
-        # CLI syntax for sub-provider: youtubepot-bgutilhttp:base_url=...;disable_innertube=1
-        pot_segment = f"youtubepot-bgutilhttp:base_url={base_url}"
-        if disable_innertube:
-            pot_segment += ";disable_innertube=1"
-
-        # Extra extractor-args (comma-separated namespaces)
-        messages = safe_get_messages()
-        generic_args = messages.HELPER_POT_GENERIC_ARGS_MSG
-        value = ",".join([pot_segment, generic_args])
-        logger.info(f"🧱 CLI extractor-args built for POT: {value}")
-        return ['--extractor-args', value]
-    except Exception as e:
-        logger.warning(f"Failed to build CLI extractor-args for POT: {e}")
-        return []

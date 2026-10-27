@@ -70,26 +70,6 @@ def fake_message(text, user_id, command=None, original_chat_id=None, message_thr
             pass
     return m
 
-def fake_message_with_context(text, user_id, context_message=None, command=None):
-    """
-    Create a fake_message and automatically extract message_thread_id from context.
-    
-    Args:
-        text: Message text
-        user_id: User ID
-        context_message: Message to extract context from (message_thread_id, chat_id)
-        command: Command (optional)
-    
-    Returns:
-        fake_message with correct message_thread_id
-    """
-    if context_message:
-        original_chat_id = getattr(context_message, 'chat', {}).id if hasattr(context_message, 'chat') else user_id
-        message_thread_id = getattr(context_message, 'message_thread_id', None)
-        return fake_message(text, user_id, command=command, original_chat_id=original_chat_id, 
-                          message_thread_id=message_thread_id, original_message=context_message)
-    else:
-        return fake_message(text, user_id, command=command)
 
 # Helper function for safe message sending with flood wait handling
 def safe_send_message(chat_id, text, **kwargs):
@@ -499,72 +479,4 @@ def safe_send_message_with_auto_delete(chat_id, text, delete_after_seconds=60, *
     
     return message
 
-def schedule_delete_message(chat_id, message_id, delete_after_seconds=60):
-    """
-    Schedule deletion of an already-sent message after a delay.
 
-    Args:
-        chat_id: The chat ID
-        message_id: The message ID to delete
-        delete_after_seconds: Seconds to wait before deleting
-    Returns:
-        True if scheduled, False otherwise
-    """
-    try:
-        if not chat_id or not message_id:
-            return False
-
-        def _del():
-            try:
-                logger.info(f"[AUTO-DELETE] Scheduling message {message_id} for deletion in {delete_after_seconds} seconds")
-                time.sleep(delete_after_seconds)
-                safe_delete_messages(chat_id, [message_id])
-            except Exception as e:
-                logger.error(f"[AUTO-DELETE] Error while deleting message {message_id}: {e}")
-
-        t = threading.Thread(target=_del, daemon=True)
-        t.start()
-        return True
-    except Exception:
-        return False
-
-def schedule_delete_processing_messages(chat_id, delete_after_seconds=5):
-    messages = safe_get_messages(None)
-    """
-    Schedule deletion of all "Processing..." messages for a user after a delay.
-    This helps clean up duplicate processing messages.
-
-    Args:
-        chat_id: The chat ID
-        delete_after_seconds: Seconds to wait before deleting
-    Returns:
-        True if scheduled, False otherwise
-    """
-    try:
-        if not chat_id:
-            return False
-
-        def _del_processing_messages():
-            try:
-                logger.info(f"[AUTO-DELETE] Scheduling deletion of all processing messages for user {chat_id} in {delete_after_seconds} seconds")
-                time.sleep(delete_after_seconds)
-                
-                # Get app instance
-                app = get_app_safe()
-                if not app:
-                    logger.error("[AUTO-DELETE] Cannot get app instance for deleting processing messages")
-                    return
-                
-                # Bots cannot use get_chat_history, so we'll skip this functionality
-                # Instead, we'll rely on the individual message deletion that's already scheduled
-                logger.info(f"[AUTO-DELETE] Skipping chat history scan for user {chat_id} (bots cannot use get_chat_history)")
-                logger.info(f"[AUTO-DELETE] Individual processing messages will be deleted by their own timers")
-                    
-            except Exception as e:
-                logger.error(f"[AUTO-DELETE] Error while deleting processing messages for user {chat_id}: {e}")
-
-        t = threading.Thread(target=_del_processing_messages, daemon=True)
-        t.start()
-        return True
-    except Exception:
-        return False

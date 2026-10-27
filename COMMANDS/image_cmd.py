@@ -221,35 +221,6 @@ def _generate_paid_cover_image(video_path, existing_thumb=None):
 # Get app instance for decorators
 app = get_app()
 
-def _send_open_copy_to_nsfw_channel(file_path: str, caption: str, user_id: int, message_id: int, is_video: bool = False):
-    messages = safe_get_messages(user_id)
-    """Send open copy of media to NSFW channel for history"""
-    try:
-        # Use explicit NSFW channel to avoid any fallback to LOGS_ID
-        log_channel_nsfw = get_log_channel("video", nsfw=True)
-        
-        if is_video:
-            # Send as video
-            open_msg = app.send_video(
-                chat_id=log_channel_nsfw,
-                video=file_path,
-                caption=caption,
-                reply_parameters=ReplyParameters(message_id=message_id)
-            )
-        else:
-            # Send as photo
-            open_msg = app.send_photo(
-                chat_id=log_channel_nsfw,
-                photo=file_path,
-                caption=caption,
-                reply_parameters=ReplyParameters(message_id=message_id)
-            )
-        
-        logger.info(LoggerMsg.IMG_LOG_OPEN_COPY_SENT_LOG_MSG.format(file_path=file_path))
-        return open_msg
-    except Exception as e:
-        logger.error(LoggerMsg.IMG_LOG_FAILED_SEND_OPEN_COPY_LOG_MSG.format(e=e))
-        return None
 
 def _save_album_now(url: str, album_index: int, message_ids: list):
     try:
@@ -610,29 +581,6 @@ def create_album_caption_with_dates(media_group, url, tags_text_norm, profile_na
         # Fallback to simple caption
         return f"{safe_get_messages(user_id).IMAGE_URL_CAPTION_MSG.format(url=url)} @{Config.BOT_NAME}"
 
-def is_image_url(url):
-    """Check if URL is likely an image URL"""
-    image_extensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.tiff', '.svg']
-    url_lower = url.lower()
-    
-    # Check for image extensions
-    for ext in image_extensions:
-        if ext in url_lower:
-            return True
-    
-    # Check for common image hosting domains
-    image_domains = [
-        'imgur.com', 'i.imgur.com', 'flickr.com', 'deviantart.com',
-        'pinterest.com', 'instagram.com', 'twitter.com', 'x.com',
-        'reddit.com', 'imgbb.com', 'postimg.cc', 'ibb.co',
-        'drive.google.com', 'dropbox.com', 'mega.nz'
-    ]
-    
-    for domain in image_domains:
-        if domain in url_lower:
-            return True
-    
-    return False
 
 def convert_file_to_telegram_format(file_path):
     """
@@ -4063,99 +4011,4 @@ def image_command(app, message):
         send_error_to_user(message, safe_get_messages(user_id).ERROR_OCCURRED_MSG.format(url=url, error=str(e)))
         log_error_to_channel(message, LoggerMsg.IMAGE_COMMAND_ERROR.format(url=url, error=e), url)
 
-@app.on_callback_query(filters.regex(r"^img_help\|"))
-def img_help_callback(app, callback_query: CallbackQuery):
-    user_id = callback_query.from_user.id
-    messages = safe_get_messages(None)
-    """Handle img help callback"""
-    data = callback_query.data.split("|")[-1]
-    
-    if data == "close":
-        try:
-            callback_query.message.delete()
-        except Exception:
-            callback_query.edit_message_reply_markup(reply_markup=None)
-        try:
-            callback_query.answer(safe_get_messages(user_id).IMG_HELP_CLOSED_MSG)
-        except Exception:
-            pass
-        return
-    
-    try:
-        callback_query.answer()
-    except Exception:
-        pass
 
-@app.on_callback_query(filters.regex(r"^img_range\|"))
-def img_range_callback(app, callback_query: CallbackQuery):
-    messages = safe_get_messages(None)
-    """Handle img range selection callback"""
-    try:
-        user_id = callback_query.from_user.id
-        logger.info(f"[IMG_RANGE_CALLBACK] Received callback: {callback_query.data}")
-        data_parts = callback_query.data.split("|")
-        logger.info(f"[IMG_RANGE_CALLBACK] Data parts: {data_parts}")
-        
-        if len(data_parts) < 2:
-            callback_query.answer("❌ Data error")
-            return
-        
-        if data_parts[1] == "cancel":
-            try:
-                callback_query.message.delete()
-            except Exception:
-                callback_query.edit_message_reply_markup(reply_markup=None)
-            try:
-                callback_query.answer("❌ Cancelled")
-            except Exception:
-                pass
-            return
-        
-        if len(data_parts) < 4:
-            callback_query.answer("❌ Invalid data format")
-            return
-        
-        start = int(data_parts[1])
-        end = int(data_parts[2])
-        url = data_parts[3]
-        
-        logger.info(f"[IMG_RANGE_CALLBACK] Parsed: start={start}, end={end}, url={url}")
-        
-        # Answer callback
-        callback_query.answer(f"{safe_get_messages(user_id).ALWAYS_ASK_DOWNLOADING_IMAGES_MSG} {start}-{end}")
-        
-        # Delete the original message with the buttons immediately
-        try:
-            callback_query.message.delete()
-            logger.info(f"[IMG_RANGE_CALLBACK] Deleted message with ID: {callback_query.message.message_id}")
-        except Exception as e:
-            logger.error(f"[IMG_RANGE_CALLBACK] Failed to delete message: {e}")
-        
-        # Create new message with range command
-        range_command = f"/img {start}-{end} {url}"
-        logger.info(f"[IMG_RANGE_CALLBACK] Created command: {range_command}")
-        
-        # Send the command as if user typed it
-        from pyrogram.types import Message
-        from pyrogram.types import Message as MessageType
-        
-        # Create a mock message object
-        mock_message = MessageType(
-            id=callback_query.message.id + 1,
-            from_user=callback_query.from_user,
-            chat=callback_query.message.chat,
-            text=range_command,
-            date=callback_query.message.date,
-            reply_to_message=None
-        )
-        
-        # Call the image command function
-        logger.info(f"[IMG_RANGE_CALLBACK] Calling image_command with mock_message")
-        image_command(app, mock_message)
-        logger.info(f"[IMG_RANGE_CALLBACK] image_command completed")
-        
-    except Exception as e:
-        try:
-            callback_query.answer(f"{safe_get_messages(user_id).IMAGE_ERROR_MSG}")
-        except Exception:
-            pass

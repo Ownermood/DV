@@ -167,33 +167,5 @@ def close_all_sessions():
         _http_managers.clear()
 
 
-def safe_http_get(url, session_name="default", timeout=None, **kwargs):
-    """
-    Safe HTTP GET with managed session
-    """
-    timeout = timeout or LimitsConfig.HTTP_REQUEST_TIMEOUT
-    manager = get_managed_session(session_name)
-    
-    try:
-        with manager as session:
-            response = session.get(url, timeout=timeout, **kwargs)
-            return response
-    except Exception as e:
-        logger.error(f"HTTP GET error for {url}: {e}")
-        return None
 
 
-def safe_http_post(url, session_name="default", timeout=None, **kwargs):
-    """
-    Safe HTTP POST with managed session
-    """
-    timeout = timeout or LimitsConfig.HTTP_REQUEST_TIMEOUT
-    manager = get_managed_session(session_name)
-    
-    try:
-        with manager as session:
-            response = session.post(url, timeout=timeout, **kwargs)
-            return response
-    except Exception as e:
-        logger.error(f"HTTP POST error for {url}: {e}")
-        return None

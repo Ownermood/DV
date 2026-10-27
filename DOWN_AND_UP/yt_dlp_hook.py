@@ -300,5 +300,3 @@ def get_video_formats(url, user_id=None, playlist_start_index=1, cookies_already
 
 # YT-DLP HOOK
 
-def ytdlp_hook(d):
-    logger.info(d['status'])

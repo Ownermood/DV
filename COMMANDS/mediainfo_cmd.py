@@ -63,47 +63,6 @@ safe_get_messages(user_id).MEDIAINFO_MENU_TITLE_MSG,
     send_to_logger(message, safe_get_messages(user_id).MEDIAINFO_MENU_OPENED_LOG_MSG)
 
 
-@app.on_callback_query(filters.regex(r"^mediainfo_option\|"))
-# @reply_with_keyboard
-def mediainfo_option_callback(app, callback_query):
-    user_id = callback_query.from_user.id
-    messages = safe_get_messages(user_id)
-    logger.info(safe_get_messages(user_id).MEDIAINFO_CALLBACK_MSG.format(callback_data=callback_query.data))
-    data = callback_query.data.split("|")[1]
-    user_dir = os.path.join("users", str(user_id))
-    create_directory(user_dir)
-    mediainfo_file = os.path.join(user_dir, "mediainfo.txt")
-    if callback_query.data == "mediainfo_option|close":
-        try:
-            callback_query.message.delete()
-        except Exception:
-            callback_query.edit_message_reply_markup(reply_markup=None)
-        try:
-            callback_query.answer(safe_get_messages(user_id).MEDIAINFO_MENU_CLOSED_MSG)
-        except Exception:
-            pass
-        send_to_logger(callback_query.message, safe_get_messages(user_id).MEDIAINFO_MENU_CLOSED_LOG_MSG)
-        return
-    if data == "on":
-        with open(mediainfo_file, "w", encoding="utf-8") as f:
-            f.write("ON")
-        safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, safe_get_messages(user_id).MEDIAINFO_ENABLED_CONFIRM_MSG)
-        send_to_logger(callback_query.message, safe_get_messages(user_id).MEDIAINFO_ENABLED_LOG_MSG)
-        try:
-            callback_query.answer(safe_get_messages(user_id).MEDIAINFO_ENABLED_CALLBACK_MSG)
-        except Exception:
-            pass
-        return
-    if data == "off":
-        with open(mediainfo_file, "w", encoding="utf-8") as f:
-            f.write("OFF")
-        safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, safe_get_messages(user_id).MEDIAINFO_DISABLED_MSG)
-        send_to_logger(callback_query.message, safe_get_messages(user_id).MEDIAINFO_DISABLED_LOG_MSG)
-        try:
-            callback_query.answer(safe_get_messages(user_id).MEDIAINFO_DISABLED_CALLBACK_MSG)
-        except Exception:
-            pass
-        return
 
 
 def is_mediainfo_enabled(user_id):

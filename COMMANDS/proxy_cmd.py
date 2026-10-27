@@ -108,68 +108,6 @@ def proxy_command(app, message):
     send_to_logger(message, safe_get_messages(user_id).PROXY_MENU_OPENED_LOG_MSG)
 
 
-@app.on_callback_query(filters.regex(r"^proxy_option\|"))
-def proxy_option_callback(app, callback_query):
-    user_id = callback_query.from_user.id
-    messages = safe_get_messages(user_id)
-    logger.info(LoggerMsg.PROXY_CMD_CALLBACK_LOG_MSG.format(callback_data=callback_query.data))
-    data = callback_query.data.split("|")[1]
-    user_dir = os.path.join("users", str(user_id))
-    create_directory(user_dir)
-    proxy_file = os.path.join(user_dir, "proxy.txt")
-    
-    if callback_query.data == "proxy_option|close":
-        try:
-            callback_query.message.delete()
-        except Exception:
-            callback_query.edit_message_reply_markup(reply_markup=None)
-        try:
-            callback_query.answer(safe_get_messages(user_id).PROXY_MENU_CLOSED_MSG)
-        except Exception:
-            pass
-        send_to_logger(callback_query.message, safe_get_messages(user_id).PROXY_MENU_CLOSED_LOG_MSG)
-        return
-    
-    if data == "on":
-        if not safe_write_file(proxy_file, "ON"):
-            try:
-                callback_query.answer(safe_get_messages(user_id).PROXY_ERROR_SAVING_CALLBACK_MSG)
-            except Exception:
-                pass
-            return
-        
-        # Get available proxy count and selection method
-        configs = get_all_proxy_configs()
-        proxy_count = len(configs)
-        
-        if proxy_count and proxy_count > 1:
-            message_text = safe_get_messages(user_id).PROXY_ENABLED_MULTIPLE_MSG.format(count=proxy_count, method=Config.PROXY_SELECT)
-        else:
-            message_text = safe_get_messages(user_id).PROXY_ENABLED_CONFIRM_MSG
-        
-        safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, message_text)
-        send_to_logger(callback_query.message, safe_get_messages(user_id).PROXY_ENABLED_LOG_MSG)
-        try:
-            callback_query.answer(safe_get_messages(user_id).PROXY_ENABLED_CALLBACK_MSG)
-        except Exception:
-            pass
-        return
-    
-    if data == "off":
-        if not safe_write_file(proxy_file, "OFF"):
-            try:
-                callback_query.answer(safe_get_messages(user_id).PROXY_ERROR_SAVING_CALLBACK_MSG)
-            except Exception:
-                pass
-            return
-        
-        safe_edit_message_text(callback_query.message.chat.id, callback_query.message.id, safe_get_messages(user_id).PROXY_DISABLED_MSG)
-        send_to_logger(callback_query.message, safe_get_messages(user_id).PROXY_DISABLED_LOG_MSG)
-        try:
-            callback_query.answer(safe_get_messages(user_id).PROXY_DISABLED_CALLBACK_MSG)
-        except Exception:
-            pass
-        return
 
 
 def is_proxy_enabled(user_id):

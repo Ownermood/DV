@@ -115,31 +115,6 @@ def check_user(message):
     return True
 
 
-def ensure_group_admin(app, message):
-    messages = safe_get_messages(getattr(message.chat, 'id', None))
-    """
-    For allowed groups, ensure the bot has admin rights. If not, ask to grant admin.
-    Returns True if ok to proceed, False if should stop.
-    """
-    try:
-        chat = getattr(message, 'chat', None)
-        chat_id = int(getattr(chat, 'id', 0)) if chat else 0
-        if chat_id in getattr(Config, 'ALLOWED_GROUP', []):
-            try:
-                me = app.get_me()
-                member = app.get_chat_member(chat_id, me.id)
-                status = getattr(member, 'status', None)
-                if status not in (ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.OWNER):
-                    # Ask to grant admin. Reply in the same topic/thread when possible
-                    safe_send_message(chat_id, safe_get_messages(chat_id).HELPER_ADMIN_RIGHTS_REQUIRED_MSG, message=message)
-                    return False
-            except Exception:
-                # If check failed for any reason, be safe and request admin
-                safe_send_message(chat_id, safe_get_messages(chat_id).HELPER_ADMIN_RIGHTS_REQUIRED_MSG, message=message)
-                return False
-        return True
-    except Exception:
-        return True
 
 def check_file_size_limit(info_dict, max_size_bytes=None, message=None):
     """

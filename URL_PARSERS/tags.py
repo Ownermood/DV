@@ -75,10 +75,6 @@ def _extract_uids_from_info(info_dict):
     
     return found_uids
 
-def extract_uid_from_info(info_dict):
-    """Extract the first UID from yt-dlp or gallery-dl metadata (backward compatibility)."""
-    uids = _extract_uids_from_info(info_dict)
-    return uids[0] if uids else None
 
 def extract_all_uids_from_info(info_dict):
     """Extract ALL UIDs from yt-dlp or gallery-dl metadata."""
@@ -161,8 +157,6 @@ def generate_final_tags(url, user_tags, info_dict):
 
 
 # --- Function for cleaning tags for Telegram ---
-def clean_telegram_tag(tag: str) -> str:
-    return '#' + re.sub(r'[^\w]', '', tag.lstrip('#'))
 
 # --- a function for extracting the URL, the range and tags from the text ---
 def extract_url_range_tags(text: str):

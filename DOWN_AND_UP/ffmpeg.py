@@ -64,77 +64,8 @@ def normalize_path_for_ffmpeg(path, for_ffmpeg=True):
         normalized = os.path.normpath(path)
         return os.path.abspath(normalized)
 
-def create_safe_filename(original_path, prefix="safe", extension=None):
-    """Create a safe filename for cross-platform compatibility"""
-    import hashlib
-    import time
-    import re
-    
-    # Get original filename and extension
-    base_name = os.path.basename(original_path)
-    if extension is None:
-        name, ext = os.path.splitext(base_name)
-    else:
-        name = os.path.splitext(base_name)[0]
-        ext = extension
-    
-    # Create safe name using hash and timestamp
-    file_hash = hashlib.md5(original_path.encode('utf-8')).hexdigest()[:8]
-    timestamp = int(time.time())
-    
-    # Clean the original name - remove or replace problematic characters
-    # Keep only alphanumeric characters, spaces, dots, and common punctuation
-    safe_chars = re.sub(r'[^\w\s\-\.\(\)]', '_', name)
-    # Limit length to avoid path issues
-    safe_chars = safe_chars[:50] if len(safe_chars) > 50 else safe_chars
-    
-    # Use cleaned name + hash + timestamp for maximum compatibility
-    safe_name = f"{prefix}_{safe_chars}_{file_hash}_{timestamp}{ext}"
-    
-    # Ensure no double underscores
-    safe_name = re.sub(r'_+', '_', safe_name)
-    
-    return safe_name
 
-def test_path_handling():
-    """Test function to verify path handling with special characters"""
-    # Use universal path format
-    test_path = os.path.join("users", "7360853", "sample_subtitles_(Eng.en).srt")
-    
-    logger.info(f"Testing path: {test_path}")
-    logger.info(f"Path exists: {os.path.exists(test_path)}")
-    logger.info(f"Platform: {os.name}")
-    
-    # Test universal path handling
-    normalized_path = os.path.normpath(test_path)
-    logger.info(f"Normalized path: {normalized_path}")
-    
-    return True
 
-def get_ytdlp_path():
-    messages = safe_get_messages(None)
-    """Get yt-dlp binary path - first try system PATH, then fallback to local binary.
-    This is used only for functions that need the binary directly (like /cookies_from_browser)"""
-    import shutil
-    
-    # Get the directory where the script is located
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    project_root = os.path.dirname(script_dir)
-    
-    # First try to find yt-dlp in system PATH
-    ytdlp_path = shutil.which('yt-dlp')
-    if not ytdlp_path:
-        # Fallback to local binary
-        if os.name == 'nt':  # Windows
-            ytdlp_path = os.path.join(project_root, "yt-dlp.exe")
-        else:  # Linux/Unix
-            ytdlp_path = os.path.join(project_root, "yt-dlp")
-        
-        if not os.path.exists(ytdlp_path):
-            logger.error(safe_get_messages(None).YTDLP_NOT_FOUND_MSG)
-            return None
-    
-    return ytdlp_path
 
 def split_video_2(dir, video_name, video_path, video_size, max_size, duration, user_id):
     messages = safe_get_messages(None)
@@ -208,70 +139,6 @@ def split_video_2(dir, video_name, video_path, video_size, max_size, duration, u
         return split_vid_dict
 
 
-def get_duration_thumb_(dir, video_path, thumb_name):
-    messages = safe_get_messages(None)
-    # Generate a short unique name for the thumbnail
-    thumb_hash = hashlib.md5(thumb_name.encode()).hexdigest()[:10]
-    thumb_dir = os.path.abspath(os.path.join(dir, thumb_hash + ".jpg"))
-    try:
-        width, height, duration = get_video_info_ffprobe(video_path)
-        duration = int(duration)
-        orig_w = width if width and width > 0 else 1920
-        orig_h = height if height and height > 0 else 1080
-    except Exception as e:
-        logger.error(safe_get_messages(None).FFMPEG_FFPROBE_BYPASS_ERROR_MSG.format(video_path=video_path, error=e))
-        import traceback
-        logger.error(traceback.format_exc())
-        duration = 0
-        orig_w, orig_h = 1920, 1080  # Default dimensions
-    
-    # Determine optimal thumbnail size based on video aspect ratio
-    aspect_ratio = orig_w / orig_h
-    max_dimension = 640  # Maximum width or height
-    
-    if aspect_ratio and aspect_ratio > 1.5:  # Wide/horizontal video (16:9, etc.)
-        thumb_w = max_dimension
-        thumb_h = int(max_dimension / aspect_ratio)
-    elif aspect_ratio and aspect_ratio < 0.75:  # Tall/vertical video (9:16, etc.)
-        thumb_h = max_dimension
-        thumb_w = int(max_dimension * aspect_ratio)
-    else:  # Square-ish video (1:1, 4:3, etc.)
-        if orig_w >= orig_h:
-            thumb_w = max_dimension
-            thumb_h = int(max_dimension / aspect_ratio)
-        else:
-            thumb_h = max_dimension
-            thumb_w = int(max_dimension * aspect_ratio)
-    
-    # Ensure minimum size
-    thumb_w = max(thumb_w, 240)
-    thumb_h = max(thumb_h, 240)
-    
-    # Create thumbnail using FFmpeg instead of moviepy
-    try:
-        # Get FFmpeg path using the common function
-        ffmpeg_path = get_ffmpeg_path()
-        if not ffmpeg_path:
-            logger.error(safe_get_messages(None).FFMPEG_NOT_FOUND_MSG)
-            create_default_thumbnail(thumb_dir, thumb_w, thumb_h)
-            return duration, thumb_dir
-        
-        ffmpeg_command = [
-            ffmpeg_path,
-            "-y",
-            "-i", video_path,
-            "-ss", "2",         # Seek to 2 Seconds
-            "-vframes", "1",    # Capture 1 Frame
-            "-vf", f"scale={thumb_w}:{thumb_h}",  # Scale to exact thumbnail size
-            thumb_dir
-        ]
-        subprocess.run(ffmpeg_command, check=True, capture_output=True, encoding='utf-8', errors='replace')
-    except Exception as e:
-        logger.error(safe_get_messages(None).FFMPEG_ERROR_CREATING_THUMBNAIL_WITH_FFMPEG_MSG.format(error=e))
-        # Create default thumbnail as fallback
-        create_default_thumbnail(thumb_dir, thumb_w, thumb_h)
-    
-    return duration, thumb_dir
 
 def get_duration_thumb(message, dir_path, video_path, thumb_name):
     user_id = message.chat.id
