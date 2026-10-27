@@ -1334,7 +1334,9 @@ def get_youtube_cookie_urls() -> list:
     Returns:
         list: Cookie download URLs
     """
-    urls = []
+    # Cookie Manager cookies first (Admin Panel → Cookie Manager, up to 10), then the configured sources
+    from COMMANDS import cookie_store
+    urls = cookie_store.active_paths("youtube")
     
     # Check the main URLs in order of priority
     if hasattr(Config, 'YOUTUBE_COOKIE_URL') and Config.YOUTUBE_COOKIE_URL:
@@ -2448,57 +2450,36 @@ def try_non_youtube_cookie_fallback(user_id: int, url: str, download_func, *args
         if os.path.exists(user_cookie_path):
             logger.info(f"Trying user cookies for non-YouTube URL: {url}")
             try:
-                result = download_func(*args)
+                result = download_func(*_with_cookiefile(args, user_cookie_path))
                 if result is not None:
                     finish_cookie_task(task_id, True, user_cookie_path)
                     return result
             except Exception as e:
                 logger.warning(f"User cookies failed for {url}: {e}")
         
-        # 2) Try service cookies from config URLs
+        # 2) Cookie Manager: every ON cookie of this site in order (rotation). The retried download
+        #    gets the cookie through its opts dict ('cookiefile'); before, the file was written but never used.
+        from COMMANDS import cookie_store
         service_name = get_service_name_from_url(url)
-        if service_name:
-            service_cookie_url = get_service_cookie_url(service_name)
-            if service_cookie_url:
-                logger.info(f"Trying service cookies for {service_name}: {url}")
-                try:
-                    ok, status, content, err = _download_content(service_cookie_url, timeout=30, user_id=user_id)
-                    if ok and content:
-                        # Save cookies to a temporary file
-                        temp_cookie_path = os.path.join(user_dir, f"temp_{service_name}_cookie.txt")
-                        with open(temp_cookie_path, "wb") as f:
-                            f.write(content)
-                        
-                        try:
-                            result = download_func(*args)
-                            if result is not None:
-                                finish_cookie_task(task_id, True, temp_cookie_path)
-                                return result
-                        except Exception as e:
-                            logger.warning(f"Service cookies failed for {url}: {e}")
-                        finally:
-                            # Remove temporary file
-                            if os.path.exists(temp_cookie_path):
-                                os.remove(temp_cookie_path)
-                except Exception as e:
-                    logger.warning(f"Failed to download service cookies for {service_name}: {e}")
-        
-        # 3) Try global cookies
-        global_cookie_path = Config.COOKIE_FILE_PATH
-        if os.path.exists(global_cookie_path):
-            logger.info(f"Trying global cookies for non-YouTube URL: {url}")
+        for path in (cookie_store.active_paths(service_name) if service_name in cookie_store.SERVICES else []):
+            logger.info(f"Trying {service_name} cookie {os.path.basename(path)} for {url}")
+            _COOKIE_OVERRIDE.active, _COOKIE_OVERRIDE.path = True, path
             try:
-                result = download_func(*args)
-                if result is not None:
-                    finish_cookie_task(task_id, True, global_cookie_path)
-                    return result
+                result = download_func(*_with_cookiefile(args, path))
             except Exception as e:
-                logger.warning(f"Global cookies failed for {url}: {e}")
-        
-        # 4) Try without cookies
+                result = None
+                logger.warning(f"{service_name} cookie failed for {url}: {e}")
+            finally:
+                _COOKIE_OVERRIDE.active = False
+            cookie_store.record(path, result is not None)
+            if result is not None:
+                finish_cookie_task(task_id, True, path)
+                return result
+
+        # 3) Try without cookies
         logger.info(f"Trying without cookies for non-YouTube URL: {url}")
         try:
-            result = download_func(*args)
+            result = download_func(*_with_cookiefile(args, None))
             if result is not None:
                 finish_cookie_task(task_id, True, None)
                 return result
@@ -2514,13 +2495,29 @@ def try_non_youtube_cookie_fallback(user_id: int, url: str, download_func, *args
         finish_cookie_task(task_id, False)
         return None
 
+_COOKIE_OVERRIDE = __import__("threading").local()
+
+
+def cookie_override(default):
+    """Cookie file forced by a running rotation (for downloads whose retry gets no opts dict)."""
+    return getattr(_COOKIE_OVERRIDE, "path", default) if getattr(_COOKIE_OVERRIDE, "active", False) else default
+
+
+def _with_cookiefile(args, path):
+    """Copy of args whose last opts dict uses this cookie file (None = no cookies)."""
+    args = list(args)
+    for i in range(len(args) - 1, -1, -1):
+        if isinstance(args[i], dict):
+            args[i] = {**args[i], "cookiefile": path}
+            break
+    return tuple(args)
+
+
 def shared_cookie_path(url: str) -> str | None:
-    """Admin's shared cookie file for this site (cookies/<service>.txt), if it exists."""
+    """First working Cookie Manager cookie for this site (admin panel), if any."""
+    from COMMANDS import cookie_store
     service = get_service_name_from_url(url)
-    path = get_service_cookie_url(service) if service else None
-    if path and not path.lower().startswith(("http://", "https://")) and os.path.exists(path):
-        return path
-    return None
+    return cookie_store.first_active(service) if service in cookie_store.SERVICES else None
 
 
 def get_service_name_from_url(url: str) -> str | None:

@@ -146,13 +146,23 @@ def _max_bytes() -> int:
         return MAX_BYTES
 
 
-def _load_cookies() -> dict:
+def _load_cookies(path: str = COOKIE_FILE) -> dict:
     try:
-        with open(COOKIE_FILE, "r", encoding="utf-8", errors="ignore") as f:
+        with open(path, "r", encoding="utf-8", errors="ignore") as f:
             rows = [l.rstrip("\n").split("\t") for l in f if l.strip() and not l.startswith("#")]
     except OSError:
         return {}
     return {r[5]: r[6] for r in rows if len(r) == 7}
+
+
+def _cookie_files() -> list:
+    """Cookie Manager TeraBox cookies (rotation order); the old single file as a fallback."""
+    try:
+        from COMMANDS import cookie_store
+        paths = cookie_store.active_paths("terabox")
+    except Exception:
+        paths = []
+    return paths or ([COOKIE_FILE] if os.path.exists(COOKIE_FILE) else [])
 
 
 def _between(text: str, start: str, end: str) -> str | None:
@@ -171,9 +181,9 @@ class NeedCookie(RuntimeError):
         self.title, self.size = title, size
 
 
-def _native_resolve(url: str):
+def _native_resolve(url: str, cookies: dict | None = None):
     """(direct_url, thumb, title, size, cookies) via TeraBox's own web API, or raise."""
-    cookies = _load_cookies()
+    cookies = _load_cookies() if cookies is None else cookies
     sess = requests.Session()
     sess.headers.update({"User-Agent": UA, "Accept-Language": "en-US,en;q=0.9"})
     sess.cookies.update(cookies)
@@ -250,10 +260,31 @@ def _api_resolve(url: str):
     return direct, thumb, title, 0, {}
 
 
+def _record(path, ok, reason=""):
+    if not path:
+        return
+    try:
+        from COMMANDS import cookie_store
+        cookie_store.record(path, ok, reason)
+    except Exception:
+        pass
+
+
 def _resolve(url: str):
     """First working resolver. On total failure raises; NeedCookie (with name/size) if TeraBox saw the file."""
     errors, need = [], None
-    for fn in (_native_resolve, _worker_resolve, _token_api_resolve, _api_resolve):
+    # 1) each TeraBox cookie in turn (Cookie Manager rotation), or no cookie for name/size
+    for path in _cookie_files() or [None]:
+        try:
+            res = _native_resolve(url, _load_cookies(path) if path else {})
+            _record(path, True)
+            return res
+        except NeedCookie as exc:
+            need = exc
+            _record(path, False, "TeraBox gave no download link")
+        except Exception as exc:
+            errors.append(f"native: {exc}")
+    for fn in (_worker_resolve, _token_api_resolve, _api_resolve):
         try:
             return fn(url)
         except NeedCookie as exc:
@@ -368,7 +399,7 @@ def handle_terabox(app, message) -> bool:
         if isinstance(exc, NeedCookie):
             body = (f"File: {exc.title[:80]} ({exc.size / 1024 ** 3:.2f} GB)\n"
                     "TeraBox gives download links only to a logged-in account. "
-                    "Admin: add a TeraBox cookie in Admin Panel → Settings.")
+                    "Admin: add TeraBox cookies in Admin Panel → Cookie Manager.")
         elif "too large" in str(exc):
             body = str(exc)[:200]
         else:

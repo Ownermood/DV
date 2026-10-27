@@ -264,7 +264,7 @@ T = {
                         "{stars} Public links never need this.</blockquote>\n\n"
                         "{memo} <b>How to add</b>\n"
                         "<blockquote>1. In Chrome / Firefox install <b>Get cookies.txt LOCALLY</b>\n"
-                        "2. Open the site (YouTube, Instagram, Facebook, TikTok …) logged in\n"
+                        "2. Open the site (YouTube, Instagram, Facebook …) logged in\n"
                         "3. Export <b>cookies.txt</b> and send the file here</blockquote>\n\n"
                         "{folder} Your cookie: <b>{state}</b>"),
         "cookie_own": "{file} <b>Send your cookies.txt file now</b> (max 1 MB).",

@@ -2,7 +2,7 @@
 
 All bot text is **bold** (quotes too). The bot detects the platform from the link by itself.
 
-Telegram bot for **YouTube, Instagram, Facebook, TikTok, Snapchat, Pinterest and TeraBox**. Other sites are rejected.
+Telegram bot for **YouTube, Instagram, Facebook, Snapchat, Pinterest and TeraBox**. Other sites are rejected.
 
 ## Setup
 1. `cp .env.example .env` and fill the 4 required values (`BOT_TOKEN`, `API_ID`, `API_HASH`, `ADMIN_IDS`).
@@ -15,14 +15,14 @@ YouTube often blocks server IPs. Fix: admin panel → **YouTube Cookie** → sen
 exported from a spare YouTube account. Every user without their own cookie then uses it.
 
 ## Instagram / Facebook / TeraBox
-- Instagram blocks most server IPs without a login: admin panel → Settings → **Instagram Cookie** (spare account).
+- Instagram blocks most server IPs without a login: Admin Panel → **Cookie Manager** → Instagram (spare accounts, up to 10).
 - Facebook public videos work without anything; private ones need **Facebook Cookie**.
-- TeraBox: admin panel → Settings → **TeraBox Cookie** (a TeraBox account's cookies.txt with `ndus`). The bot then reads
+- TeraBox: Admin Panel → **Cookie Manager** → TeraBox (cookies.txt with `ndus`, up to 10). The bot then reads
   the share itself; without it, it tries the external extraction service. TeraBox files are sent up to 1.9 GB.
 
 ## Private links
 Private / age-restricted / login-only posts: the user sends `/cookie` once and uploads a `cookies.txt`
-exported from their own account (YouTube, TikTok, Snapchat, Pinterest). After that the same link downloads.
+exported from their own account (YouTube, Instagram, Facebook). After that the same link downloads.
 TeraBox password-protected shares are not supported.
 
 ## Users
@@ -45,6 +45,7 @@ Users only see `/start` and Help. The bot is English only.
 - **Delete Broadcast:** last broadcasts, confirm (48h note), live card; or reply `/delbc` to a broadcast
 - **Admins:** list; owners add (`Name user_id`, premium emojis in the name) and remove admins; the new admin gets a welcome message
 - **Users:** block / unblock, users list, uncache URL
-- **Settings:** start image, premium emoji on/off, shared YouTube / TikTok cookies
+- **Cookie Manager:** up to 10 cookies each for YouTube, Instagram, Facebook, TeraBox; add many files at once; ON/OFF, replace, delete, test; automatic rotation, DM when one dies or is about to expire
+- **Settings:** start image, premium emoji on/off
 
 Activity and download counts start from the update that added them.

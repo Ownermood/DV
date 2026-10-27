@@ -216,7 +216,7 @@ def _prepare_user_cookies_and_proxy(url: str, user_id, use_proxy: bool, config: 
         # For non-YouTube URLs, use new cookie fallback system
         from COMMANDS.cookies_cmd import get_cookie_cache_result, try_non_youtube_cookie_fallback, shared_cookie_path
         cache_result = get_cookie_cache_result(user_id, url)
-        shared_cookie = shared_cookie_path(url)  # admin's cookie for this site (Admin Panel -> Settings)
+        shared_cookie = shared_cookie_path(url)  # Cookie Manager cookie for this site (Admin Panel -> Cookie Manager)
         
         if cache_result and cache_result['result']:
             # Use cached successful cookies

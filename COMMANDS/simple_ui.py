@@ -1,6 +1,6 @@
 """Front door of the bot: welcome screen, link auto-detect, clean command set.
 
-Supported: YouTube, Instagram, Facebook, TikTok, Snapchat, Pinterest, TeraBox (nothing else).
+Supported: YouTube, Instagram, Facebook, Snapchat, Pinterest, TeraBox (nothing else; TikTok is banned in India).
 Registered at handler group -1 so it runs before every legacy handler.
 """
 from __future__ import annotations
@@ -34,7 +34,6 @@ PLATFORMS = {
     "youtube":   ("YouTube",   "▶️", ("youtube.com", "youtu.be", "youtube-nocookie.com")),
     "instagram": ("Instagram", "📸", ("instagram.com", "instagr.am")),
     "facebook":  ("Facebook",  "📘", ("facebook.com", "fb.watch", "fb.com")),
-    "tiktok":    ("TikTok",    "🎵", ("tiktok.com", "tiktokv.com")),
     "snapchat":  ("Snapchat",  "👻", ("snapchat.com", "snap.com")),
     "pinterest": ("Pinterest", "📌", ("pinterest.com", "pin.it", "pinterest.co.uk", "pinterest.fr", "pinterest.de", "pinterest.ca", "pinterest.com.au", "pinterest.ph", "pinterest.es", "pinterest.it")),
     "terabox":   ("TeraBox",   "📦", TERABOX_DOMAINS),
@@ -77,7 +76,7 @@ def welcome_text(first_name: str = "", user_id=None) -> str:
 
 # Premium logos (custom emoji IDs) for every platform
 PLATFORM_EMOJI = {"youtube": "5355235592844095825", "instagram": "5355097780228470775",
-                  "facebook": "5355254460635428635", "tiktok": "5936080475964576264",
+                  "facebook": "5355254460635428635",
                   "snapchat": "5352719553757466112", "pinterest": "5352595631066071365",
                   "terabox": "5976766782763962762"}
 

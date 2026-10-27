@@ -912,7 +912,8 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                 ytdl_opts['cookiefile'] = None  # Equivalent to --no-cookies
                 logger.info(f"Using --no-cookies for domain: {url}")
             else:
-                ytdl_opts['cookiefile'] = cookie_file
+                from COMMANDS.cookies_cmd import cookie_override
+                ytdl_opts['cookiefile'] = cookie_override(cookie_file)  # Cookie Manager rotation
             
             # Add proxy configuration if needed
             if use_proxy:

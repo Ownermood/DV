@@ -199,7 +199,7 @@ def _home():
         [btn("laptop", "Bot Stats", cb="ap|stats", style=BLUE), btn("hug", "Users Stats", cb="ap|ustats", style=BLUE)],
         [btn("chat", "Broadcast", cb="ap|bc", style=GREEN), btn("trash", "Delete Broadcast", cb="ap|dbl", style=RED)],
         [btn("crown", "Admins", cb="ap|admins", style=GREEN), btn("folder", "Users", cb="ap|sec|users", style=BLUE)],
-        [btn("stars", "Settings", cb="ap|sec|settings", style=BLUE)],
+        [btn("lips", "Cookie Manager", cb="ap|ckm", style=GREEN), btn("stars", "Settings", cb="ap|sec|settings", style=BLUE)],
         [btn("exit", "Close", cb="ap|close", style=RED)],
     ])
     return text, kb
@@ -274,12 +274,9 @@ SECTIONS = {
     "users": ("folder", "Users", "Block or unblock a user, export the user list, clear a cached URL.", [
         ("ban", "Block", "ap|ask|block", RED), ("ok", "Unblock", "ap|ask|unblock", GREEN),
         ("file", "Users List", "ap|users", BLUE), ("refresh", "Uncache URL", "ap|ask|uncache", BLUE)]),
-    "settings": ("stars", "Settings", "Start photo, premium emoji and the shared cookies (used for every user "
-                 "without their own cookie).", [
+    "settings": ("stars", "Settings", "Start photo and premium emoji. Cookies: Admin Panel → Cookie Manager.", [
         ("image", "Start Image", "ap|ask|startimg", BLUE), ("stars", "Premium Emoji", "ap|prem", GREEN),
-        ("play", "YouTube Cookie", "ap|ask|ckyt", BLUE), ("music", "TikTok Cookie", "ap|ask|cktt", BLUE),
-        ("image", "Instagram Cookie", "ap|ask|ckig", BLUE), ("chat", "Facebook Cookie", "ap|ask|ckfb", BLUE),
-        ("box", "TeraBox Cookie", "ap|ask|cktb", BLUE)]),
+        ("lips", "Cookie Manager", "ap|ckm", GREEN)]),
 }
 
 
@@ -325,14 +322,6 @@ _ASK = {
     "block": "Send the <b>user ID</b> to block.",
     "unblock": "Send the <b>user ID</b> to unblock.",
     "uncache": "Send the <b>URL</b> to remove from cache.",
-    "ckyt": ("Send the shared <b>YouTube cookies.txt</b> (Netscape format). Used for every user without their own "
-             "cookie: fixes \"Sign in to confirm you're not a bot\". Send <code>off</code> to remove."),
-    "cktt": "Send the shared <b>TikTok cookies.txt</b>. Send <code>off</code> to remove.",
-    "ckig": ("Send the shared <b>Instagram cookies.txt</b> from a spare account. Instagram blocks most servers "
-             "without it. Send <code>off</code> to remove."),
-    "ckfb": "Send the shared <b>Facebook cookies.txt</b> (needed for private / login-only videos). Send <code>off</code> to remove.",
-    "cktb": ("Send the <b>TeraBox cookies.txt</b> of a TeraBox account (must contain <code>ndus</code>). "
-             "The bot then gets TeraBox files itself. Send <code>off</code> to remove."),
     "startimg": "Send a <b>photo</b> for the /start screen, or <code>off</code> to remove it.",
     "addadmin": ("Send the new admin as <code>Name user_id</code>\n"
                  "Example: <code>Wifu 8494053059</code>\n\nPremium emojis in the name are kept."),
@@ -340,8 +329,7 @@ _ASK = {
            "sticker, with premium emojis and buttons. It is copied exactly, without the \"Forwarded from\" tag.</blockquote>"),
 }
 _ASK_BACK = {"addadmin": "ap|admins", "block": "ap|sec|users", "unblock": "ap|sec|users", "uncache": "ap|sec|users",
-             "ckyt": "ap|sec|settings", "cktt": "ap|sec|settings", "ckig": "ap|sec|settings",
-             "ckfb": "ap|sec|settings", "cktb": "ap|sec|settings", "startimg": "ap|sec|settings"}
+             "startimg": "ap|sec|settings"}
 
 
 def open_panel(client, chat_id, msg=None):
@@ -441,6 +429,9 @@ def handle_admin_input(client, message) -> bool:
     if text.startswith("/"):
         _input.pop(uid, None)  # any command cancels the prompt
         return False
+    if action.startswith("ckadd:") or action.startswith("ckrep:"):
+        _cookie_input(client, message, uid, action)
+        return True
     _input.pop(uid, None)
     back = lambda body: (body, _back_kb(back=_ASK_BACK.get(action, "ap|home")))
     try:
@@ -468,44 +459,123 @@ def handle_admin_input(client, message) -> bool:
                 send(client, uid, lambda: back(f"{em('ok')} Start image removed."))
             else:
                 send(client, uid, lambda: back(f"{em('warn')} Send a photo or <code>off</code>."))
-        elif action in _COOKIE_FILES:
-            send(client, uid, lambda: back(_save_shared_cookie(client, message, text, action)))
     except Exception as exc:
         logger.error(f"[admin] input {action} failed: {exc}")
         send(client, uid, lambda: back(f"{em('warn')} Failed: <code>{escape(str(exc)[:200])}</code>"))
     return True
 
 
-_COOKIE_FILES = {"ckyt": os.path.join("cookies", "youtube.txt"), "cktt": os.path.join("cookies", "tiktok.txt"),
-                 "ckig": os.path.join("cookies", "instagram.txt"), "ckfb": os.path.join("cookies", "facebook.txt"),
-                 "cktb": os.path.join("cookies", "terabox.txt")}
+# ---------------- Cookie Manager (like the OSINT bot's API Manager) ----------------
+from COMMANDS import cookie_store as cs  # noqa: E402
 
 
-def _save_shared_cookie(client, message, text, action) -> str:
-    dest = _COOKIE_FILES[action]
-    if text.lower() == "off":
-        if os.path.exists(dest):
-            os.remove(dest)
-        return f"{em('ok')} Shared cookie removed."
+def _ck_status(s) -> str:
+    if not s["on"]:
+        return "OFF"
+    if s.get("exp") and s["exp"] < time.time():
+        return "expired"
+    return "not working" if s.get("down") else "working"
+
+
+def _ckm_view():
+    rows, lines = [], []
+    for svc, (label, key, _cid, _need) in cs.SERVICES.items():
+        sl = cs.slots(svc)
+        live = sum(1 for s in sl if cs.usable(s))
+        lines.append(row(key, label, f"{live} working / {len(sl)} added"))
+        rows.append([btn(key, f"{label} · {live}/{len(sl)}", cb=f"ap|cks|{svc}", style=GREEN if live else BLUE)])
+    rows.append([btn("search", "Test All Now", cb="ap|ckchk", style=BLUE)])
+    text = card("lips", "COOKIE MANAGER", lines,
+                [f"{em('refresh')} A download uses Cookie-1. If it needs login, the bot tries Cookie-2, Cookie-3 … by itself.",
+                 f"{em('warn')} 5 failures in a row → that cookie is skipped and you get a DM.",
+                 f"{em('laptop')} Every {cs.CHECK_EVERY_HOURS}h the bot checks all cookies and DMs you before one expires."],
+                footer=f"{em('down')} <b>Tap a platform:</b>  green = has a working cookie, blue = none")
+    return text, _back_kb(rows)
+
+
+def _cks_view(svc):
+    label, key, _cid, need = cs.SERVICES[svc]
+    sl = cs.slots(svc)
+    lines = [f"{em('ok' if cs.usable(s) else 'warn')} Cookie-{n}: {_ck_status(s)} · {cs.exp_text(s.get('exp'))}"
+             for n, s in enumerate(sl, 1)] or ["<i>No cookie yet. Tap Add Cookies.</i>"]
+    rows, r = [], []
+    for n, s in enumerate(sl, 1):
+        r.append(btn("ok" if cs.usable(s) else "warn", f"Cookie-{n}", cb=f"ap|ckv|{svc}|{s['id']}",
+                     style=GREEN if cs.usable(s) else RED))
+        if len(r) == 3:
+            rows.append(r)
+            r = []
+    if r:
+        rows.append(r)
+    if len(sl) < cs.MAX_SLOTS:
+        rows.append([btn("plus", f"Add Cookies ({len(sl)}/{cs.MAX_SLOTS})", cb=f"ap|cka|{svc}", style=GREEN)])
+    text = card(key, f"{label.upper()} COOKIES", lines,
+                [f"{em('memo')} Needs a logged-in cookies.txt (login cookie: <code>{' / '.join(need)}</code>).",
+                 f"{em('lips')} Use spare accounts, not your main one."])
+    return text, _back_kb(rows, back="ap|ckm")
+
+
+def _ckv_view(svc, sid):
+    sl = cs.slots(svc)
+    n, s = next(((i, x) for i, x in enumerate(sl, 1) if x["id"] == sid), (None, None))
+    if s is None:
+        return _cks_view(svc)
+    label = cs.SERVICES[svc][0]
+    added = datetime.fromtimestamp(s.get("added", 0), IST).strftime("%d %b %Y")
+    text = card(cs.SERVICES[svc][1], f"{label.upper()} · COOKIE-{n}", [
+        row("ok" if cs.usable(s) else "warn", "Status", _ck_status(s)),
+        row("bolt", "Order", f"{n} of {len(sl)}"),
+        row("laptop", "Expiry", cs.exp_text(s.get("exp"))),
+        row("warn", "Failures in a row", s.get("fails", 0)),
+        row("memo", "Added", added)])
+    kb = [[btn("ok" if s["on"] else "ban", f"Cookie-{n}: {'ON' if s['on'] else 'OFF'} (tap to turn {'OFF' if s['on'] else 'ON'})",
+               cb=f"ap|ckt|{svc}|{sid}", style=GREEN if s["on"] else RED)],
+          [btn("search", "Test Now", cb=f"ap|cktest|{svc}|{sid}", style=BLUE),
+           btn("refresh", "Replace", cb=f"ap|ckr|{svc}|{sid}", style=BLUE)],
+          [btn("trash", "Delete", cb=f"ap|ckd|{svc}|{sid}", style=RED)]]
+    return text, _back_kb(kb, back=f"ap|cks|{svc}")
+
+
+def _cookie_input(client, message, uid, action):
+    """Files sent after Add Cookies (up to 10 at once, album or one by one) or Replace."""
+    kind, svc, *rest = action.split(":")
+    text = (message.text or "").strip().lower()
+    done_kb = InlineKeyboardMarkup([[btn("ok", "Done", cb=f"ap|cks|{svc}", style=GREEN)]])
+    if text in ("done", "stop", "cancel"):
+        _input.pop(uid, None)
+        send(client, uid, lambda: _cks_view(svc))
+        return
     doc = message.document
-    if not doc or (doc.file_size or 0) > 1024 * 1024:
-        return f"{em('warn')} Send a cookies <b>.txt</b> file (max 1 MB)."
-    os.makedirs("cookies", exist_ok=True)
-    tmp = dest + ".upload"
+    if not doc:
+        send(client, uid, lambda: (f"{em('warn')} Send <b>cookies.txt</b> files, or tap Done.", done_kb))
+        return
+    name = escape((doc.file_name or "file")[:40])
+    if (doc.file_size or 0) > 1024 * 1024:
+        send(client, uid, lambda: (f"{em('warn')} {name}: too big (max 1 MB).", done_kb))
+        return
+    tmp = os.path.join(cs.ROOT, f".upload_{uid}_{message.id}")
+    os.makedirs(cs.ROOT, exist_ok=True)
     try:
         client.download_media(message, file_name=tmp)
         with open(tmp, "r", encoding="utf-8", errors="ignore") as f:
             content = f.read()
-        rows = [l for l in content.splitlines() if l and not l.startswith("#") and len(l.split("\t")) == 7]
-        if not rows:
-            return f"{em('warn')} Not a Netscape cookies.txt file."
-        if action == "cktb" and not any(r.split("\t")[5] == "ndus" for r in rows):
-            return f"{em('warn')} No <code>ndus</code> cookie: log in to TeraBox in the browser, then export again."
-        os.replace(tmp, dest)  # atomic swap; old file stays if anything above failed
-        return f"{em('ok')} Shared cookie saved ({len(rows)} cookies)."
     finally:
         if os.path.exists(tmp):
             os.remove(tmp)
+    ok, msg, n = cs.add(svc, content, replace_id=rest[0] if kind == "ckrep" and rest else None)
+    label = cs.SERVICES[svc][0]
+    if ok:
+        exp = next((s.get("exp") for s in cs.slots(svc)[n - 1:n]), 0)
+        line = f"{em('ok')} {label} Cookie-{n} {'replaced' if kind == 'ckrep' else 'saved'} · {cs.exp_text(exp)}"
+    else:
+        line = f"{em('warn')} {name}: {escape(msg)}"
+    full = len(cs.slots(svc)) >= cs.MAX_SLOTS
+    if kind == "ckrep" or full:
+        _input.pop(uid, None)
+        note = f"\n{em('memo')} {cs.MAX_SLOTS} cookies reached." if full and kind != "ckrep" else ""
+        send(client, uid, lambda: (line + note, _back_kb(back=f"ap|cks|{svc}")))
+    else:
+        send(client, uid, lambda: (line, done_kb))
 
 
 def _awaiting_input(_, __, m) -> bool:
@@ -815,6 +885,9 @@ def handle_command(client, message, cmd) -> bool:
 
 
 # ---------------- callbacks ----------------
+class _Done(Exception):
+    """Screen already handled inside a branch."""
+
 @app.on_callback_query(filters.regex(r"^ap\|"), group=-1)
 def admin_callbacks(client, cq):
     uid = cq.from_user.id
@@ -865,6 +938,53 @@ def admin_callbacks(client, cq):
             note = _remove_admin(client, arg)
             text, kb = _remove_admin_view()
             edit(client, msg, lambda: (note + "\n\n" + text, kb))
+        elif action == "ckm":
+            _input.pop(uid, None)
+            edit(client, msg, _ckm_view)
+        elif action == "cks" and arg in cs.SERVICES:
+            _input.pop(uid, None)
+            edit(client, msg, lambda: _cks_view(arg))
+        elif action in ("ckv", "ckt", "ckd", "ckdx", "ckr", "cktest") and arg in cs.SERVICES and len(parts) == 4:
+            sid = parts[3]
+            if action == "ckt":
+                cs.toggle(arg, sid)
+            elif action == "ckdx":
+                cs.delete(arg, sid)
+                cq.answer("Deleted")
+                edit(client, msg, lambda: _cks_view(arg))
+                raise _Done
+            elif action == "ckd":
+                edit(client, msg, lambda: (f"{em('warn')} <b>Delete this {cs.SERVICES[arg][0]} cookie?</b>",
+                                           InlineKeyboardMarkup([[btn("trash", "Yes, Delete", cb=f"ap|ckdx|{arg}|{sid}", style=RED),
+                                                                  btn("back", "No", cb=f"ap|ckv|{arg}|{sid}", style=BLUE)]])))
+                raise _Done
+            elif action == "ckr":
+                _input[uid] = f"ckrep:{arg}:{sid}"
+                edit(client, msg, lambda: (f"{em('refresh')} Send the new <b>{cs.SERVICES[arg][0]} cookies.txt</b> for this slot.",
+                                           InlineKeyboardMarkup([[btn("back", "Cancel", cb=f"ap|ckv|{arg}|{sid}", style=RED)]])))
+                raise _Done
+            elif action == "cktest":
+                cq.answer("Testing…")
+                ok, why = cs.test_slot(arg, sid)
+                cq.answer(("✅ " if ok else "❌ ") + why, show_alert=True)
+            edit(client, msg, lambda: _ckv_view(arg, sid))
+        elif action == "cka" and arg in cs.SERVICES:
+            if len(cs.slots(arg)) >= cs.MAX_SLOTS:
+                cq.answer(f"Max {cs.MAX_SLOTS} cookies. Delete one first.", show_alert=True)
+            else:
+                _input[uid] = f"ckadd:{arg}"
+                label = cs.SERVICES[arg][0]
+                edit(client, msg, lambda: (card("plus", f"ADD {label.upper()} COOKIES", [
+                    f"Send up to <b>{cs.MAX_SLOTS - len(cs.slots(arg))}</b> cookies.txt files — all together or one by one.",
+                    f"1. Log in to {label} in Chrome (spare account)",
+                    "2. Get cookies.txt LOCALLY → Export",
+                    "3. Send the file here. Repeat for each account."], footer=f"{em('ok')} Tap <b>Done</b> when finished."),
+                    InlineKeyboardMarkup([[btn("ok", "Done", cb=f"ap|cks|{arg}", style=GREEN)]])))
+        elif action == "ckchk":
+            cq.answer("Testing all cookies…")
+            lines = cs.check_all(alert=False)
+            edit(client, msg, lambda: (card("search", "COOKIE TEST", lines or ["<i>No cookies added.</i>"]),
+                                       _back_kb(back="ap|ckm")))
         elif action == "bc":
             if _bc_job["on"]:
                 cq.answer("A broadcast is already running", show_alert=True)
@@ -906,6 +1026,8 @@ def admin_callbacks(client, cq):
                 cq.answer("Deleting…")
                 edit(client, msg, lambda: (_del_card(small_caps("Deleting broadcast..."), 0, len(rec.get("items") or []), 0, 0), None))
                 threading.Thread(target=_delete_broadcast, args=(client, rec, msg), daemon=True).start()
+    except _Done:
+        pass
     except Exception as exc:
         if "MESSAGE_NOT_MODIFIED" not in str(exc):
             logger.warning(f"[admin] callback {cq.data} failed: {exc}")
