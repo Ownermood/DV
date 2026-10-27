@@ -61,3 +61,16 @@ def test_with_cookiefile_sets_last_opts_dict():
     from COMMANDS.cookies_cmd import _with_cookiefile
     assert _with_cookiefile(("u", {"format": "b"}), "/c.txt") == ("u", {"format": "b", "cookiefile": "/c.txt"})
     assert _with_cookiefile(("u", 3), "/c.txt") == ("u", 3)
+
+
+def test_only_site_drops_other_sites():
+    from COMMANDS import cookie_store as cs
+    raw = ("# Netscape HTTP Cookie File\n"
+           ".youtube.com\tTRUE\t/\tTRUE\t1900000000\tSAPISID\tx\n"
+           ".claude.ai\tTRUE\t/\tTRUE\t1900000000\tsessionKey\tsecret\n"
+           ".github.com\tTRUE\t/\tTRUE\t1900000000\t_octo\ty\n"
+           ".www.1024terabox.com\tTRUE\t/\tTRUE\t1900000000\tndus\tz\n")
+    yt = cs.only_site("youtube", raw)
+    assert "SAPISID" in yt and "sessionKey" not in yt and "_octo" not in yt and "ndus" not in yt
+    tb = cs.only_site("terabox", raw)
+    assert "ndus" in tb and "SAPISID" not in tb

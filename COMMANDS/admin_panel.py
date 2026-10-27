@@ -26,6 +26,9 @@ from CONFIG.config import Config
 from COMMANDS import activity
 from COMMANDS.ui_kit import (btn, em, send, edit, state_get, state_set, premium_on, card, row, heading,
                              small_caps, SEP, BOT_TITLE, BLUE, GREEN, RED)
+from pyrogram.enums import ButtonStyle
+
+PLAIN = ButtonStyle.DEFAULT  # navigation; GREEN = add / send / working, RED = delete / stop / not working
 from HELPERS.app_instance import get_app
 from HELPERS.logger import logger
 
@@ -208,18 +211,18 @@ def _home():
                  row("laptop", "Uptime", _fmt_dur(time.time() - _START_TS))],
                 footer=f"{em('down')} <b>Choose a section:</b>")
     kb = InlineKeyboardMarkup([
-        [btn("laptop", "Bot Stats", cb="ap|stats", style=BLUE), btn("hug", "Users Stats", cb="ap|ustats", style=BLUE)],
-        [btn("chat", "Broadcast", cb="ap|bc", style=GREEN), btn("trash", "Delete Broadcast", cb="ap|dbl", style=RED)],
-        [btn("crown", "Admins", cb="ap|admins", style=GREEN), btn("folder", "Users", cb="ap|sec|users", style=BLUE)],
-        [btn("lips", "Cookie Manager", cb="ap|ckm", style=GREEN), btn("stars", "Settings", cb="ap|sec|settings", style=BLUE)],
-        [btn("exit", "Close", cb="ap|close", style=RED)],
+        [btn("laptop", "Bot Stats", cb="ap|stats", style=PLAIN), btn("hug", "Users Stats", cb="ap|ustats", style=PLAIN)],
+        [btn("chat", "Broadcast", cb="ap|bc", style=PLAIN), btn("trash", "Delete Broadcast", cb="ap|dbl", style=PLAIN)],
+        [btn("crown", "Admins", cb="ap|admins", style=PLAIN), btn("folder", "Users", cb="ap|sec|users", style=PLAIN)],
+        [btn("lips", "Cookie Manager", cb="ap|ckm", style=PLAIN), btn("stars", "Settings", cb="ap|sec|settings", style=PLAIN)],
+        [btn("exit", "Close", cb="ap|close", style=PLAIN)],
     ])
     return text, kb
 
 
 def _back_kb(extra=None, back="ap|home"):
     rows = list(extra or [])
-    rows.append([btn("back", "Back", cb=back, style=RED)])
+    rows.append([btn("back", "Back", cb=back, style=PLAIN)])
     return InlineKeyboardMarkup(rows)
 
 
@@ -253,8 +256,8 @@ def _bot_stats():
                  row("box", "Running now", _running_downloads())],
                 heading("laptop", "System"), sys_rows,
                 footer=_tracking_note(act) + _footer())
-    return text, _back_kb([[btn("refresh", "Refresh", cb="ap|stats", style=GREEN),
-                            btn("hug", "Users Stats", cb="ap|ustats", style=BLUE)]])
+    return text, _back_kb([[btn("refresh", "Refresh", cb="ap|stats", style=PLAIN),
+                            btn("hug", "Users Stats", cb="ap|ustats", style=PLAIN)]])
 
 
 def _users_stats():
@@ -275,17 +278,17 @@ def _users_stats():
                  row("warn", "Inactive 7 days+", max(0, act["tracked"] - act["active"][1])),
                  row("question", "No activity yet", max(0, total - act["tracked"]))],
                 footer=_tracking_note(act) + _footer())
-    return text, _back_kb([[btn("refresh", "Refresh", cb="ap|ustats", style=GREEN),
-                            btn("laptop", "Bot Stats", cb="ap|stats", style=BLUE)]])
+    return text, _back_kb([[btn("refresh", "Refresh", cb="ap|ustats", style=PLAIN),
+                            btn("laptop", "Bot Stats", cb="ap|stats", style=PLAIN)]])
 
 
 SECTIONS = {
     "users": ("folder", "Users", "Block or unblock a user, export the user list, clear a cached URL.", [
         ("ban", "Block", "ap|ask|block", RED), ("ok", "Unblock", "ap|ask|unblock", GREEN),
-        ("file", "Users List", "ap|users", BLUE), ("refresh", "Uncache URL", "ap|ask|uncache", BLUE)]),
+        ("file", "Users List", "ap|users", PLAIN), ("refresh", "Uncache URL", "ap|ask|uncache", PLAIN)]),
     "settings": ("stars", "Settings", "Start photo and premium emoji. Cookies: Admin Panel → Cookie Manager.", [
-        ("image", "Start Image", "ap|ask|startimg", BLUE), ("stars", "Premium Emoji", "ap|prem", GREEN),
-        ("lips", "Cookie Manager", "ap|ckm", GREEN)]),
+        ("image", "Start Image", "ap|ask|startimg", PLAIN), ("stars", "Premium Emoji", "ap|prem", GREEN),
+        ("lips", "Cookie Manager", "ap|ckm", PLAIN)]),
 }
 
 
@@ -357,7 +360,7 @@ def open_panel(client, chat_id, msg=None):
 def _ask(client, msg, uid, action):
     _input[uid] = action
     edit(client, msg, lambda: (f"{em('memo')} {_ASK[action]}", InlineKeyboardMarkup(
-        [[btn("back", "Cancel", cb=_ASK_BACK.get(action, "ap|home"), style=RED)]])))
+        [[btn("back", "Cancel", cb=_ASK_BACK.get(action, "ap|home"), style=PLAIN)]])))
 
 
 def _legacy(client, uid, text, fn_name):
@@ -401,7 +404,7 @@ def _welcome_admin(client, uid, name_html) -> bool:
             f"<blockquote>𝙶𝚕𝚊𝚍 𝚝𝚘 𝚑𝚊𝚟𝚎 𝚢𝚘𝚞 𝚊𝚜 𝚊𝚗 𝙰𝚍𝚖𝚒𝚗 𝚘𝚏 {BOT_TITLE} | 𝚆𝚎𝚕𝚌𝚘𝚖𝚎 𝚝𝚘 𝚝𝚑𝚎 𝙵𝚊𝚖𝚒𝚕𝚢 ♡ {em('love')}</blockquote>\n"
             f"<blockquote>{em('bolt')} Tap the button below or send /admin to open the Admin Panel.\n"
             f"{em('stars')} It also shows on /start.</blockquote>")
-    kb = InlineKeyboardMarkup([[btn("laptop", "Open Admin Panel", cb="ap|home", style=GREEN)]])
+    kb = InlineKeyboardMarkup([[btn("laptop", "Open Admin Panel", cb="ap|home", style=PLAIN)]])
     try:
         send(client, uid, lambda: (text, kb))
         return True
@@ -492,13 +495,13 @@ def _ckm_view():
         sl = cs.slots(svc)
         live = sum(1 for s in sl if cs.usable(s))
         lines.append(row(key, label, f"{live} working / {len(sl)} added"))
-        rows.append([btn(key, f"{label} · {live}/{len(sl)}", cb=f"ap|cks|{svc}", style=GREEN if live else BLUE)])
-    rows.append([btn("search", "Test All Now", cb="ap|ckchk", style=BLUE)])
+        rows.append([btn(key, f"{label} · {live}/{len(sl)}", cb=f"ap|cks|{svc}", style=PLAIN)])
+    rows.append([btn("search", "Test All Now", cb="ap|ckchk", style=PLAIN)])
     text = card("lips", "COOKIE MANAGER", lines,
                 [f"{em('refresh')} A download uses Cookie-1. If it needs login, the bot tries Cookie-2, Cookie-3 … by itself.",
                  f"{em('warn')} 5 failures in a row → that cookie is skipped and you get a DM.",
                  f"{em('laptop')} Every {cs.CHECK_EVERY_HOURS}h the bot checks all cookies and DMs you before one expires."],
-                footer=f"{em('down')} <b>Tap a platform:</b>  green = has a working cookie, blue = none")
+                footer=f"{em('down')} <b>Tap a platform:</b>  the number shows working / added cookies")
     return text, _back_kb(rows)
 
 
@@ -539,8 +542,8 @@ def _ckv_view(svc, sid):
         row("memo", "Added", added)])
     kb = [[btn("ok" if s["on"] else "ban", f"Cookie-{n}: {'ON' if s['on'] else 'OFF'} (tap to turn {'OFF' if s['on'] else 'ON'})",
                cb=f"ap|ckt|{svc}|{sid}", style=GREEN if s["on"] else RED)],
-          [btn("search", "Test Now", cb=f"ap|cktest|{svc}|{sid}", style=BLUE),
-           btn("refresh", "Replace", cb=f"ap|ckr|{svc}|{sid}", style=BLUE)],
+          [btn("search", "Test Now", cb=f"ap|cktest|{svc}|{sid}", style=PLAIN),
+           btn("refresh", "Replace", cb=f"ap|ckr|{svc}|{sid}", style=PLAIN)],
           [btn("trash", "Delete", cb=f"ap|ckd|{svc}|{sid}", style=RED)]]
     return text, _back_kb(kb, back=f"ap|cks|{svc}")
 
@@ -582,9 +585,17 @@ def _cookie_input(client, message, uid, action):
     if kind == "ckrep" or full:
         _input.pop(uid, None)
         note = f"\n{em('memo')} {cs.MAX_SLOTS} cookies reached." if full and kind != "ckrep" else ""
-        send(client, uid, lambda: (line + note, _back_kb(back=f"ap|cks|{svc}")))
+        kb = _back_kb(back=f"ap|cks|{svc}")
     else:
-        send(client, uid, lambda: (line, done_kb))
+        note, kb = "", done_kb
+    sent = send(client, uid, lambda: (line + note + (f"\n{em('search')} Testing…" if ok and svc == "youtube" else ""), kb))
+    if ok and svc == "youtube" and sent:  # live test right away, so a dead cookie is caught now
+        sid = cs.slots(svc)[n - 1]["id"]
+
+        def run():
+            good, why = cs.test_slot(svc, sid)
+            edit(client, sent, lambda: (line + note + f"\n{em('ok' if good else 'warn')} Test: {escape(why)}", kb))
+        threading.Thread(target=run, daemon=True).start()
 
 
 def _awaiting_input(_, __, m) -> bool:
@@ -617,8 +628,8 @@ def _make_draft(client, uid, src):
         row("hug", "Will be sent to", f"{total} users"),
         row("ok", "Forward tag", "no · copied exactly, premium emojis kept")]),
         InlineKeyboardMarkup([[btn("ok", "Send", cb="ap|bcgo|0", style=GREEN),
-                               btn("plus", "Send + Pin", cb="ap|bcgo|1", style=BLUE)],
-                              [btn("back", "Cancel", cb="ap|home", style=RED)]])),
+                               btn("plus", "Send + Pin", cb="ap|bcgo|1", style=PLAIN)],
+                              [btn("back", "Cancel", cb="ap|home", style=PLAIN)]])),
          reply_to_message_id=src.id)
 
 
@@ -778,7 +789,7 @@ def _delete_confirm(rec):
         row("laptop", "Sent", _when(rec["ts"])),
         row("hug", "Removed from", f"{len(rec.get('items') or [])} chats"), warn])
     kb = InlineKeyboardMarkup([[btn("trash", "Confirm Delete", cb=f"ap|dbx|{rec['id']}", style=RED),
-                                btn("back", "Cancel", cb="ap|dbl", style=BLUE)]])
+                                btn("back", "Cancel", cb="ap|dbl", style=PLAIN)]])
     return text, kb
 
 
@@ -943,7 +954,7 @@ def admin_callbacks(client, cq):
             edit(client, msg, lambda: (card("warn", "REMOVE THIS ADMIN?", [
                 row("hug", "Name", _admin_name(arg)), row("memo", "User ID", f"<code>{arg}</code>")]),
                 InlineKeyboardMarkup([[btn("trash", "Yes, Remove", cb=f"ap|rmx|{arg}", style=RED),
-                                       btn("back", "No", cb="ap|rml", style=BLUE)]])))
+                                       btn("back", "No", cb="ap|rml", style=PLAIN)]])))
         elif action == "rmx" and arg and _is_owner(uid):
             note = _remove_admin(client, arg)
             text, kb = _remove_admin_view()
@@ -966,17 +977,23 @@ def admin_callbacks(client, cq):
             elif action == "ckd":
                 edit(client, msg, lambda: (f"{em('warn')} <b>Delete this {cs.SERVICES[arg][0]} cookie?</b>",
                                            InlineKeyboardMarkup([[btn("trash", "Yes, Delete", cb=f"ap|ckdx|{arg}|{sid}", style=RED),
-                                                                  btn("back", "No", cb=f"ap|ckv|{arg}|{sid}", style=BLUE)]])))
+                                                                  btn("back", "No", cb=f"ap|ckv|{arg}|{sid}", style=PLAIN)]])))
                 raise _Done
             elif action == "ckr":
                 _input[uid] = f"ckrep:{arg}:{sid}"
                 edit(client, msg, lambda: (f"{em('refresh')} Send the new <b>{cs.SERVICES[arg][0]} cookies.txt</b> for this slot.",
-                                           InlineKeyboardMarkup([[btn("back", "Cancel", cb=f"ap|ckv|{arg}|{sid}", style=RED)]])))
+                                           InlineKeyboardMarkup([[btn("back", "Cancel", cb=f"ap|ckv|{arg}|{sid}", style=PLAIN)]])))
                 raise _Done
-            elif action == "cktest":
+            elif action == "cktest":  # live test can take ~20 s: answer now, show the result on the card
                 cq.answer("Testing…")
-                ok, why = cs.test_slot(arg, sid)
-                cq.answer(("✅ " if ok else "❌ ") + why, show_alert=True)
+                edit(client, msg, lambda: (f"{em('search')} <b>Testing {cs.SERVICES[arg][0]} cookie…</b>", None))
+
+                def run(svc=arg, slot=sid):
+                    ok, why = cs.test_slot(svc, slot)
+                    text, kb = _ckv_view(svc, slot)
+                    edit(client, msg, lambda: (f"{em('ok' if ok else 'warn')} <b>Test: {escape(why)}</b>\n\n" + text, kb))
+                threading.Thread(target=run, daemon=True).start()
+                raise _Done
             edit(client, msg, lambda: _ckv_view(arg, sid))
         elif action == "cka" and arg in cs.SERVICES:
             if len(cs.slots(arg)) >= cs.MAX_SLOTS:
@@ -992,9 +1009,13 @@ def admin_callbacks(client, cq):
                     InlineKeyboardMarkup([[btn("ok", "Done", cb=f"ap|cks|{arg}", style=GREEN)]])))
         elif action == "ckchk":
             cq.answer("Testing all cookies…")
-            lines = cs.check_all(alert=False)
-            edit(client, msg, lambda: (card("search", "COOKIE TEST", lines or ["<i>No cookies added.</i>"]),
-                                       _back_kb(back="ap|ckm")))
+            edit(client, msg, lambda: (f"{em('search')} <b>Testing all cookies…</b>", None))
+
+            def run_all():
+                lines = cs.check_all(alert=False)
+                edit(client, msg, lambda: (card("search", "COOKIE TEST", lines or ["<i>No cookies added.</i>"]),
+                                           _back_kb(back="ap|ckm")))
+            threading.Thread(target=run_all, daemon=True).start()
         elif action == "bc":
             if _bc_job["on"]:
                 cq.answer("A broadcast is already running", show_alert=True)

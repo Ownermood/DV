@@ -474,6 +474,57 @@ def _run_choice(client, message, choice, picks=None) -> None:
         message.text = original
 
 
+# ---------------- many links: one-by-one queue ----------------
+MAX_QUEUE = 20
+_queues = {}            # user id -> [(message copy, url), ...]
+_queue_lock = threading.Lock()
+
+
+def _queue_links(client, message, links) -> None:
+    import copy
+    uid = message.chat.id
+    ok = [u for u in links if detect_platform(u)]
+    bad = len(links) - len(ok)
+    with _queue_lock:
+        q = _queues.get(uid)
+        running = q is not None
+        q = q if running else []
+        room = max(0, MAX_QUEUE - len(q))
+        for u in ok[:room]:
+            m = copy.copy(message)
+            m.text = u
+            q.append((m, u))
+        _queues[uid] = q
+        waiting = len(q)
+    skipped = len(ok) - min(len(ok), room)
+    lines = [f"{em('down')} <b>{min(len(ok), room)} link(s) added to your queue</b>",
+             "<blockquote>" + "\n".join(f"{i}. {platform_icon(detect_platform(u)[0])} {html.escape(u[:60])}"
+                                       for i, u in enumerate(ok[:room], 1)) + "</blockquote>" if ok[:room] else "",
+             f"{em('bolt')} Best quality, one by one. In queue: <b>{waiting}</b>",
+             f"{em('warn')} {bad} unsupported link(s) skipped." if bad else "",
+             f"{em('warn')} Queue is full (max {MAX_QUEUE}), {skipped} link(s) skipped." if skipped else ""]
+    send(client, uid, lambda: ("\n".join(x for x in lines if x), None), reply_to_message_id=message.id)
+    if ok[:room] and not running:
+        threading.Thread(target=_run_queue, args=(client, uid), daemon=True).start()
+
+
+def _run_queue(client, uid) -> None:
+    try:
+        while True:
+            with _queue_lock:
+                q = _queues.get(uid) or []
+                if not q:
+                    _queues.pop(uid, None)
+                    return
+                m, url = q.pop(0)
+            activity.download(uid)
+            _run_choice(client, m, "b")   # waits until this link is sent
+    except Exception as exc:
+        logger.error(f"[ui] queue for {uid} stopped: {exc}")
+        with _queue_lock:
+            _queues.pop(uid, None)
+
+
 def _send_thumbnail(client, message) -> None:
     from DATABASE.firebase_init import is_user_blocked
     from HELPERS.limitter import is_user_in_channel
@@ -559,6 +610,11 @@ def front_door(client, message):
         if admin or text in ("",):
             return
         send(client, chat_id, lambda: (t(chat_id, "send_link"), None))
+        message.stop_propagation()
+
+    links = list(dict.fromkeys(m.group(0).rstrip(").,]") for m in _URL_RE.finditer(text)))
+    if len(links) > 1 or chat_id in _queues:  # many links (or a queue running): queue, best quality, one by one
+        _queue_links(client, message, links)
         message.stop_propagation()
 
     found = detect_platform(text)

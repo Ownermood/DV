@@ -102,8 +102,34 @@ def _fingerprint(service, cookies: dict) -> str:
     return hashlib.sha256(key.encode()).hexdigest()[:16]
 
 
+# Only these sites' lines are kept from an uploaded cookies.txt ("Export All" files carry every site's logins)
+DOMAINS = {
+    "youtube": ("youtube.com", "google.com"),
+    "instagram": ("instagram.com",),
+    "facebook": ("facebook.com", "fb.com"),
+    "terabox": ("terabox", "1024tera", "teraboxapp", "freeterabox", "4funbox", "mirrobox", "nephobox", "momerybox",
+                "tibibox", "teraboxlink", "terasharelink", "1024terabox"),
+}
+
+
+def only_site(service, content: str) -> str:
+    """Header + the cookie lines of this platform's domains."""
+    keep = ["# Netscape HTTP Cookie File"]
+    doms = DOMAINS.get(service, ())
+    for line in (content or "").splitlines():
+        host = line[len("#HttpOnly_"):] if line.startswith("#HttpOnly_") else line
+        if not host or host.startswith("#"):
+            continue
+        h = host.split("\t", 1)[0].lstrip(".").lower()
+        # TeraBox has many mirror domains (terabox.app, 1024terabox.com …): substring match there
+        if any((d in h) if service == "terabox" else (h == d or h.endswith("." + d)) for d in doms):
+            keep.append(line)
+    return "\n".join(keep) + "\n"
+
+
 # ---------------- add / change ----------------
 def _add(service, content, data, replace_id=None):
+    content = only_site(service, content)
     cookies = parse(content)
     if not cookies:
         return False, "Not a Netscape cookies.txt file.", None
@@ -260,12 +286,34 @@ def test_slot(service, slot_id):
     if exp and exp < time.time():
         return False, "expired"
     if service == "youtube":
-        try:
-            from COMMANDS.cookies_cmd import test_youtube_cookies
-            return (True, "working") if test_youtube_cookies(p) else (False, "YouTube says logged out")
-        except Exception as exc:
-            return False, f"test error: {str(exc)[:60]}"
+        return _youtube_live(p)
     return True, "login cookie present"
+
+
+def _youtube_live(path):
+    """Real check: the cookie must give YouTube formats (a copy is used so yt-dlp can't rewrite the file)."""
+    import shutil
+    import tempfile
+    import yt_dlp
+    tmp = tempfile.NamedTemporaryFile(suffix=".txt", delete=False).name
+    try:
+        shutil.copyfile(path, tmp)
+        opts = {"quiet": True, "no_warnings": True, "skip_download": True, "noplaylist": True,
+                "socket_timeout": 20, "cookiefile": tmp}
+        with yt_dlp.YoutubeDL(opts) as ydl:
+            info = ydl.extract_info(os.getenv("YOUTUBE_COOKIE_TEST_URL") or "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+                                    download=False)
+        return (True, "working") if info and info.get("formats") else (False, "no formats")
+    except Exception as exc:
+        err = str(exc)
+        if "not a bot" in err or "Sign in" in err:
+            return False, "YouTube asks to sign in (cookie dead, export a fresh one)"
+        return False, f"test error: {err[:80]}"
+    finally:
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
 
 
 def check_all(alert=True) -> list:

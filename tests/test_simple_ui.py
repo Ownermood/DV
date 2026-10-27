@@ -230,3 +230,23 @@ def test_yt_preview_card():
     assert "1. 1080p — 3.4MB" in text and "MP3 — 301KB" in text and len(text) <= 1024
     rows = ui._choice_rows(1, "t", {1080: 1, 720: 1, 480: 1, 360: 1}, is_yt=True).inline_keyboard
     assert len(rows[0]) == 3 and "1080p • 1B" in rows[0][0].text and rows[0][0].style == ui.enums.ButtonStyle.DEFAULT
+
+
+def test_many_links_run_one_by_one(monkeypatch):
+    import threading
+    import types
+    done, sent = [], []
+    finished = threading.Event()
+
+    def fake_run(client, m, choice, picks=None):
+        done.append((m.text, choice))
+        if len(done) == 2:
+            finished.set()
+    monkeypatch.setattr(ui, "_run_choice", fake_run)
+    monkeypatch.setattr(ui, "send", lambda c, uid, build, **k: sent.append(build()[0]))
+    monkeypatch.setattr(ui.activity, "download", lambda uid: None)
+    msg = types.SimpleNamespace(chat=types.SimpleNamespace(id=7), id=1, text="")
+    ui._queue_links(None, msg, ["https://youtu.be/dQw4w9WgXcQ", "https://example.com/x", "https://pin.it/4abcd"])
+    assert finished.wait(5)
+    assert done == [("https://youtu.be/dQw4w9WgXcQ", "b"), ("https://pin.it/4abcd", "b")]
+    assert "2 link(s) added" in sent[0] and "1 unsupported" in sent[0]

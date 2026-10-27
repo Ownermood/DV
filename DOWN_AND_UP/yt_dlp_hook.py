@@ -99,7 +99,10 @@ def get_video_formats(url, user_id=None, playlist_start_index=1, cookies_already
         user_cookie_path = os.path.join(user_dir, "cookie.txt")
         
         # For YouTube URLs, check cookies on user's URL first, then get new ones if needed
-        if is_youtube_url(url) and not cookies_already_checked:
+        if is_youtube_url(url):  # Cookie Manager cookie directly (no slow per-link cookie tests)
+            from COMMANDS import cookie_store
+            cookie_file = cookie_store.first_active("youtube")
+        elif False:
             from COMMANDS.cookies_cmd import get_youtube_cookie_urls, test_youtube_cookies_on_url, _download_content
             
             # Always check existing cookies first on user's URL for maximum speed
