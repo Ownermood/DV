@@ -50,17 +50,6 @@ def test_edit_card_retries_without_premium(monkeypatch):
     assert len(calls) == 2 and "<emoji" not in calls[1]
 
 
-def test_race_track(monkeypatch):
-    _premium(monkeypatch, False)
-    a, b = ui.track(0), ui.track(0)
-    assert a != b and {a, b} == {"🏴‍☠️🏍━━━━━━━━━━ 🏆", "🏴‍☠️🏍┅━━━━━━━━━ 🏆"}  # the road ahead blinks
-    assert ui.track(100, "40 MB/s") == "🏴‍☠️━━━━━━━━━━🚘 🏆"
-    t = ui.track(50, "5 MB/s")
-    assert t.count("━") + t.count("┅") == 10
-    _premium(monkeypatch, True)
-    assert '<emoji id="6012815250733142455">🚘</emoji>' in ui.track(30, "20 MB/s")
-
-
 def test_moving_bar_changes_each_update():
     a, b = ui.bar(40, moving=True), ui.bar(40, moving=True)
     assert {a, b} == {"▰▰▱▱▱", "▰▰▰▱▱"}

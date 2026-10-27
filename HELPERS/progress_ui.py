@@ -1,12 +1,10 @@
 """Progress UI: one clean card for every download stage.
 
     <premium icon> <b>Downloading</b>
-    <blockquote><b>🏴‍☠️━━━━🏍━━━━━━ 🏆
-    40%
+    <blockquote><b>▰▰▱▱▱ 40%
     120 / 300 MB · 2.5 MB/s</b></blockquote>
 
-Downloading / uploading: a race track (the vehicle changes with the speed).
-Other stages: 5 blocks, moving in 20 % steps. Icons are premium (custom) emoji once Telegram has
+5 blocks, moving in 20 % steps; the next block blinks on every update. Icons are premium (custom) emoji once Telegram has
 accepted them for this bot (see COMMANDS/ui_kit.py), plain emoji before that.
 normalize_status() turns the old multi-line status texts ("Total Progress",
 "Downloading using format: …", "Please wait…") into this card.
@@ -73,44 +71,10 @@ def bar(percent: float, width: int = WIDTH, moving: bool = False) -> str:
     return text
 
 
-# Race track for downloading / uploading: 🏴‍☠️━━━━🏍━━━━━ 🏆 (premium animated emoji when allowed)
-TRACK = 10
-_FLAG = ("5116309444090661129", "🏴‍☠️")
-_TROPHY = ("5397766317514172743", "🏆")
-_SLOW = ("5233553654610413801", "🏍")    # under 2 MB/s
-_MID = ("5233492936657748232", "🏍")     # 2-15 MB/s
-_FAST = ("6012815250733142455", "🚘")    # over 15 MB/s
-_SPEED_RE = re.compile(r"([\d.]+)\s*MB/s")
-
-
-def _pe(emoji) -> str:
-    from COMMANDS.ui_kit import premium_on, state_get
-    cid, char = emoji
-    if premium_on() and state_get("premium_ok"):
-        return f'<emoji id="{cid}">{char}</emoji>'
-    return char
-
-
-def track(percent: float, detail: str = "") -> str:
-    """Start flag, the vehicle at its place, trophy; the vehicle depends on the speed in `detail`."""
-    p = max(0.0, min(100.0, float(percent or 0)))
-    pos = round(p * TRACK / 100)
-    m = _SPEED_RE.search(detail or "")
-    speed = float(m.group(1)) if m else 0.0
-    rider = _FAST if speed > 15 else _MID if speed >= 2 else _SLOW
-    ahead = TRACK - pos
-    road = ("┅" + "━" * (ahead - 1)) if ahead and _blink() else "━" * ahead  # the road ahead blinks
-    return f"{_pe(_FLAG)}{'━' * pos}{_pe(rider)}{road} {_pe(_TROPHY)}"
-
-
 def progress_card(kind: str, percent: float, process: str = "", detail: str = "") -> str:
     """The card. `process` (old status lines) is ignored; `detail` is one short plain line."""
     key, title = _KINDS[kind]
-    if kind in ("download", "upload"):
-        p = max(0.0, min(100.0, float(percent or 0)))
-        body = f"{track(p, detail)}\n{int(p)}%"
-    else:
-        body = f"{bar(percent, moving=True)} {step(percent)}%"
+    body = f"{bar(percent, moving=True)} {int(max(0.0, min(100.0, float(percent or 0))))}%"  # real %, bar in 20 % steps
     if detail:
         body += "\n" + _TAG_RE.sub("", str(detail))[:120]
     return f"{_icon(key)} <b>{title}</b>\n<blockquote><b>{body}</b></blockquote>"
