@@ -265,86 +265,9 @@ def start_auto_cache_reloader():
             )
     return auto_cache_thread
 
-def stop_auto_cache_reloader():
-    """Stop the auto-reload background thread."""
-    global auto_cache_enabled, auto_cache_thread
-    with _thread_lock:
-        auto_cache_enabled = False
-        if auto_cache_thread and auto_cache_thread.is_alive():
-            print("🛑 Auto Firebase cache reloader stopping...")
-        auto_cache_thread = None
 
-def set_auto_cache_enabled(enabled: bool):
-    """Enable/disable auto cache reloader safely."""
-    global auto_cache_enabled
-    with _thread_lock:
-        auto_cache_enabled = bool(enabled)
-        if auto_cache_enabled:
-            start_auto_cache_reloader()
-        else:
-            stop_auto_cache_reloader()
 
-def _persist_reload_interval_in_config(new_hours: int) -> bool:
-    """Write RELOAD_CACHE_EVERY = <new_hours> back to CONFIG/config.py.
-    Keeps formatting/comments around the assignment line intact where possible.
-    Also repairs previously corrupted lines if found.
-    """
-    messages = safe_get_messages(None)
-    try:
-        cfg_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'CONFIG', 'config.py')
-        if not os.path.exists(cfg_path):
-            logger.warning(LoggerMsg.DB_CONFIG_NOT_FOUND_LOG_MSG.format(path=cfg_path))
-            return False
-        with open(cfg_path, 'r', encoding='utf-8') as f:
-            content = f.read()
-        # 1) Repair accidentally corrupted backreference artifacts
-        #    e.g. a line like: \g<1>4\g<3>
-        content = re.sub(r"^\\g<1>\d+\\g<3>\s*$", "", content, flags=re.MULTILINE)
 
-        # 2) Replace existing assignment, preserving prefix/suffix
-        pattern = re.compile(r"^(\s*RELOAD_CACHE_EVERY\s*=\s*)(\d+)(\s*(#.*)?)$", re.MULTILINE)
-        def _repl(m: re.Match) -> str:
-            return f"{m.group(1)}{int(new_hours)}{m.group(3)}"
-        new_content, n_sub = pattern.subn(_repl, content)
-
-        if n_sub == 0:
-            # Append new assignment if not present
-            new_content = content.rstrip() + f"\nRELOAD_CACHE_EVERY = {int(new_hours)}  # in hours\n"
-
-        with open(cfg_path, 'w', encoding='utf-8') as f:
-            f.write(new_content)
-        logger.info(safe_get_messages().DB_RELOAD_CACHE_EVERY_PERSISTED_MSG.format(hours=int(new_hours)))
-        return True
-    except Exception as e:
-        logger.error(LoggerMsg.DB_FAILED_PERSIST_RELOAD_CACHE_EVERY_LOG_MSG.format(error=e))
-        return False
-
-def set_reload_interval_hours(new_hours: int) -> bool:
-    """Set a new reload interval in hours (1..168). Restarts the reloader if needed and persists to config.py."""
-    global reload_interval_hours
-    try:
-        new_val = int(new_hours)
-    except Exception:
-        return False
-    if new_val and new_val < 1 or new_val > 168:
-        return False
-    with _thread_lock:
-        reload_interval_hours = new_val
-        # Update in-memory Config for consistency
-        try:
-            setattr(Config, 'RELOAD_CACHE_EVERY', new_val)
-        except Exception:
-            pass
-        # Persist to CONFIG/config.py
-        _persist_reload_interval_in_config(new_val)
-        # Restart thread if running so new interval applies immediately
-        running = auto_cache_enabled
-        if running:
-            stop_auto_cache_reloader()
-            # preserve enabled state and start again
-            auto_cache_enabled = True
-            start_auto_cache_reloader()
-    return True
 
 def close_all_firebase_connections():
     """Close all Firebase connections to prevent file descriptor leaks"""
@@ -356,16 +279,6 @@ def close_all_firebase_connections():
     except Exception as e:
         print(f"❌ Error closing Firebase connections: {e}")
 
-def toggle_auto_cache_reloader():
-    """Toggle auto-reload mode, returns new state (True/False)."""
-    global auto_cache_enabled
-    with _thread_lock:
-        auto_cache_enabled = not auto_cache_enabled
-        if auto_cache_enabled:
-            start_auto_cache_reloader()
-        else:
-            stop_auto_cache_reloader()
-        return auto_cache_enabled
 
 # Load cache on module import
 load_firebase_cache()

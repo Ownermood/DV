@@ -104,54 +104,5 @@ def add_pot_to_ytdl_opts(ytdl_opts: dict, url: str) -> dict:
 
 
 
-def create_pot_debug_hook():
-    messages = safe_get_messages(None)
-    """
-    Create a yt-dlp hook that intercepts and logs PO tokens.
-    
-    Returns:
-        function: Hook function for yt-dlp
-    """
-    def pot_debug_hook(d):
-        messages = safe_get_messages(None)
-        """
-        Hook to intercept PO tokens in yt-dlp.
-        
-        Args:
-            d (dict): Download info dict
-        """
-        if d['status'] == 'downloading':
-            # Look for PO tokens in URL or headers
-            if 'url' in d:
-                url = d['url']
-                # Look for PO tokens in URL
-                pot_patterns = [
-                    r'po_token=([^&]+)',
-                    r'popt=([^&]+)',
-                    r'pot=([^&]+)',
-                    r'proof_of_origin=([^&]+)'
-                ]
-                
-                for pattern in pot_patterns:
-                    match = re.search(pattern, url)
-                    if match:
-                        token = match.group(1)
-                        logger.info(f"🎯 PO TOKEN DETECTED in URL: {token[:20]}...")
-                        logger.info(f"🔗 Full URL with PO token: {url}")
-                        break
-                
-                # Check headers for PO tokens
-                if 'http_headers' in d:
-                    headers = d['http_headers']
-                    for header_name, header_value in headers.items():
-                        if 'po' in header_name.lower() or 'token' in header_name.lower():
-                            logger.info(f"🎯 PO TOKEN in header {header_name}: {header_value}")
-        
-        elif d['status'] == 'finished':
-            # Log successful completion with PO tokens
-            messages = safe_get_messages()
-            logger.info(messages.HELPER_DOWNLOAD_FINISHED_PO_MSG)
-            
-    return pot_debug_hook
 
 

@@ -83,26 +83,8 @@ def load_user_prefs(user_id):
         pass
     return _default_prefs()
 
-def save_user_prefs(user_id, prefs):
-    messages = safe_get_messages(user_id)
-    user_dir = os.path.join("users", str(user_id))
-    create_directory(user_dir)
-    try:
-        with open(_prefs_path(user_id), "w", encoding="utf-8") as f:
-            json.dump(prefs, f, ensure_ascii=False, indent=2)
-    except Exception:
-        pass
 
-def get_user_codec_preference(user_id):
-    messages = safe_get_messages(user_id)
-    prefs = load_user_prefs(user_id)
-    return prefs.get("codec", "avc1")
 
-def set_user_codec_preference(user_id, codec):
-    messages = safe_get_messages(user_id)
-    prefs = load_user_prefs(user_id)
-    prefs["codec"] = codec
-    save_user_prefs(user_id, prefs)
 
 def get_user_mkv_preference(user_id):
     messages = safe_get_messages(user_id)
@@ -113,12 +95,6 @@ def get_user_mkv_preference(user_id):
     prefs = load_user_prefs(user_id)
     return bool(prefs.get("mkv", False))
 
-def toggle_user_mkv_preference(user_id):
-    messages = safe_get_messages(user_id)
-    prefs = load_user_prefs(user_id)
-    prefs["mkv"] = not bool(prefs.get("mkv", False))
-    save_user_prefs(user_id, prefs)
-    return prefs["mkv"]
 
 
 

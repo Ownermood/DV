@@ -76,54 +76,6 @@ def clear_input_state_timer(user_id: int, thread_id: int = None):
         # Clear timeout flag
         timeout_sent_dm.discard(user_id)
 
-def start_input_state_timer(user_id: int, thread_id: int = None):
-    messages = get_messages_instance(user_id)
-    """Start a 5-minute timer to auto-close input state"""
-    def auto_close():
-        messages = get_messages_instance(user_id)
-        # Check if timer still exists (not cancelled)
-        if thread_id:
-            if (user_id, thread_id) not in input_state_timers_topic:
-                return
-            # Check if timeout message already sent
-            if (user_id, thread_id) in timeout_sent_topic:
-                return
-            timeout_sent_topic.add((user_id, thread_id))
-        else:
-            if user_id not in input_state_timers_dm:
-                return
-            # Check if timeout message already sent
-            if user_id in timeout_sent_dm:
-                return
-            timeout_sent_dm.add(user_id)
-        
-        clear_input_state_timer(user_id, thread_id)
-        # Send notification to user only once
-        try:
-            messages = get_messages_instance(user_id)
-            safe_send_message(
-                user_id,
-                messages.ARGS_INPUT_TIMEOUT_MSG
-            )
-        except Exception as e:
-            messages = get_messages_instance(user_id)
-            logger.error(messages.ARGS_ERROR_SENDING_TIMEOUT_MSG.format(error=e))
-    
-    # Cancel existing timer if any
-    if thread_id:
-        existing_timer = input_state_timers_topic.get((user_id, thread_id))
-        if existing_timer:
-            existing_timer.cancel()
-        timer = threading.Timer(300, auto_close)  # 5 minutes = 300 seconds
-        input_state_timers_topic[(user_id, thread_id)] = timer
-    else:
-        existing_timer = input_state_timers_dm.get(user_id)
-        if existing_timer:
-            existing_timer.cancel()
-        timer = threading.Timer(300, auto_close)  # 5 minutes = 300 seconds
-        input_state_timers_dm[user_id] = timer
-    
-    timer.start()
 
 # Available yt-dlp parameters with their types and options
 # Note: descriptions will be loaded dynamically in functions
@@ -604,143 +556,12 @@ def get_args_menu_keyboard(user_id: int) -> InlineKeyboardMarkup:
     
     return InlineKeyboardMarkup(buttons)
 
-def get_boolean_menu_keyboard(param_name: str, current_value: bool, user_id: int = None) -> InlineKeyboardMarkup:
-    """Generate boolean parameter menu keyboard"""
-    messages = get_messages_instance(user_id)
-    buttons = [
-        [InlineKeyboardButton(
-            messages.ARGS_TRUE_BUTTON_MSG,
-            callback_data=f"args_bool_{param_name}_true"
-        )],
-        [InlineKeyboardButton(
-            messages.ARGS_FALSE_BUTTON_MSG, 
-            callback_data=f"args_bool_{param_name}_false"
-        )],
-        [InlineKeyboardButton(messages.ARGS_BACK_BUTTON_MSG, callback_data="args_back")]
-    ]
-    return InlineKeyboardMarkup(buttons)
 
-def get_select_menu_keyboard(param_name: str, current_value: str, user_id: int = None) -> InlineKeyboardMarkup:
-    """Generate select parameter menu keyboard"""
-    messages = get_messages_instance(user_id)
-    param_config = YTDLP_PARAMS[param_name]
-    options = param_config["options"]
-    
-    buttons = []
-    for option in options:
-        status = messages.ARGS_STATUS_SELECTED_MSG if option == current_value else messages.ARGS_STATUS_UNSELECTED_MSG
-        buttons.append([InlineKeyboardButton(
-            f"{status} {option}",
-            callback_data=f"args_select_{param_name}_{option}"
-        )])
-    
-    buttons.append([InlineKeyboardButton(messages.ARGS_BACK_BUTTON_MSG, callback_data="args_back")])
-    return InlineKeyboardMarkup(buttons)
 
-def get_text_input_message(param_name: str, current_value: str, user_id: int = None) -> str:
-    """Generate text input message"""
-    messages = get_messages_instance(user_id)
-    param_config = YTDLP_PARAMS[param_name]
-    placeholder = param_config.get("placeholder", "")
-    
-    description = get_param_description(param_config, param_name, messages)
-    message = messages.ARGS_PARAM_DESCRIPTION_MSG.format(description=description)
-    if current_value:
-        message += messages.ARGS_CURRENT_VALUE_MSG.format(current_value=current_value)
-    
-    if param_name == "xff":
-        message += messages.ARGS_XFF_EXAMPLES_MSG
-        message += messages.ARGS_XFF_NOTE_MSG
-    elif placeholder:
-        message += messages.ARGS_EXAMPLE_MSG.format(placeholder=placeholder)
-    
-    message += messages.ARGS_SEND_VALUE_MSG
-    
-    return message
 
-def get_number_input_message(param_name: str, current_value: Any, user_id: int = None) -> str:
-    """Generate number input message"""
-    messages = get_messages_instance(user_id)
-    param_config = YTDLP_PARAMS[param_name]
-    
-    # Special handling for send_as_file parameter
-    if param_name == "send_as_file":
-        description = get_param_description(param_config, param_name, messages)
-        message = f"<b>⚙️ {description}</b>\n\n"
-        if current_value is not None:
-            display_value = "True" if current_value else "False"
-            message += f"Current value: <code>{display_value}</code>\n\n"
-        message += messages.ARGS_BOOL_VALUE_REQUEST_MSG
-        return message
-    
-    min_val = param_config.get("min", 0)
-    max_val = param_config.get("max", 999999)
-    
-    description = get_param_description(param_config, param_name, messages)
-    message = messages.ARGS_NUMBER_PARAM_MSG.format(description=description)
-    if current_value is not None:
-        message += messages.ARGS_CURRENT_VALUE_MSG.format(current_value=current_value)
-    message += messages.ARGS_RANGE_MSG.format(min_val=min_val, max_val=max_val)
-    message += messages.ARGS_SEND_NUMBER_MSG
-    
-    return message
 
-def get_json_input_message(param_name: str, current_value: str, user_id: int = None) -> str:
-    """Generate JSON input message"""
-    messages = get_messages_instance(user_id)
-    param_config = YTDLP_PARAMS[param_name]
-    placeholder = param_config.get("placeholder", "{}")
-    
-    description = get_param_description(param_config, param_name, messages)
-    message = messages.ARGS_JSON_PARAM_MSG.format(description=description)
-    if current_value and current_value != "{}":
-        message += messages.ARGS_CURRENT_VALUE_MSG.format(current_value=current_value)
-    
-    if param_name == "http_headers":
-        message += messages.ARGS_HTTP_HEADERS_EXAMPLES_MSG.format(placeholder=placeholder)
-        message += messages.ARGS_HTTP_HEADERS_NOTE_MSG
-    else:
-        message += messages.ARGS_EXAMPLE_MSG.format(placeholder=placeholder)
-    
-    message += messages.ARGS_JSON_VALUE_REQUEST_MSG
-    
-    return message
 
-def format_current_args(user_args: Dict[str, Any], user_id: int = None) -> str:
-    """Format current args for display with localized names"""
-    messages = get_messages_instance(user_id)
-    if not user_args:
-        return messages.ARGS_NO_CUSTOM_MSG
-    
-    message = messages.ARGS_CURRENT_ARGS_MSG
-    
-    # Get localized parameter names based on user language
-    display_names = get_localized_display_names(user_id)
-    
-    for param_name, value in user_args.items():
-        display_name = display_names.get(param_name, param_name)
-        
-        if isinstance(value, bool):
-            display_value = "✅ True" if value else "❌ False"
-        elif isinstance(value, (int, float)):
-            display_value = str(value)
-        else:
-            display_value = str(value) if value else "Not set"
-        
-        message += f"<b>{display_name}:</b> <code>{display_value}</code>\n"
-    
-    return message
 
-def get_localized_display_names(user_id: int = None) -> Dict[str, str]:
-    """Get localized parameter names for display based on user language"""
-    messages = get_messages_instance(user_id)
-    
-    # Get language-specific parameter names
-    if hasattr(messages, 'ARGS_PARAM_NAMES'):
-        return messages.ARGS_PARAM_NAMES
-    
-    # Fallback to English if no localized names available
-    return get_export_display_names()
 
 def get_export_display_names() -> Dict[str, str]:
     """Get English parameter names for export (human-readable names)"""
@@ -837,37 +658,6 @@ def get_localized_to_english_mapping() -> Dict[str, str]:
         # Add more mappings as needed for other languages
     }
 
-def create_export_message(user_args: Dict[str, Any], user_id: int = None) -> str:
-    """Create export message for forwarding to favorites - always in English"""
-    if not user_args:
-        return "📋 Current yt-dlp Arguments:\n\nNo custom settings configured.\n\n---\n\n<i>Forward this message to your favorites to save these settings as a template.</i> \n\n<i>Forward this message back here to apply these settings.</i>"
-    
-    # Always use English header
-    message = "📋 Current yt-dlp Arguments:\n\n"
-    
-    # Get English parameter names
-    display_names = get_export_display_names()
-    
-    # Sort parameters for consistent display
-    sorted_params = sorted(user_args.items(), key=lambda x: display_names.get(x[0], x[0]))
-    
-    for param_name, value in sorted_params:
-        display_name = display_names.get(param_name, param_name)
-        
-        if isinstance(value, bool):
-            status = "✅ True" if value else "❌ False"
-        elif isinstance(value, (int, float)):
-            status = str(value)
-        else:
-            status = str(value) if value else "Not set"
-        
-        # Make parameter names bold and values monospace
-        message += f"<b>{display_name}:</b> <code>{status}</code>\n"
-    
-    # Always use English footer
-    message += "\n---\n\n<i>Forward this message to your favorites to save these settings as a template.</i> \n\n<i>Forward this message back here to apply these settings.</i>"
-    
-    return message
 
 def parse_import_message(text: str, user_id: int = None) -> Dict[str, Any]:
     """Parse settings from imported message text"""

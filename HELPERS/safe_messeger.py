@@ -328,66 +328,6 @@ def safe_edit_message_text(chat_id, message_id, text, **kwargs):
                 return None
 
 # Helper function for safely clearing reply markup (inline keyboard)
-def safe_edit_reply_markup(chat_id, message_id, reply_markup=None, **kwargs):
-    messages = safe_get_messages(None)
-    """
-    Safely edit message reply markup (e.g., clear inline keyboard) with flood wait handling
-
-    Inherits message_thread_id from provided message or _callback_query for topics.
-    """
-    max_retries = 3
-    retry_delay = 5
-
-    # Inherit thread context from helpers
-    original_message = kwargs.get('message')
-    cb_peek = kwargs.get('_callback_query', None)
-    try:
-        if 'message_thread_id' not in kwargs:
-            if original_message is not None and getattr(original_message, 'message_thread_id', None):
-                kwargs['message_thread_id'] = original_message.message_thread_id
-            elif cb_peek is not None and getattr(getattr(cb_peek, 'message', None), 'message_thread_id', None):
-                kwargs['message_thread_id'] = cb_peek.message.message_thread_id
-    except Exception:
-        pass
-    if 'message' in kwargs:
-        del kwargs['message']
-    if '_callback_query' in kwargs:
-        kwargs.pop('_callback_query', None)
-
-    for attempt in range(max_retries):
-        try:
-            app = get_app_safe()
-            return app.edit_message_reply_markup(chat_id, message_id, reply_markup=reply_markup, **kwargs)
-        except FloodWait as e:
-            try:
-                user_dir = os.path.join("users", str(chat_id))
-                os.makedirs(user_dir, exist_ok=True)
-                with open(os.path.join(user_dir, "flood_wait.txt"), 'w') as f:
-                    f.write(str(e.value))
-            except Exception:
-                pass
-            logger.warning(f"Flood wait detected ({e.value}s) while editing reply markup for {chat_id}")
-            return None
-        except Exception as e:
-            if "FLOOD_WAIT" in str(e):
-                wait_match = re.search(r'A wait of (\d+) seconds is required', str(e))
-                if wait_match:
-                    wait_seconds = int(wait_match.group(1))
-                    logger.warning(safe_get_messages(user_id).HELPER_FLOOD_WAIT_DETECTED_SLEEPING_MSG.format(wait_seconds=wait_seconds))
-                    time.sleep(min(wait_seconds + 1, 5))
-                else:
-                    logger.warning(safe_get_messages(user_id).HELPER_FLOOD_WAIT_DETECTED_COULDNT_EXTRACT_MSG.format(retry_delay=retry_delay))
-                    time.sleep(retry_delay)
-                if attempt and attempt < max_retries - 1:
-                    continue
-            elif "msg_seqno is too high" in str(e):
-                logger.warning(safe_get_messages(user_id).HELPER_MSG_SEQNO_ERROR_DETECTED_MSG.format(retry_delay=retry_delay))
-                time.sleep(retry_delay)
-                if attempt and attempt < max_retries - 1:
-                    continue
-            if attempt == max_retries - 1:
-                logger.error(f"Failed to edit reply markup after {max_retries} attempts: {e}")
-            return None
 
 # Helper function for safely deleting messages with flood wait handling
 def safe_delete_messages(chat_id, message_ids, **kwargs):

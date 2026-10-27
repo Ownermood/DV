@@ -1724,22 +1724,6 @@ def retry_download_with_different_cookies(user_id: int, url: str, download_func,
 # Format: {cache_key: {'result': bool, 'timestamp': float, 'cookie_path': str, 'task_id': str, 'active': bool}}
 _non_youtube_cookie_cache = {}
 
-def get_service_cookie_url(service_name: str) -> str | None:
-    """
-    Get a cookie URL for a given service from config.
-    
-    Args:
-        service_name (str): Service name (instagram, twitter, tiktok, vk, facebook)
-        
-    Returns:
-        str | None: Cookie URL, or None if not configured
-    """
-    service_upper = service_name.upper()
-    cookie_url_attr = f"{service_upper}_COOKIE_URL"
-    
-    if hasattr(Config, cookie_url_attr):
-        return getattr(Config, cookie_url_attr)
-    return None
 
 
 def get_cookie_cache_key(user_id: int, url: str, service: str = None) -> str:
