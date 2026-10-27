@@ -106,6 +106,13 @@ def _add_cookies_to_cmd(cmd: list, url: str, user_id: int) -> list:
         cmd.insert(-1, "--cookies")
         cmd.insert(-1, user_cookie_path)
         logger.info(f"[gallery-dl] Added --cookies {user_cookie_path} for {url}")
+    else:
+        from COMMANDS.cookies_cmd import shared_cookie_path
+        shared = shared_cookie_path(url)  # admin's cookie for this site (Instagram, Facebook ...)
+        if shared:
+            cmd.insert(-1, "--cookies")
+            cmd.insert(-1, shared)
+            logger.info(f"[gallery-dl] Added shared --cookies for {url}")
     return cmd
 
 def _gdl_set(section: str, key: str, value):
@@ -207,8 +214,9 @@ def _prepare_user_cookies_and_proxy(url: str, user_id, use_proxy: bool, config: 
     # cookies - use new caching system for non-YouTube sites
     if not is_youtube_url(url):
         # For non-YouTube URLs, use new cookie fallback system
-        from COMMANDS.cookies_cmd import get_cookie_cache_result, try_non_youtube_cookie_fallback
+        from COMMANDS.cookies_cmd import get_cookie_cache_result, try_non_youtube_cookie_fallback, shared_cookie_path
         cache_result = get_cookie_cache_result(user_id, url)
+        shared_cookie = shared_cookie_path(url)  # admin's cookie for this site (Admin Panel -> Settings)
         
         if cache_result and cache_result['result']:
             # Use cached successful cookies
@@ -217,6 +225,9 @@ def _prepare_user_cookies_and_proxy(url: str, user_id, use_proxy: bool, config: 
         elif os.path.exists(user_cookie_path):
             config['extractor']['cookies'] = user_cookie_path
             logger.info(safe_get_messages(user_id).GALLERY_DL_USING_USER_COOKIES_MSG.format(cookie_path=user_cookie_path))
+        elif shared_cookie:
+            config['extractor']['cookies'] = shared_cookie
+            logger.info(f"Using shared site cookie for gallery-dl: {url}")
         else:
             global_cookie_path = Config.COOKIE_FILE_PATH
             if os.path.exists(global_cookie_path):
