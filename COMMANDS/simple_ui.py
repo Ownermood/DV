@@ -213,34 +213,32 @@ def _human(n) -> str:
     return f"{n:.1f}TB"
 
 
-def _ydl_opts(user_id, url: str = "") -> dict:
+def _ydl_opts(cookie: Optional[str] = None) -> dict:
     opts = {"quiet": True, "no_warnings": True, "skip_download": True, "noplaylist": True,
             "socket_timeout": 20}
-    cookie = os.path.join("users", str(user_id), "cookie.txt")
-    if os.path.exists(cookie):
+    if cookie:
         opts["cookiefile"] = cookie
-    elif url:  # admin's Cookie Manager cookie for this site (YouTube on a server IP needs it)
-        from COMMANDS.cookies_cmd import shared_cookie_path
-        from COMMANDS import cookie_store
-        shared = cookie_store.first_active("youtube") if detect_platform(url) and detect_platform(url)[0] == "youtube" \
-            else shared_cookie_path(url)
-        if shared:
-            opts["cookiefile"] = shared
     return opts
 
 
 def _probe(url, user_id) -> Optional[dict]:
-    try:
-        import yt_dlp
-        with yt_dlp.YoutubeDL(_ydl_opts(user_id, url)) as ydl:
-            info = ydl.extract_info(url, download=False)
-        if info and info.get("_type") == "playlist":
-            entries = [e for e in (info.get("entries") or []) if e]
-            info = entries[0] if entries else info
-        return info
-    except Exception as exc:
-        logger.info(f"[ui] probe failed for {url}: {exc}")
-        return None
+    """No cookie first (a stale cookie itself triggers YouTube's bot check), then the Cookie Manager cookie."""
+    import yt_dlp
+    from COMMANDS import cookie_store
+    from COMMANDS.cookies_cmd import shared_cookie_path
+    plat = detect_platform(url)
+    shared = cookie_store.first_active("youtube") if plat and plat[0] == "youtube" else shared_cookie_path(url)
+    for cookie in dict.fromkeys([None, shared]):
+        try:
+            with yt_dlp.YoutubeDL(_ydl_opts(cookie)) as ydl:
+                info = ydl.extract_info(url, download=False)
+            if info and info.get("_type") == "playlist":
+                entries = [e for e in (info.get("entries") or []) if e]
+                info = entries[0] if entries else info
+            return info
+        except Exception as exc:
+            logger.info(f"[ui] probe failed for {url} (cookie={'yes' if cookie else 'no'}): {exc}")
+    return None
 
 
 def _cap_bytes() -> float:

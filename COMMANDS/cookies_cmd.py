@@ -2517,6 +2517,8 @@ def shared_cookie_path(url: str) -> str | None:
     """First working Cookie Manager cookie for this site (admin panel), if any."""
     from COMMANDS import cookie_store
     service = get_service_name_from_url(url)
+    if service == "youtube":  # YouTube works without login from most IPs; cookies only in the retry rotation
+        return None
     return cookie_store.first_active(service) if service in cookie_store.SERVICES else None
 
 
