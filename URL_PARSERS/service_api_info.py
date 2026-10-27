@@ -331,49 +331,15 @@ def _guess_username_from_url(url: str, service: Optional[str]) -> Optional[str]:
 
 
 def _detect_service(url: str) -> Optional[str]:
+    """The bot's platforms only (see COMMANDS/simple_ui.PLATFORMS)."""
     if not url:
         return None
     u = url.lower()
-    if "instagram.com" in u:
-        return "instagram"
-    if "tiktok.com" in u:
-        return "tiktok"
-    if "twitter.com" in u or "x.com" in u:
-        return "x"
-    if "vk.com" in u or "vkontakte.ru" in u:
-        return "vk"
-    if "youtube.com" in u or "youtu.be" in u:
-        return "youtube"
-    if "reddit.com" in u:
-        return "reddit"
-    if "pinterest.com" in u:
-        return "pinterest"
-    if "flickr.com" in u:
-        return "flickr"
-    if "deviantart.com" in u:
-        return "deviantart"
-    if "imgur.com" in u:
-        return "imgur"
-    if "tumblr.com" in u:
-        return "tumblr"
-    if "pixiv.net" in u:
-        return "pixiv"
-    if "artstation.com" in u:
-        return "artstation"
-    if "danbooru.donmai.us" in u or "danbooru" in u:
-        return "danbooru"
-    if "gelbooru.com" in u:
-        return "gelbooru"
-    if "yande.re" in u or "yande" in u:
-        return "yandere"
-    if "sankakucomplex.com" in u or "c.sankakucomplex.com" in u or "chan.sankaku" in u:
-        return "sankaku"
-    if "e621.net" in u:
-        return "e621"
-    if "rule34.xxx" in u or "rule34.paheal.net" in u:
-        return "rule34"
-    if "behance.net" in u or "behance.com" in u:
-        return "behance"
+    for key, marks in (("instagram", ("instagram.com",)), ("youtube", ("youtube.com", "youtu.be")),
+                       ("pinterest", ("pinterest.", "pin.it")), ("facebook", ("facebook.com", "fb.watch")),
+                       ("snapchat", ("snapchat.com",))):
+        if any(m in u for m in marks):
+            return key
     return None
 
 
@@ -459,223 +425,20 @@ def _extract_instagram_date(url: str, user_id: int = None) -> Optional[str]:
 # -------- TikTok --------
 
 
-def _extract_tiktok_info(url: str, user_id: int = None) -> Tuple[Optional[str], Optional[str]]:
-    # Try oEmbed with cookies first
-    try:
-        oembed_url = f"https://www.tiktok.com/oembed?url={url}"
-        data = _http_get_json(oembed_url, user_id=user_id)
-        if data and isinstance(data, dict):
-            author = data.get("author_name")
-            if author:
-                return (author, "TikTok")
-    except Exception as e:
-        print(f"[TIKTOK_INFO] oEmbed with cookies error: {e}")
-    
-    # Fallback to oEmbed without cookies
-    try:
-        oembed_url = f"https://www.tiktok.com/oembed?url={url}"
-        data = _http_get_json(oembed_url)
-        if data and isinstance(data, dict):
-            author = data.get("author_name")
-            if author:
-                return (author, "TikTok")
-    except Exception as e:
-        print(f"[TIKTOK_INFO] oEmbed without cookies error: {e}")
-    
-    # Final fallback to OpenGraph
-    try:
-        html = _http_get(url, user_id=user_id)
-        metas = _extract_meta(html or "")
-        title = metas.get("og:title") or metas.get("twitter:title")
-        if title:
-            m = re.search(r"^(.*?) on TikTok|^(.*?) \| TikTok", title, re.IGNORECASE)
-            if m:
-                candidate = m.group(1) or m.group(2)
-                if candidate:
-                    return (candidate.strip(), "TikTok")
-    except Exception as e:
-        print(f"[TIKTOK_INFO] OpenGraph error: {e}")
-    
-    return (None, "TikTok")
 
 
-def _extract_tiktok_date(url: str, user_id: int = None) -> Optional[str]:
-    """Extract upload date from TikTok API."""
-    # Try with cookies first
-    try:
-        data = _http_get_json(f"https://www.tiktok.com/oembed?url={url}", user_id=user_id)
-        if data and isinstance(data, dict):
-            date_str = data.get("upload_date") or data.get("created_at") or data.get("date")
-            if date_str:
-                return _parse_date_string(date_str)
-    except Exception as e:
-        print(f"[TIKTOK_DATE] API with cookies error: {e}")
-    
-    # Fallback without cookies
-    try:
-        data = _http_get_json(f"https://www.tiktok.com/oembed?url={url}")
-        if data and isinstance(data, dict):
-            date_str = data.get("upload_date") or data.get("created_at") or data.get("date")
-            if date_str:
-                return _parse_date_string(date_str)
-    except Exception as e:
-        print(f"[TIKTOK_DATE] API without cookies error: {e}")
-    
-    # Final fallback to OpenGraph
-    try:
-        html = _http_get(url, user_id=user_id)
-        metas = _extract_meta(html or "")
-        date_str = metas.get("article:published_time") or metas.get("og:updated_time")
-        if date_str:
-            return _parse_date_string(date_str)
-    except Exception as e:
-        print(f"[TIKTOK_DATE] OpenGraph error: {e}")
-    
-    return None
 
 
 # -------- X (Twitter) --------
 
 
-def _extract_x_info(url: str, user_id: int = None) -> Tuple[Optional[str], Optional[str]]:
-    # Try oEmbed with cookies first
-    try:
-        oembed_url = f"https://publish.twitter.com/oembed?url={url}"
-        data = _http_get_json(oembed_url, user_id=user_id)
-        if data and isinstance(data, dict):
-            author = data.get("author_name")
-            if author:
-                return (author, "X")
-    except Exception as e:
-        print(f"[X_INFO] oEmbed with cookies error: {e}")
-    
-    # Fallback to oEmbed without cookies
-    try:
-        oembed_url = f"https://publish.twitter.com/oembed?url={url}"
-        data = _http_get_json(oembed_url)
-        if data and isinstance(data, dict):
-            author = data.get("author_name")
-            if author:
-                return (author, "X")
-    except Exception as e:
-        print(f"[X_INFO] oEmbed without cookies error: {e}")
-    
-    # Final fallback: meta twitter:site or title
-    try:
-        html = _http_get(url, user_id=user_id)
-        metas = _extract_meta(html or "")
-        handle = metas.get("twitter:site")
-        if handle:
-            handle = handle.strip()
-            if handle.startswith("@"):
-                return (handle, "X")
-        title = metas.get("og:title") or metas.get("twitter:title")
-        if title:
-            m = re.search(r"^(.*?) on X|^(.*?) / X", title, re.IGNORECASE)
-            if m:
-                candidate = m.group(1) or m.group(2)
-                if candidate:
-                    return (candidate.strip(), "X")
-    except Exception as e:
-        print(f"[X_INFO] OpenGraph error: {e}")
-    
-    return (None, "X")
 
 
-def _extract_x_date(url: str, user_id: int = None) -> Optional[str]:
-    """Extract publish date from X (Twitter) API."""
-    # Try with cookies first
-    try:
-        data = _http_get_json(f"https://publish.twitter.com/oembed?url={url}", user_id=user_id)
-        if data and isinstance(data, dict):
-            date_str = data.get("upload_date") or data.get("created_at") or data.get("date")
-            if date_str:
-                return _parse_date_string(date_str)
-    except Exception as e:
-        print(f"[X_DATE] API with cookies error: {e}")
-    
-    # Fallback without cookies
-    try:
-        data = _http_get_json(f"https://publish.twitter.com/oembed?url={url}")
-        if data and isinstance(data, dict):
-            date_str = data.get("upload_date") or data.get("created_at") or data.get("date")
-            if date_str:
-                return _parse_date_string(date_str)
-    except Exception as e:
-        print(f"[X_DATE] API without cookies error: {e}")
-    
-    # Final fallback to OpenGraph
-    try:
-        html = _http_get(url, user_id=user_id)
-        metas = _extract_meta(html or "")
-        date_str = metas.get("article:published_time") or metas.get("og:updated_time")
-        if date_str:
-            return _parse_date_string(date_str)
-    except Exception as e:
-        print(f"[X_DATE] OpenGraph error: {e}")
-    
-    return None
 
 
 # -------- VK --------
 
 
-def _extract_vk_info(url: str, user_id: int = None) -> Tuple[Optional[str], Optional[str]]:
-    # Try to resolve owner from wall-<owner>_<post>
-    site = "VK"
-    try:
-        m = re.search(r"vk\.com/(?:wall)(-?\d+)_\d+", url, re.IGNORECASE)
-        if m:
-            owner_id = int(m.group(1))
-            probe_urls = []
-            if owner_id and owner_id < 0:
-                gid = abs(owner_id)
-                probe_urls = [
-                    f"https://vk.com/public{gid}",
-                    f"https://vk.com/club{gid}",
-                ]
-            else:
-                probe_urls = [
-                    f"https://vk.com/id{owner_id}",
-                ]
-            for pu in probe_urls:
-                try:
-                    html_p = _http_get(pu, user_id=user_id)
-                    metas_p = _extract_meta(html_p or "")
-                    t = metas_p.get("og:title") or metas_p.get("twitter:title")
-                    s = metas_p.get("og:site_name") or site
-                    if t:
-                        mm = re.search(r"^(.+?)\s*\|\s*VK$", t, re.IGNORECASE)
-                        name = (mm.group(1).strip() if mm and mm.group(1) else t.strip())
-                        name = re.sub(r"^\u0421\u043e\u043e\u0431\u0449\u0435\u0441\u0442\u0432\u043e\s+«?", "", name).strip()
-                        name = re.sub(r"»$", "", name).strip()
-                        name = re.sub(r"^\u0417\u0430\u043f\u0438\u0441\u044c\s+\u0441\u043e\u043e\u0431\u0449\u0435\u0441\u0442\u0432\u0430\s+", "", name).strip()
-                        if name:
-                            return (name, s)
-                except Exception as e:
-                    print(f"[VK_INFO] Probe URL {pu} error: {e}")
-                    continue
-    except Exception as e:
-        print(f"[VK_INFO] Wall parsing error: {e}")
-    
-    # Fallback: use current page OG/title heuristics with cookies
-    try:
-        html = _http_get(url, user_id=user_id)
-        metas = _extract_meta(html or "")
-        title = metas.get("og:title") or metas.get("twitter:title")
-        site = metas.get("og:site_name") or site
-        if title:
-            mm = re.search(r"^(.+?)\s*\|\s*VK$", title, re.IGNORECASE)
-            if mm and mm.group(1):
-                cleaned = re.sub(r"^\u0421\u043e\u043e\u0431\u0449\u0435\u0441\u0442\u0432\u043e\s+«?", "", mm.group(1)).strip()
-                cleaned = re.sub(r"»$", "", cleaned).strip()
-                cleaned = re.sub(r"^\u0417\u0430\u043f\u0438\u0441\u044c\s+\u0441\u043e\u043e\u0431\u0449\u0435\u0441\u0442\u0432\u0430\s+", "", cleaned).strip()
-                if cleaned:
-                    return (cleaned, site)
-    except Exception as e:
-        print(f"[VK_INFO] OpenGraph error: {e}")
-    
-    return (None, site)
 
 
 # -------- YouTube --------
@@ -751,36 +514,6 @@ def _extract_youtube_date(url: str, user_id: int = None) -> Optional[str]:
 # -------- Reddit --------
 
 
-def _extract_reddit_info(url: str, user_id: int = None) -> Tuple[Optional[str], Optional[str]]:
-    # Try oEmbed with cookies first
-    try:
-        name, provider = _extract_via_oembed(url, (
-            "https://www.reddit.com/oembed?url={url}",
-        ), user_id=user_id)
-        if name:
-            return (name, provider or "Reddit")
-    except Exception as e:
-        print(f"[REDDIT_INFO] oEmbed with cookies error: {e}")
-    
-    # Fallback to oEmbed without cookies
-    try:
-        name, provider = _extract_via_oembed(url, (
-            "https://www.reddit.com/oembed?url={url}",
-        ))
-        if name:
-            return (name, provider or "Reddit")
-    except Exception as e:
-        print(f"[REDDIT_INFO] oEmbed without cookies error: {e}")
-    
-    # Final fallback to OpenGraph
-    try:
-        html = _http_get(url, user_id=user_id)
-        metas = _extract_meta(html or "")
-        title = metas.get("og:title") or metas.get("twitter:title")
-        return (title, "Reddit")
-    except Exception as e:
-        print(f"[REDDIT_INFO] OpenGraph error: {e}")
-        return (None, "Reddit")
 
 
 # -------- Pinterest --------
@@ -802,343 +535,77 @@ def _extract_pinterest_info(url: str, user_id: int = None) -> Tuple[Optional[str
 # -------- Flickr --------
 
 
-def _extract_flickr_info(url: str, user_id: int = None) -> Tuple[Optional[str], Optional[str]]:
-    # Try oEmbed with cookies first
-    try:
-        name, provider = _extract_via_oembed(url, (
-            "https://www.flickr.com/services/oembed?format=json&url={url}",
-        ), user_id=user_id)
-        if name:
-            return (name, provider or "Flickr")
-    except Exception as e:
-        print(f"[FLICKR_INFO] oEmbed with cookies error: {e}")
-    
-    # Fallback to oEmbed without cookies
-    try:
-        name, provider = _extract_via_oembed(url, (
-            "https://www.flickr.com/services/oembed?format=json&url={url}",
-        ))
-        if name:
-            return (name, provider or "Flickr")
-    except Exception as e:
-        print(f"[FLICKR_INFO] oEmbed without cookies error: {e}")
-    
-    # Final fallback to OpenGraph
-    try:
-        html = _http_get(url, user_id=user_id)
-        metas = _extract_meta(html or "")
-        title = metas.get("og:title")
-        return (title, "Flickr")
-    except Exception as e:
-        print(f"[FLICKR_INFO] OpenGraph error: {e}")
-        return (None, "Flickr")
 
 
 # -------- DeviantArt --------
 
 
-def _extract_deviantart_info(url: str, user_id: int = None) -> Tuple[Optional[str], Optional[str]]:
-    # Try oEmbed with cookies first
-    try:
-        name, provider = _extract_via_oembed(url, (
-            "https://backend.deviantart.com/oembed?url={url}",
-        ), user_id=user_id)
-        if name:
-            return (name, provider or "DeviantArt")
-    except Exception as e:
-        print(f"[DEVIANTART_INFO] oEmbed with cookies error: {e}")
-    
-    # Fallback to oEmbed without cookies
-    try:
-        name, provider = _extract_via_oembed(url, (
-            "https://backend.deviantart.com/oembed?url={url}",
-        ))
-        if name:
-            return (name, provider or "DeviantArt")
-    except Exception as e:
-        print(f"[DEVIANTART_INFO] oEmbed without cookies error: {e}")
-    
-    # Final fallback to OpenGraph
-    try:
-        html = _http_get(url, user_id=user_id)
-        metas = _extract_meta(html or "")
-        author = metas.get("twitter:creator") or metas.get("og:site_name")
-        return (author, "DeviantArt")
-    except Exception as e:
-        print(f"[DEVIANTART_INFO] OpenGraph error: {e}")
-        return (None, "DeviantArt")
 
 
 # -------- Imgur --------
 
 
-def _extract_imgur_info(url: str, user_id: int = None) -> Tuple[Optional[str], Optional[str]]:
-    # Try oEmbed with cookies first
-    try:
-        name, provider = _extract_via_oembed(url, (
-            "https://api.imgur.com/oembed?url={url}",
-        ), user_id=user_id)
-        if name:
-            return (name, provider or "Imgur")
-    except Exception as e:
-        print(f"[IMGUR_INFO] oEmbed with cookies error: {e}")
-    
-    # Fallback to oEmbed without cookies
-    try:
-        name, provider = _extract_via_oembed(url, (
-            "https://api.imgur.com/oembed?url={url}",
-        ))
-        if name:
-            return (name, provider or "Imgur")
-    except Exception as e:
-        print(f"[IMGUR_INFO] oEmbed without cookies error: {e}")
-    
-    # Final fallback to OpenGraph
-    try:
-        html = _http_get(url, user_id=user_id)
-        metas = _extract_meta(html or "")
-        title = metas.get("og:title") or metas.get("twitter:title")
-        return (title, "Imgur")
-    except Exception as e:
-        print(f"[IMGUR_INFO] OpenGraph error: {e}")
-        return (None, "Imgur")
 
 
 # -------- Tumblr --------
 
 
-def _extract_tumblr_info(url: str, user_id: int = None) -> Tuple[Optional[str], Optional[str]]:
-    # Try oEmbed with cookies first
-    try:
-        name, provider = _extract_via_oembed(url, (
-            "https://www.tumblr.com/oembed/1.0?url={url}",
-        ), user_id=user_id)
-        if name:
-            return (name, provider or "Tumblr")
-    except Exception as e:
-        print(f"[TUMBLR_INFO] oEmbed with cookies error: {e}")
-    
-    # Fallback to oEmbed without cookies
-    try:
-        name, provider = _extract_via_oembed(url, (
-            "https://www.tumblr.com/oembed/1.0?url={url}",
-        ))
-        if name:
-            return (name, provider or "Tumblr")
-    except Exception as e:
-        print(f"[TUMBLR_INFO] oEmbed without cookies error: {e}")
-    
-    # Final fallback to OpenGraph
-    try:
-        html = _http_get(url, user_id=user_id)
-        metas = _extract_meta(html or "")
-        title = metas.get("og:title") or metas.get("twitter:title")
-        site = metas.get("og:site_name") or "Tumblr"
-        return (title, site)
-    except Exception as e:
-        print(f"[TUMBLR_INFO] OpenGraph error: {e}")
-        return (None, "Tumblr")
 
 
 # -------- Pixiv --------
 
 
-def _extract_pixiv_info(url: str, user_id: int = None) -> Tuple[Optional[str], Optional[str]]:
-    # Try OpenGraph with cookies first
-    try:
-        html = _http_get(url, user_id=user_id)
-        metas = _extract_meta(html or "")
-        title = metas.get("og:title") or metas.get("twitter:title")
-        site = metas.get("og:site_name") or "Pixiv"
-        if title:
-            return (title, site)
-    except Exception as e:
-        print(f"[PIXIV_INFO] OpenGraph with cookies error: {e}")
-    
-    # Fallback to OpenGraph without cookies
-    try:
-        html = _http_get(url)
-        metas = _extract_meta(html or "")
-        title = metas.get("og:title") or metas.get("twitter:title")
-        site = metas.get("og:site_name") or "Pixiv"
-        if title:
-            return (title, site)
-    except Exception as e:
-        print(f"[PIXIV_INFO] OpenGraph without cookies error: {e}")
-    
-    # Final fallback: try to parse user from URL
-    try:
-        from urllib.parse import urlparse
-        p = urlparse(url)
-        parts = [s for s in p.path.split('/') if s]
-        if len(parts) >= 2 and parts[0] in {"users", "member"}:
-            return (parts[1], "Pixiv")
-    except Exception as e:
-        print(f"[PIXIV_INFO] URL parsing error: {e}")
-    
-    return (None, "Pixiv")
 
 
 # -------- ArtStation --------
 
 
-def _extract_artstation_info(url: str, user_id: int = None) -> Tuple[Optional[str], Optional[str]]:
-    # ArtStation has OG meta with title/site
-    try:
-        html = _http_get(url, user_id=user_id)
-        metas = _extract_meta(html or "")
-        title = metas.get("og:title") or metas.get("twitter:title")
-        site = metas.get("og:site_name") or "ArtStation"
-        return (title, site)
-    except Exception as e:
-        print(f"[ARTSTATION_INFO] OpenGraph error: {e}")
-        return (None, "ArtStation")
 
 
 # -------- Danbooru --------
 
 
-def _extract_danbooru_info(url: str, user_id: int = None) -> Tuple[Optional[str], Optional[str]]:
-    try:
-        html = _http_get(url, user_id=user_id)
-        metas = _extract_meta(html or "")
-        title = metas.get("og:title") or metas.get("twitter:title")
-        return (title, "Danbooru")
-    except Exception as e:
-        print(f"[DANBOORU_INFO] OpenGraph error: {e}")
-        return (None, "Danbooru")
 
 
 # -------- Gelbooru --------
 
 
-def _extract_gelbooru_info(url: str, user_id: int = None) -> Tuple[Optional[str], Optional[str]]:
-    try:
-        html = _http_get(url, user_id=user_id)
-        metas = _extract_meta(html or "")
-        title = metas.get("og:title") or metas.get("twitter:title")
-        return (title, "Gelbooru")
-    except Exception as e:
-        print(f"[GELBOORU_INFO] OpenGraph error: {e}")
-        return (None, "Gelbooru")
 
 
 # -------- Yande.re --------
 
 
-def _extract_yandere_info(url: str, user_id: int = None) -> Tuple[Optional[str], Optional[str]]:
-    try:
-        html = _http_get(url, user_id=user_id)
-        metas = _extract_meta(html or "")
-        title = metas.get("og:title") or metas.get("twitter:title")
-        return (title, "Yande.re")
-    except Exception as e:
-        print(f"[YANDERE_INFO] OpenGraph error: {e}")
-        return (None, "Yande.re")
 
 
 # -------- Sankaku --------
 
 
-def _extract_sankaku_info(url: str, user_id: int = None) -> Tuple[Optional[str], Optional[str]]:
-    try:
-        html = _http_get(url, user_id=user_id)
-        metas = _extract_meta(html or "")
-        title = metas.get("og:title") or metas.get("twitter:title")
-        site = metas.get("og:site_name") or "Sankaku"
-        return (title, site)
-    except Exception as e:
-        print(f"[SANKAKU_INFO] OpenGraph error: {e}")
-        return (None, "Sankaku")
 
 
 # -------- e621 --------
 
 
-def _extract_e621_info(url: str, user_id: int = None) -> Tuple[Optional[str], Optional[str]]:
-    try:
-        html = _http_get(url, user_id=user_id)
-        metas = _extract_meta(html or "")
-        title = metas.get("og:title") or metas.get("twitter:title")
-        return (title, "e621")
-    except Exception as e:
-        print(f"[E621_INFO] OpenGraph error: {e}")
-        return (None, "e621")
 
 
 # -------- Rule34 --------
 
 
-def _extract_rule34_info(url: str, user_id: int = None) -> Tuple[Optional[str], Optional[str]]:
-    try:
-        html = _http_get(url, user_id=user_id)
-        metas = _extract_meta(html or "")
-        title = metas.get("og:title") or metas.get("twitter:title")
-        return (title, "Rule34")
-    except Exception as e:
-        print(f"[RULE34_INFO] OpenGraph error: {e}")
-        return (None, "Rule34")
 
 
 # -------- Behance --------
 
 
-def _extract_behance_info(url: str, user_id: int = None) -> Tuple[Optional[str], Optional[str]]:
-    # Behance has OG meta; sometimes author is in og:title or profile path
-    try:
-        html = _http_get(url, user_id=user_id)
-        metas = _extract_meta(html or "")
-        title = metas.get("og:title") or metas.get("twitter:title")
-        site = metas.get("og:site_name") or "Behance"
-        if title:
-            return (title, site)
-    except Exception as e:
-        print(f"[BEHANCE_INFO] OpenGraph error: {e}")
-    
-    # Fallback: try to parse author from URL path
-    try:
-        from urllib.parse import urlparse
-        p = urlparse(url)
-        seg = [s for s in p.path.split('/') if s]
-        if seg:
-            return (seg[0], "Behance")
-    except Exception as e:
-        print(f"[BEHANCE_INFO] URL parsing error: {e}")
-    
-    return (None, "Behance")
 
 
-SERVICE_HANDLERS = {
+SERVICE_HANDLERS = {  # the bot's platforms (others only get the service tag)
     "instagram": _extract_instagram_info,
-    "tiktok": _extract_tiktok_info,
-    "x": _extract_x_info,
-    "vk": _extract_vk_info,
-    # extended set
     "youtube": _extract_youtube_info,
-    "reddit": _extract_reddit_info,
     "pinterest": _extract_pinterest_info,
-    "flickr": _extract_flickr_info,
-    "deviantart": _extract_deviantart_info,
-    "imgur": _extract_imgur_info,
-    "tumblr": _extract_tumblr_info,
-    # gallery-dl popular
-    "pixiv": _extract_pixiv_info,
-    "artstation": _extract_artstation_info,
-    "danbooru": _extract_danbooru_info,
-    "gelbooru": _extract_gelbooru_info,
-    "yandere": _extract_yandere_info,
-    "sankaku": _extract_sankaku_info,
-    "e621": _extract_e621_info,
-    "rule34": _extract_rule34_info,
-    "behance": _extract_behance_info,
 }
 
 SERVICE_DATE_HANDLERS = {
     "instagram": _extract_instagram_date,
-    "tiktok": _extract_tiktok_date,
-    "x": _extract_x_date,
     "youtube": _extract_youtube_date,
-    # Add more services as needed
 }
 
 
