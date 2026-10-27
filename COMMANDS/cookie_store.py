@@ -132,7 +132,8 @@ def _add(service, content, data, replace_id=None):
     content = only_site(service, content)
     cookies = parse(content)
     if not cookies:
-        return False, "Not a Netscape cookies.txt file.", None
+        return False, (f"This file has no {SERVICES[service][0]} cookies. It was exported before logging in "
+                       f"(or the extension is not allowed in Incognito). Log in first, then Export again."), None
     need = SERVICES[service][3]
     if not any(n in cookies for n in need):
         return False, f"No login cookie ({' / '.join(need)}). Log in to {SERVICES[service][0]} first, then export.", None
@@ -141,8 +142,9 @@ def _add(service, content, data, replace_id=None):
         return False, "This cookie is already expired. Log in again and export a fresh one.", None
     fp = _fingerprint(service, cookies)
     lst = data.setdefault(service, [])
-    if any(s.get("fp") == fp and s["id"] != replace_id for s in lst):
-        return False, "This cookie is already added.", None
+    dup = next((n for n, s in enumerate(lst, 1) if s.get("fp") == fp and s["id"] != replace_id), None)
+    if dup:
+        return False, f"Same cookie is already added as Cookie-{dup}. Log in with another account for a new one.", None
     if replace_id is None and len(lst) >= MAX_SLOTS:
         return False, f"Max {MAX_SLOTS} cookies for {SERVICES[service][0]}. Delete one first.", None
     slot_id = replace_id or secrets.token_hex(4)

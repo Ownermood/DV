@@ -508,8 +508,14 @@ def _ckm_view():
 def _cks_view(svc):
     label, key, _cid, need = cs.SERVICES[svc]
     sl = cs.slots(svc)
-    lines = [f"{em('ok' if cs.usable(s) else 'warn')} Cookie-{n}: {_ck_status(s)} · {cs.exp_text(s.get('exp'))}"
-             for n, s in enumerate(sl, 1)] or ["<i>No cookie yet. Tap Add Cookies.</i>"]
+    in_use = next((s["id"] for s in sl if cs.usable(s)), None)
+
+    def _d(ts):
+        return datetime.fromtimestamp(ts, IST).strftime("%d %b, %I:%M %p") if ts else "never"
+    lines = [f"{em('ok' if cs.usable(s) else 'warn')} <b>Cookie-{n}</b>: {_ck_status(s)}"
+             + (" · <b>IN USE</b>" if s["id"] == in_use else "")
+             + f"\n     Added {_d(s.get('added'))} · last worked {_d(s.get('last_ok'))} · {cs.exp_text(s.get('exp'))}"
+             for n, s in enumerate(sl, 1)] or ["<i>No cookie yet. Tap Add Cookie-1.</i>"]
     rows, r = [], []
     for n, s in enumerate(sl, 1):
         r.append(btn("ok" if cs.usable(s) else "warn", f"Cookie-{n}", cb=f"ap|ckv|{svc}|{s['id']}",
