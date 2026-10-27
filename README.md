@@ -31,7 +31,14 @@ Telegram bots upload max 2 GB per file, so bigger files arrive in parts.
 Users only see `/start` and Help. The bot is English only.
 
 ## Admins
-`/admin` (or the button on `/start`): stats, broadcast (pin, live progress, stop), delete broadcast,
-users list, block/unblock, uncache URL, premium emoji on/off, start image.
+`/admin` (or the button on `/start`). Owners = `ADMIN_IDS` in `.env`.
+- **Home:** today's new users, active users, downloads; members, downloads running, uptime
+- **Bot Stats:** users (joined / active today·7d·30d), downloads (today·7d·30d·all, running), system (CPU, RAM, disk, yt-dlp, Python)
+- **Users Stats:** totals, admins, blocked, new users, active / inactive
+- **Broadcast:** send any message or album (or reply `/broadcast`), copied without the forward tag, premium emojis kept; Send or Send + Pin; live card with Stop
+- **Delete Broadcast:** last broadcasts, confirm (48h note), live card; or reply `/delbc` to a broadcast
+- **Admins:** list; owners add (`Name user_id`, premium emojis in the name) and remove admins; the new admin gets a welcome message
+- **Users:** block / unblock, users list, uncache URL
+- **Settings:** start image, premium emoji on/off, shared YouTube / TikTok cookies
 
-Premium emoji show only if the bot owner has Telegram Premium. If Telegram rejects them, the bot switches to normal emoji by itself.
+Activity and download counts start from the update that added them.

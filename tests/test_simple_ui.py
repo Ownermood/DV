@@ -153,3 +153,23 @@ def test_selected_buttons_green_premium_single_and_multi(monkeypatch):
     b = InlineKeyboardButton("✅ MP4", callback_data="x")
     asyncio.run(b.write(None))
     assert b.text == "✅ MP4" and b.style == enums.ButtonStyle.SUCCESS and not b.icon_custom_emoji_id
+
+
+def test_activity_counts(tmp_path, monkeypatch):
+    from COMMANDS import activity
+    monkeypatch.setattr(activity, "_FILE", str(tmp_path / "a.json"))
+    monkeypatch.setattr(activity, "_data", None)
+    activity.touch(1)
+    activity.download(2)
+    activity.download(2)
+    s = activity.snapshot()
+    assert s["active"][0] == 2 and s["dl"][0] == 2 and s["dl"][3] == 2
+    activity.flush_now()
+    assert (tmp_path / "a.json").exists()
+
+
+def test_old_broadcast_records_are_converted(monkeypatch):
+    from COMMANDS import admin_panel as ap
+    monkeypatch.setattr(ap, "state_get", lambda k, d=None: [{"id": "x", "ts": 1, "sent": {"5": 9}}] if k == "broadcasts" else d)
+    r = ap._records()[0]
+    assert r["items"] == [[5, [9]]] and r["sent"] == 1 and r["deleted"] is False

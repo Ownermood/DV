@@ -21,6 +21,7 @@ from pyrogram.types import (InlineKeyboardButton, InlineKeyboardMarkup,
 from CONFIG.config import Config
 from HELPERS.app_instance import get_app
 from HELPERS.logger import logger
+from COMMANDS import activity
 from COMMANDS.ui_kit import btn, em, send, edit, t, BLUE, GREEN, RED
 
 app = get_app()
@@ -135,6 +136,8 @@ def _ensure_menu(client) -> None:
         client.set_bot_commands([BotCommand(c, d) for c, d in BOT_MENU])
     except Exception as exc:
         logger.warning(f"[ui] set_bot_commands failed: {exc}")
+    from COMMANDS.admin_panel import ensure_admin_menus
+    ensure_admin_menus(client)
 
 
 def _clear_reply_keyboard(client, chat_id: int) -> None:
@@ -397,6 +400,7 @@ def _send_thumbnail(client, message) -> None:
 def front_door(client, message):
     _ensure_menu(client)
     _register_user(message)
+    activity.touch(message.chat.id)
     text = (message.text or "").strip()
     chat_id = message.chat.id
     admin = _is_admin(chat_id)
@@ -419,6 +423,10 @@ def front_door(client, message):
             from COMMANDS.admin_panel import open_panel
             open_panel(client, chat_id)
             message.stop_propagation()
+        if admin and cmd in ("broadcast", "delbc", "delbroadcast", "admins", "addadmin", "removeadmin"):
+            from COMMANDS.admin_panel import handle_command
+            if handle_command(client, message, cmd):
+                message.stop_propagation()
         if cmd in ALLOWED_USER_COMMANDS or admin:
             return  # legacy handlers (cookies / admin) continue
         send(client, chat_id, lambda: (t(chat_id, "cmd_na"), None))
@@ -447,6 +455,7 @@ def ui_callbacks(client, cq):
     action = parts[1]
     uid = cq.from_user.id
     msg = cq.message
+    activity.touch(uid)
     try:
         if action == "help":
             edit(client, msg, lambda: (help_text(uid), _back_markup(uid)))
@@ -462,6 +471,7 @@ def ui_callbacks(client, cq):
             if original is None:
                 cq.answer(t(uid, "expired"), show_alert=True)
             elif choice == "t":
+                activity.download(uid)
                 cq.answer(t(uid, "thumb"))
                 threading.Thread(target=_send_thumbnail, args=(client, original), daemon=True).start()
             elif _too_big(token, choice):
@@ -472,6 +482,7 @@ def ui_callbacks(client, cq):
                 with _pending_lock:
                     _PENDING.pop(token, None)  # one download per menu
                     picks = _SIZES.pop(token, None)
+                activity.download(uid)
                 cq.answer(t(uid, "started"))
                 try:
                     msg.delete()

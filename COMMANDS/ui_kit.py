@@ -55,6 +55,14 @@ E = {
     "clap": ("👏", "5424679359979986283"),
     "stars": ("🤩", "5424639292230082961"),
     "crown": ("👸", "5424709970211905165"),
+    "love": ("💕", "5424895302345695654"),
+    "lips": ("💋", "5424709356031581626"),
+    "nails": ("💅", "5424716983893500055"),
+    "ok_hand": ("👌", "5424750497523311050"),
+    "flower": ("🌸", "5424768308752686263"),
+    "fire": ("👊", "5425027561568608124"),
+    "dance": ("💃", "5425040167297621674"),
+    "file": ("📁", "5447389837076231920"),
 }
 
 BOT_TITLE = "Downloder"
@@ -173,6 +181,40 @@ def edit(client, msg, build):
                                                               reply_markup=m), build)
     return _call(lambda t, m: client.edit_message_text(msg.chat.id, msg.id, t, parse_mode=enums.ParseMode.HTML,
                                                        reply_markup=m, disable_web_page_preview=True), build)
+
+
+# ---------------- cards (title, separator, quote blocks) ----------------
+SEP = "━━━━━━━━━━━━━━━━━━━━"
+_SMALL_CAPS = str.maketrans("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ",
+                            "ᴀʙᴄᴅᴇꜰɢʜɪᴊᴋʟᴍɴᴏᴘǫʀꜱᴛᴜᴠᴡxʏᴢ" * 2)
+
+
+def small_caps(text) -> str:
+    return str(text).translate(_SMALL_CAPS)
+
+
+def row(icon, label, value) -> str:
+    """One "<icon> Label: value" line (value is HTML)."""
+    return f"{em(icon)} {label}: <b>{value}</b>"
+
+
+def heading(icon, text) -> str:
+    return f"{em(icon)} <b>{text}</b>"
+
+
+def card(icon, title, *blocks, footer=None) -> str:
+    """Title + separator + one quote per list of rows; a str block is a heading."""
+    parts = [f"{em(icon)} <b>{title}</b>", SEP]
+    for b in blocks:
+        if isinstance(b, str):
+            parts.append(b)
+            continue
+        rows_ = [r for r in (b or []) if r]
+        if rows_:
+            parts.append("<blockquote>" + "\n".join(rows_) + "</blockquote>")
+    if footer:
+        parts.append(footer)
+    return "\n".join(parts)
 
 
 # ---------------- UI strings (English only) ----------------

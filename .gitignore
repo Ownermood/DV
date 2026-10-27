@@ -29,3 +29,4 @@ firebase_cache.json
 
 !CONFIG/config.py
 CONFIG/.ui_state.json*
+CONFIG/.activity.json*
