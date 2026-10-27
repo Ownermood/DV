@@ -1,9 +1,9 @@
 """Progress UI: one clean card for every download stage.
 
     <premium icon> <b>Downloading</b>
-    <blockquote><b>▰▰▰▱▱▱▱▱▱▱ 30%</b></blockquote>
+    <blockquote><b>▰▰▱▱▱ 40%</b></blockquote>
 
-10 blocks, moving in 10 % steps. Icons are premium (custom) emoji once Telegram has
+5 blocks, moving in 20 % steps. Icons are premium (custom) emoji once Telegram has
 accepted them for this bot (see COMMANDS/ui_kit.py), plain emoji before that.
 normalize_status() turns the old multi-line status texts ("Total Progress",
 "Downloading using format: …", "Please wait…") into this card.
@@ -15,7 +15,7 @@ import re
 from pyrogram import enums
 
 FILLED, EMPTY = "▰", "▱"
-WIDTH = 10
+WIDTH = 5
 
 # kind -> (ui_kit emoji key, title)
 _KINDS = {
@@ -39,10 +39,13 @@ def _icon(key: str) -> str:
     return char
 
 
+STEP = 100 // WIDTH   # 20 %
+
+
 def step(percent) -> int:
-    """Percent rounded down to a 10 % step (0, 10, 20 … 100)."""
+    """Percent rounded down to a block step (0, 20, 40 … 100)."""
     p = max(0.0, min(100.0, float(percent or 0)))
-    return int(p // 10) * 10
+    return int(p // STEP) * STEP
 
 
 def bar_blocks(blocks: int, width: int = WIDTH) -> str:

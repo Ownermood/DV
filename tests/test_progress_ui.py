@@ -10,9 +10,9 @@ def _premium(monkeypatch, on):
     monkeypatch.setattr(ui_kit, "state_get", lambda k, d=None: on if k == "premium_ok" else d)
 
 
-def test_bar_ten_blocks_ten_percent_steps():
-    assert ui.bar(0) == "▱" * 10 and ui.bar(100) == "▰" * 10 and ui.bar(250) == "▰" * 10 and ui.bar(-5) == "▱" * 10
-    assert ui.bar(37) == "▰▰▰" + "▱" * 7 and ui.step(37) == 30 and ui.step(99.9) == 90
+def test_bar_five_blocks_twenty_percent_steps():
+    assert ui.bar(0) == "▱" * 5 and ui.bar(100) == "▰" * 5 and ui.bar(250) == "▰" * 5 and ui.bar(-5) == "▱" * 5
+    assert ui.bar(47) == "▰▰▱▱▱" and ui.step(47) == 40 and ui.step(99.9) == 80
 
 
 def test_card_plain_when_premium_not_verified(monkeypatch):
@@ -24,7 +24,7 @@ def test_card_plain_when_premium_not_verified(monkeypatch):
 def test_card_premium_ignores_old_process_text(monkeypatch):
     _premium(monkeypatch, True)
     t = ui.progress_card("download", 57, "<b>📶 Total Progress</b>", "5 MB/s")
-    assert '<emoji id="' in t and "Total Progress" not in t and "50%" in t and "5 MB/s" in t
+    assert '<emoji id="' in t and "Total Progress" not in t and "40%" in t and "5 MB/s" in t
     ents = asyncio.run(Parser(None).parse(t, enums.ParseMode.HTML))["entities"]
     names = {type(e).__name__ for e in ents}
     assert {"MessageEntityCustomEmoji", "MessageEntityBlockquote"} <= names
