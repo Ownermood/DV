@@ -814,6 +814,8 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
             nonlocal current_total_process, did_cookie_retry, did_proxy_retry, is_hls, is_reverse_order, current_playlist_items_override, use_range_download, range_entries_metadata
             # Use format_override if provided, otherwise use default 'ba'
             download_format = format_override if format_override else 'ba'
+            if download_format == 'ba':
+                download_format = 'ba/b'  # no audio-only stream (Snapchat, many reels): take the video, extract MP3
             
             # Get user's audio format preference from args_cmd
             from COMMANDS.args_cmd import get_user_ytdlp_args
@@ -867,7 +869,9 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                'geo_bypass': True,
                'check_certificate': False,
                'live_from_start': True,
-               'writethumbnail': True,  # Enable thumbnail writing for manual embedding
+               # Snapchat thumbnails have no real extension (e.g. 'IRZXSOY'): yt-dlp refuses to save them and the
+               # whole MP3 download failed. Skip yt-dlp's thumbnail there; the cover is fetched separately below.
+               'writethumbnail': 'snapchat.com' not in url.lower(),
                'writesubtitles': False,  # Disable subtitles for audio
                'writeautomaticsub': False,  # Disable auto subtitles for audio
             }
@@ -1416,6 +1420,8 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
                     try:
                         # Get the same options as in try_download_audio but with safe filename
                         download_format = format_override if format_override else 'ba'
+                        if download_format == 'ba':
+                            download_format = 'ba/b'  # no audio-only stream: take the video, extract MP3
                         from COMMANDS.args_cmd import get_user_ytdlp_args
                         user_args = get_user_ytdlp_args(user_id, url)
                         audio_format = user_args.get('audio_format', 'mp3')
