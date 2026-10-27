@@ -230,7 +230,11 @@ def _probe(url, user_id) -> Optional[dict]:
     shared = cookie_store.first_active("youtube") if plat and plat[0] == "youtube" else shared_cookie_path(url)
     for cookie in dict.fromkeys([None, shared]):
         try:
-            with yt_dlp.YoutubeDL(_ydl_opts(cookie)) as ydl:
+            from HELPERS.proxy_helper import youtube_proxy
+            opts = _ydl_opts(cookie)
+            if youtube_proxy(url):
+                opts["proxy"] = youtube_proxy(url)
+            with yt_dlp.YoutubeDL(opts) as ydl:
                 info = ydl.extract_info(url, download=False)
             if info and info.get("_type") == "playlist":
                 entries = [e for e in (info.get("entries") or []) if e]

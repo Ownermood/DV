@@ -40,5 +40,27 @@ services:
     volumes:
       - mongo-data:/data/db
 
+  # Optional Cloudflare WARP (free) for YouTube only, when YouTube blocks the server IP.
+  # Start: docker compose --profile warp up -d   +   YOUTUBE_PROXY=socks5://warp:1080 in .env
+  warp:
+    image: caomingjun/warp:latest
+    profiles: ["warp"]
+    restart: unless-stopped
+    logging: *default-logging
+    environment:
+      - WARP_SLEEP=2
+    cap_add:
+      - MKNOD
+      - AUDIT_WRITE
+      - NET_ADMIN
+    device_cgroup_rules:
+      - 'c 10:200 rwm'
+    sysctls:
+      - net.ipv6.conf.all.disable_ipv6=0
+      - net.ipv4.conf.all.src_valid_mark=1
+    volumes:
+      - warp-data:/var/lib/cloudflare-warp
+
 volumes:
   mongo-data:
+  warp-data:
