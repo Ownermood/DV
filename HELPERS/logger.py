@@ -94,6 +94,26 @@ def _plain_log_text(msg) -> str:
     return text[:700] + ("…" if len(text) > 700 else "")
 
 
+_NOISE = ("cookie", "menu opened", "proxy", "nsfw", "cache", "script", "browser", "help shown", "status")
+_SENT = ("sent", "upload complete", "upload completed", "reposted")
+
+
+def _log_kind(msg):
+    """Old log texts -> (icon, title, short body) for the channel, or None for internal noise."""
+    plain = re.sub(r"<[^>]+>", "", str(msg or "")).strip()
+    low = plain.lower()
+    if "entered a url" in low or "entered a link" in low:
+        return "📥", "New download", ""
+    if any(k in low for k in _SENT):
+        short = re.sub(r"\s*to user\s*\d+", "", plain.split("\n")[0])
+        short = re.sub(r"https?://\S+", "", short).strip(" :·-")
+        short = {"Video upload completed with file splitting.": "Video sent in parts"}.get(short, short)
+        return "✅", "Sent", short[:120]
+    if any(k in low for k in _NOISE):
+        return None
+    return "📝", "Log", plain[:300]
+
+
 def log_card(message, icon: str, title: str, msg, url: str = None) -> str:
     """Card for the log channels: user (clickable name, @username, ID), platform + link, event, time."""
     from datetime import datetime, timedelta, timezone
@@ -106,6 +126,7 @@ def log_card(message, icon: str, title: str, msg, url: str = None) -> str:
     who = (f'<a href="tg://user?id={uid}">{escape(name[:60])}</a>'
            + (f" · @{escape(uname)}" if uname else "") + f" · <code>{uid}</code>")
     link = (url or _extract_url_from_message(message) or "").strip()
+    link = re.sub(r"[?&]si=[\w-]+$", "", link)  # YouTube share tracking
     site_line = ""
     if link:
         try:
@@ -117,16 +138,21 @@ def log_card(message, icon: str, title: str, msg, url: str = None) -> str:
         short = escape(link if len(link) <= 60 else link[:57] + "…")
         site_line = f'\n{site} · <a href="{escape(link, quote=True)}">{short}</a>'
     when = datetime.now(timezone(timedelta(hours=5, minutes=30))).strftime("%d %b %Y · %I:%M %p")
-    body = _plain_log_text(msg)
+    body = "\n".join(l for l in _plain_log_text(msg).split("\n")
+                     if l.strip() and not re.match(r"\s*(user'?s name|url|user id|name)\s*:", l, re.I))
     return (f"{icon} <b>{title}</b>\n<blockquote>👤 {who}{site_line}</blockquote>"
             + (f"\n{body}" if body else "") + f"\n🕐 <i>{when} IST</i>")
 
 
 def send_to_logger(message, msg):
     capture_message_context(message)
-    if get_log_channel("general"):  # 0 = no log channel set
-        safe_send_message(get_log_channel("general"), log_card(message, "📥", "Download log", msg),
-                          parse_mode=enums.ParseMode.HTML, disable_web_page_preview=True)
+    kind = _log_kind(msg)
+    if kind is None or not get_log_channel("general"):  # internal noise / no log channel set
+        logger.info(f"[log] {str(msg)[:300]}")
+        return
+    icon, title, body = kind
+    safe_send_message(get_log_channel("general"), log_card(message, icon, title, body),
+                      parse_mode=enums.ParseMode.HTML, disable_web_page_preview=True)
 
 # Send Message to User Only
 

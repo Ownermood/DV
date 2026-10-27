@@ -34,3 +34,10 @@ def test_log_card():
     card = log_card(msg, "📥", "Download log", "<b>Video sent</b> 720p")
     assert '<a href="tg://user?id=42">Owner &lt;Mood&gt;</a>' in card and "@ownermood" in card and "<code>42</code>" in card
     assert "YouTube" in card and 'href="https://youtu.be/dQw4w9WgXcQ"' in card and "Video sent" in card and "IST" in card
+
+
+def test_log_kinds():
+    from HELPERS.logger import _log_kind
+    assert _log_kind("User entered a <b>url</b>\n <b>user's name:</b> X\nURL: https://youtu.be/x") == ("📥", "New download", "")
+    assert _log_kind("Playlist videos sent: 3/3 files (quality=720p) to user 1")[1] == "Sent"
+    assert _log_kind("✅ Cookies file is working") is None
