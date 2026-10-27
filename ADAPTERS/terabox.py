@@ -817,10 +817,13 @@ def _run_job(app, message, url, meta, q, card) -> None:
                     "Admin: add TeraBox cookies in Admin Panel → Cookie Manager.")
         elif "too large" in str(exc) or "not available" in str(exc) or "preview" in str(exc):
             body = str(exc)[:200]
+        elif q == "o" and meta:  # the share opened fine, so the original file itself stalled
+            body = ("TeraBox is limiting the original file's speed on this account (free accounts get a few KB/s). "
+                    "Try ⚡ 480p, it is fast.")
         else:
             body = "The link may be private, deleted or need a password."
         retry = None
-        if meta and q != "o":  # another quality may still work
+        if meta:  # another quality may still work
             import secrets
             token = secrets.token_hex(4)
             with _jobs_lock:
