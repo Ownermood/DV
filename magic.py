@@ -100,6 +100,8 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"menu setup failed: {e}")
     start_channel_guard(app)
+    from HELPERS.alerts import start_health_watch
+    start_health_watch()  # DMs the owners when the token provider / MongoDB / disk breaks or recovers
     idle()
     try:
         app.loop.run_until_complete(stop_channel_guard())

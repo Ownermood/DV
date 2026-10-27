@@ -930,6 +930,11 @@ def _run_job_inner(app, message, url, meta, q, card) -> None:
         if cancel.is_set(uid):  # the Cancel button already replaced the card
             return
         print(f"[terabox] {url} ({q}): {exc}")
+        try:
+            from HELPERS.alerts import download_failed
+            download_failed(uid, url, f"TeraBox {q}: {exc}")
+        except Exception:
+            pass
         if isinstance(exc, NeedCookie):
             body = (f"File: {exc.title[:80]} ({exc.size / 1024 ** 3:.2f} GB)\n"
                     "TeraBox gives download links only to a logged-in account. "

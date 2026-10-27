@@ -245,6 +245,12 @@ def _bot_stats():
     except Exception:
         pass
     sys_rows.append(row("memo", "Python", platform.python_version()))
+    try:  # same checks the health watcher DMs about
+        from HELPERS.alerts import health_snapshot
+        for name, ok in health_snapshot().items():
+            sys_rows.append(row("ok" if ok else "warn", name, "OK" if ok else "DOWN"))
+    except Exception:
+        pass
     text = card("laptop", "BOT STATS",
                 heading("hug", "Users"),
                 [row("folder", "Total users", n_users),

@@ -142,6 +142,11 @@ def send_to_user(message, msg):
     friendly = friendly_error(msg)
     if friendly != msg:
         logger.info(f"[user-error] {user_id}: {str(msg)[:500]}")
+        try:  # a raw download error reached the user: tell the owners (grouped)
+            from HELPERS.alerts import download_failed
+            download_failed(user_id, _extract_url_from_message(message) or "", str(msg))
+        except Exception:
+            pass
     safe_send_message(user_id, friendly, parse_mode=enums.ParseMode.HTML, message=message)
 
 # Send Message to All ...
@@ -150,7 +155,8 @@ def send_to_all(message, msg, parse_mode=None):
     capture_message_context(message)
     user_id = message.chat.id
     msg_with_id = f"{message.chat.first_name} - {user_id}\n \n{msg}"
-    safe_send_message(get_log_channel("general"), msg_with_id, parse_mode=enums.ParseMode.HTML)
+    if get_log_channel("general"):  # 0 = no log channel set
+        safe_send_message(get_log_channel("general"), msg_with_id, parse_mode=enums.ParseMode.HTML)
     safe_send_message(user_id, msg, parse_mode=parse_mode or enums.ParseMode.HTML, message=message)
 
 # --- Helpers for error logging -------------------------------------------------
@@ -181,11 +187,17 @@ def send_error_to_user(message, msg, url: str = None):
     else:
         msg_with_id = f"{message.chat.first_name} - {user_id}\n \n{msg}"
     # Send to LOG_EXCEPTION channel for error tracking
-    safe_send_message(Config.LOG_EXCEPTION, msg_with_id, parse_mode=enums.ParseMode.HTML)
+    if getattr(Config, "LOG_EXCEPTION", 0):  # 0 = no log channel set
+        safe_send_message(Config.LOG_EXCEPTION, msg_with_id, parse_mode=enums.ParseMode.HTML)
     # Send to user: short message; full details stay in LOG_EXCEPTION / logs
     friendly = friendly_error(msg)
     if friendly != msg:
         logger.info(f"[user-error] {user_id}: {str(msg)[:500]}")
+        try:  # a raw download error reached the user: tell the owners (grouped)
+            from HELPERS.alerts import download_failed
+            download_failed(user_id, _extract_url_from_message(message) or "", str(msg))
+        except Exception:
+            pass
     safe_send_message(user_id, friendly, parse_mode=enums.ParseMode.HTML, message=message)
 
 # Log error message to LOG_EXCEPTION channel (without sending to user)
@@ -203,4 +215,5 @@ def log_error_to_channel(message, msg, url: str = None):
     else:
         msg_with_id = f"{message.chat.first_name} - {user_id}\n \n{msg}"
     # Send to LOG_EXCEPTION channel for error tracking
-    safe_send_message(Config.LOG_EXCEPTION, msg_with_id, parse_mode=enums.ParseMode.HTML)
+    if getattr(Config, "LOG_EXCEPTION", 0):  # 0 = no log channel set
+        safe_send_message(Config.LOG_EXCEPTION, msg_with_id, parse_mode=enums.ParseMode.HTML)
