@@ -515,6 +515,11 @@ def check_user(message):
 
     # Register the User in the Database if Not Already Registered
     use_firebase = getattr(Config, 'USE_FIREBASE', True)
+    if mongo_db.enabled():   # one indexed lookup instead of loading every user
+        node = db.child("bot").child(Config.BOT_NAME_FOR_USERS).child("users").child(user_id_str)
+        if node.get().val() is None:
+            node.set({"ID": message.chat.id, "timestamp": math.floor(time.time())})
+        return
     if use_firebase:
         user_db = db.child("bot").child(Config.BOT_NAME_FOR_USERS).child("users").get().each()
         users = [user.key() for user in user_db] if user_db else []
@@ -535,6 +540,12 @@ def check_user(message):
 def is_user_blocked(message):
     messages = safe_get_messages(message.chat.id)
     use_firebase = getattr(Config, 'USE_FIREBASE', True)
+    if mongo_db.enabled():
+        is_blocked = db.child("bot").child(Config.BOT_NAME_FOR_USERS).child("blocked_users").child(
+            str(int(message.chat.id))).get().val() is not None
+        if is_blocked:
+            send_to_all(message, safe_get_messages().DB_USER_BANNED_MSG)
+        return is_blocked
     if use_firebase:
         blocked = db.child("bot").child(Config.BOT_NAME_FOR_USERS).child("blocked_users").get().each()
         blocked_users = [int(b_user.key()) for b_user in blocked] if blocked else []

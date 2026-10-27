@@ -49,3 +49,14 @@ Users only see `/start` and Help. The bot is English only.
 - **Settings:** start image, premium emoji on/off
 
 Activity and download counts start from the update that added them.
+
+## Database and backups
+With `MONGO_URI=mongodb://mongo:27017` (default in `.env.example`) the bot uses its own private MongoDB container.
+The first start imports `dump.json` and the old settings. Daily backup (3 AM, last 7 days in `~/dv-backups`):
+```bash
+bash ~/dv/scripts/backup.sh --install   # once
+bash ~/dv/scripts/backup.sh             # backup now
+```
+Restore: `docker compose exec -T mongo mongorestore --archive --gzip --drop < ~/dv-backups/<file>.archive.gz`.
+Never run `docker compose down -v` (it deletes the database volume).
+

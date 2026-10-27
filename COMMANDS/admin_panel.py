@@ -133,6 +133,19 @@ def _db_ids(node: str) -> list:
     return out
 
 
+def _user_counts():
+    """(total users, [joined today, 7d, 30d]). MongoDB: indexed counts, no full user list in memory."""
+    from DATABASE import mongo_db
+    if mongo_db.enabled():
+        coll = mongo_db.database()["tree"]
+        q = {"_id": {"$regex": "^" + re.escape(f"bot/{Config.BOT_NAME_FOR_USERS}/users/")}}
+        today = datetime.now(IST).replace(hour=0, minute=0, second=0, microsecond=0)
+        starts = [today.timestamp(), (today - timedelta(days=6)).timestamp(), (today - timedelta(days=29)).timestamp()]
+        return coll.count_documents(q), [coll.count_documents({**q, "v.timestamp": {"$gte": t}}) for t in starts]
+    users = _db_users()
+    return len(users), _joined(users)
+
+
 def all_users() -> list:
     users = set(_db_users())
     users.update(a for a in Config.ADMIN if a > 0)
@@ -185,14 +198,13 @@ def _tracking_note(act) -> str:
 
 # ---------------- screens ----------------
 def _home():
-    users = _db_users()
+    n_users, j = _user_counts()
     act = activity.snapshot()
-    j = _joined(users)
     text = card("crown", "Admin Panel",
                 heading("bolt", "Today"),
                 [row("hug", "New users", j[0]), row("ok", "Active users", act["active"][0]),
                  row("down", "Downloads", act["dl"][0])],
-                [row("folder", "Members", len(users)), row("box", "Downloading now", _running_downloads()),
+                [row("folder", "Members", n_users), row("box", "Downloading now", _running_downloads()),
                  row("laptop", "Uptime", _fmt_dur(time.time() - _START_TS))],
                 footer=f"{em('down')} <b>Choose a section:</b>")
     kb = InlineKeyboardMarkup([
@@ -212,9 +224,8 @@ def _back_kb(extra=None, back="ap|home"):
 
 
 def _bot_stats():
-    users = _db_users()
+    n_users, j = _user_counts()
     act = activity.snapshot()
-    j = _joined(users)
     sys_rows = [row("bolt", "Uptime", _fmt_dur(time.time() - _START_TS))]
     try:
         import psutil
@@ -233,7 +244,7 @@ def _bot_stats():
     sys_rows.append(row("memo", "Python", platform.python_version()))
     text = card("laptop", "BOT STATS",
                 heading("hug", "Users"),
-                [row("folder", "Total users", len(users)),
+                [row("folder", "Total users", n_users),
                  row("party", "Joined today / 7d / 30d", f"{j[0]} · {j[1]} · {j[2]}"),
                  row("ok", "Active today / 7d / 30d", f"{act['active'][0]} · {act['active'][1]} · {act['active'][2]}")],
                 heading("down", "Downloads"),
@@ -247,10 +258,8 @@ def _bot_stats():
 
 
 def _users_stats():
-    users = _db_users()
+    total, j = _user_counts()
     act = activity.snapshot()
-    j = _joined(users)
-    total = len(users)
     blocked = len(blocked_users())
 
     def pct(n):
@@ -601,7 +610,8 @@ def _make_draft(client, uid, src):
             _album_parts.pop(k, None)
         _album_parts[gid] = now
     _drafts[uid] = {"chat": src.chat.id, "id": src.id, "album": bool(gid)}
-    total = len([u for u in all_users() if u not in blocked_users()])
+    blocked = blocked_users()   # once, not once per user
+    total = len([u for u in all_users() if u not in blocked])
     send(client, uid, lambda: (card("popcorn", small_caps("Broadcast preview"), [
         row("chat", "Message", "album" if gid else "the message above"),
         row("hug", "Will be sent to", f"{total} users"),
