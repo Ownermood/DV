@@ -89,11 +89,29 @@ def send_reply_keyboard_always(user_id, mode="2x3"):
 # Remove conflicting on_message from decorators.py
 # It should live only in handler_registry.py
 
+_keyboard_cleared = set()   # users whose old reply keyboard was removed in this run
+
+
+def clear_old_reply_keyboard(user_id) -> None:
+    """Remove the old /clean /cookie /settings reply keyboard once per user (no visible message stays)."""
+    if not user_id or user_id in _keyboard_cleared or int(user_id) < 0:
+        return
+    _keyboard_cleared.add(user_id)
+    try:
+        from pyrogram.types import ReplyKeyboardRemove
+        m = app.send_message(user_id, "\u2063", reply_markup=ReplyKeyboardRemove())
+        app.delete_messages(user_id, [m.id])
+        old = reply_keyboard_msg_ids.pop(user_id, None)
+        if old:
+            app.delete_messages(user_id, [old])
+    except Exception as e:
+        logger.info(f"Could not clear reply keyboard for {user_id}: {e}")
+
+
 def reply_with_keyboard(func):
-    """Wrapper for any custom action that adds reply keyboard"""
+    """The bot no longer shows a reply keyboard: this only removes the old one (once per user)."""
     def wrapper(*args, **kwargs):
         result = func(*args, **kwargs)
-        # Determine user_id from arguments (Pyrogram message/chat)
         user_id = None
         if 'message' in kwargs:
             user_id = getattr(kwargs['message'].chat, 'id', None)
@@ -101,42 +119,10 @@ def reply_with_keyboard(func):
             user_id = getattr(args[0].chat, 'id', None)
         elif len(args) > 1 and hasattr(args[1], 'chat'):
             user_id = getattr(args[1].chat, 'id', None)
-        
-        if user_id:
-            # Check if keyboard is enabled for this user
-            user_dir = f'./users/{user_id}'
-            keyboard_file = f'{user_dir}/keyboard.txt'
-            
-            keyboard_enabled = True
-            keyboard_mode = "2x3"  # Default mode
-            
-            if os.path.exists(keyboard_file):
-                try:
-                    with open(keyboard_file, 'r') as f:
-                        setting = f.read().strip()
-                        if setting == "OFF":
-                            keyboard_enabled = False
-                        elif setting in ["1x3", "2x3", "FULL"]:
-                            keyboard_enabled = True
-                            keyboard_mode = setting
-                except:
-                    pass
-            
-            # Only show keyboard if enabled and not /keyboard command
-            if keyboard_enabled:
-                # Check if this is a /keyboard command (exclude only /keyboard)
-                is_keyboard_command = False
-                if 'message' in kwargs and hasattr(kwargs['message'], 'text'):
-                    is_keyboard_command = kwargs['message'].text == "/keyboard"
-                elif len(args) > 1 and hasattr(args[1], 'text'):
-                    is_keyboard_command = args[1].text == "/keyboard"
-                
-                if not is_keyboard_command:
-                    send_reply_keyboard_always(user_id, keyboard_mode)
-        
+        clear_old_reply_keyboard(user_id)
         return result
 
-    return wrapper 
+    return wrapper
 
 
 def _extract_message_arg(args, kwargs):

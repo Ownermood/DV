@@ -329,7 +329,8 @@ def send_videos(
                     f"{info_text}\n<b>{safe_get_messages(user_id).SENDER_VIDEO_DURATION_MSG}</b> <i>{TimeFormatter(duration*1000)}</i>\n\n<i>{safe_get_messages(user_id).SENDER_UPLOADING_VIDEO_MSG}</i>"
                 ),
                 reply_parameters=ReplyParameters(message_id=message.id),
-                parse_mode=enums.ParseMode.HTML
+                parse_mode=enums.ParseMode.HTML,
+                reply_markup=getattr(message, "_ui_after_kb", None),  # MP3 / Thumbnail under the video
             )
             # Cleanup special thumb (free-only temp files)
             try:
@@ -421,6 +422,7 @@ def send_videos(
                 chat_id=user_id,
                 document=video_abs_path,
                 file_name=original_filename,
+                reply_markup=getattr(message, "_ui_after_kb", None),
                 caption=caption_text,
                 thumb=local_thumb,
                 progress=progress_bar,

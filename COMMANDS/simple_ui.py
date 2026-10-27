@@ -182,14 +182,6 @@ def _ensure_menu(client) -> None:
     ensure_admin_menus(client)
 
 
-def _clear_reply_keyboard(client, chat_id: int) -> None:
-    try:
-        m = client.send_message(chat_id, "✨", reply_markup=ReplyKeyboardRemove())
-        client.delete_messages(chat_id, m.id)
-    except Exception:
-        pass
-
-
 _registered = set()
 
 
@@ -211,6 +203,8 @@ _PENDING = {}  # token -> (message, platform_key, ts)
 _PENDING_TTL = 3600
 _pending_lock = threading.Lock()
 _SIZES = {}  # token -> _yt_pick() result from the YouTube probe
+_AFTER = {}  # token -> (message, ts): MP3 / Thumbnail buttons under a sent video
+_AFTER_TTL = 24 * 3600
 YT_HEIGHTS = (2160, 1440, 1080, 720, 480, 360, 240, 144)
 
 
@@ -370,12 +364,26 @@ def _too_big_view(uid, token, size, fits):
     return text, InlineKeyboardMarkup(rows)
 
 
+def _after_markup(message) -> InlineKeyboardMarkup:
+    """MP3 + Thumbnail buttons shown under the downloaded video."""
+    token = secrets.token_hex(4)
+    now = time.time()
+    with _pending_lock:
+        for k in [k for k, v in _AFTER.items() if now - v[1] > _AFTER_TTL]:
+            _AFTER.pop(k, None)
+        _AFTER[token] = (message, now)
+    uid = message.chat.id
+    return InlineKeyboardMarkup([[btn("music", t(uid, "mp3"), cb=f"ui|x|{token}|a", style=BLUE),
+                                  btn("image", t(uid, "thumb"), cb=f"ui|x|{token}|t", style=BLUE)]])
+
+
 def _run_choice(client, message, choice, picks=None) -> None:
     """Hand the stored link to the legacy pipeline (keeps ban/sub/rate checks)."""
     from URL_PARSERS.url_extractor import url_distractor
     original = message.text
     try:
         message._ui_format = None
+        message._ui_after_kb = None if choice == "a" else _after_markup(message)
         if choice == "a":
             message.text = f"/audio {extract_url(original) or original}"
             message._ui_choice = None
@@ -442,6 +450,8 @@ def _send_thumbnail(client, message) -> None:
 def front_door(client, message):
     _ensure_menu(client)
     _register_user(message)
+    from HELPERS.decorators import clear_old_reply_keyboard
+    clear_old_reply_keyboard(message.chat.id)   # the old /clean /cookie /settings keyboard
     activity.touch(message.chat.id)
     text = (message.text or "").strip()
     chat_id = message.chat.id
@@ -455,7 +465,6 @@ def front_door(client, message):
     if text.startswith("/"):
         cmd = text[1:].split()[0].split("@")[0].lower()
         if cmd == "start":
-            _clear_reply_keyboard(client, chat_id)
             send_start(client, chat_id, message.from_user.first_name if message.from_user else "")
             message.stop_propagation()
         if cmd == "help":
@@ -489,8 +498,13 @@ def front_door(client, message):
         message.stop_propagation()
     key, label, _, _ = found
     if key == "terabox":
-        return  # TeraBox adapter is a direct download; no quality/MP3 menu
-    _show_link_menu(client, message, key, label)
+        return  # TeraBox adapter is a direct download
+    if key == "youtube":
+        _show_link_menu(client, message, key, label)   # quality picker (+ MP3 / Thumbnail)
+    else:
+        # other sites: best quality straight away; MP3 / Thumbnail come as buttons under the video
+        activity.download(chat_id)
+        threading.Thread(target=_run_choice, args=(client, message, "b"), daemon=True).start()
     message.stop_propagation()
 
 
@@ -515,6 +529,17 @@ def ui_callbacks(client, cq):
                 edit(client, msg, lambda: (t(uid, "cookie_deleted" if had else "cookie_none"), _back_markup(uid, "ui|ckm")))
         elif action == "ckm":
             edit(client, msg, lambda: cookie_menu(uid))
+        elif action == "x" and len(parts) == 4:
+            with _pending_lock:
+                item = _AFTER.get(parts[2])
+            original = item[0] if item and item[0].chat.id == uid else None
+            if original is None:
+                cq.answer(t(uid, "expired"), show_alert=True)
+            else:
+                activity.download(uid)
+                cq.answer(t(uid, "started") if parts[3] == "a" else t(uid, "thumb"))
+                fn = _send_thumbnail if parts[3] == "t" else (lambda c, m: _run_choice(c, m, "a"))
+                threading.Thread(target=fn, args=(client, original), daemon=True).start()
         elif action == "home":
             edit(client, msg, lambda: (welcome_text(cq.from_user.first_name or "", uid), _start_markup(uid)))
         elif action == "close":
