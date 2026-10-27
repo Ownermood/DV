@@ -298,6 +298,112 @@ def _resolve(url: str):
     raise RuntimeError("; ".join(errors))
 
 
+# ---------------- streaming version (smaller, much faster, like other TeraBox bots) ----------------
+STREAM_TYPES = ("M3U8_AUTO_720", "M3U8_AUTO_480")
+
+
+def _stream_resolve(url: str, cookies: dict):
+    """(playlist text, title, thumb, quality) of TeraBox's streaming copy; needs a logged-in cookie
+    (without login TeraBox only gives a 30 s preview, which is rejected here)."""
+    sess = requests.Session()
+    sess.headers.update({"User-Agent": UA, "Accept-Language": "en-US,en;q=0.9"})
+    sess.cookies.update(cookies)
+    page = sess.get(url, timeout=(CONNECT_TIMEOUT, READ_TIMEOUT), allow_redirects=True)
+    page.raise_for_status()
+    js_token = _between(page.text, "fn%28%22", "%22%29") or _between(page.text, '"jsToken":"', '"')
+    logid = _between(page.text, "dp-logid=", "&") or ""
+    m = re.search(r"/s/1?([\w-]+)", urlparse(url).path) or re.search(r"/s/1?([\w-]+)", urlparse(page.url).path)
+    from urllib.parse import parse_qs
+    final = urlparse(page.url)
+    surl = (parse_qs(final.query).get("surl") or [""])[0] or (m.group(1) if m else "")
+    if not js_token or not surl:
+        raise RuntimeError("TeraBox page changed or the link is invalid")
+    base = f"{final.scheme}://{final.hostname}"
+    common = {"app_id": "250528", "web": "1", "channel": "dubox", "clienttype": "0", "jsToken": js_token}
+    data = sess.get(f"{base}/share/list", params={**common, "dplogid": logid, "page": "1", "num": "20", "order": "time",
+                                                  "desc": "1", "site_referer": page.url, "shorturl": surl, "root": "1"},
+                    timeout=(CONNECT_TIMEOUT, READ_TIMEOUT)).json()
+    files = [f for f in data.get("list") or [] if not int(f.get("isdir") or 0) and str(f.get("category")) == "1"]
+    if not files:
+        raise RuntimeError("no video in this share")
+    f = max(files, key=lambda x: int(x.get("size") or 0))
+    info = sess.get(f"{base}/api/shorturlinfo", params={**common, "shorturl": "1" + surl, "root": "1"},
+                    timeout=(CONNECT_TIMEOUT, READ_TIMEOUT)).json()
+    duration = float(f.get("duration") or 0)
+    for typ in STREAM_TYPES:
+        r = sess.get(f"{base}/share/streaming", params={
+            **common, "uk": info.get("uk") or data.get("uk"), "shareid": info.get("shareid") or data.get("share_id"),
+            "type": typ, "fid": f.get("fs_id"), "sign": info.get("sign"), "timestamp": info.get("timestamp"),
+            "esl": "1", "isplayer": "1", "ehps": "1"}, timeout=(CONNECT_TIMEOUT, READ_TIMEOUT))
+        text = r.text
+        if not text.startswith("#EXTM3U"):
+            continue
+        length = sum(float(x) for x in re.findall(r"#EXTINF:([\d.]+)", text))
+        if duration and length < duration * 0.9:  # 30 s preview of a not-logged-in session
+            raise RuntimeError(f"only a {length:.0f}s preview (cookie not logged in)")
+        thumbs = f.get("thumbs") or {}
+        return text, f.get("server_filename") or "TeraBox video", thumbs.get("url3") or thumbs.get("url2"), typ[-3:] + "p"
+    raise RuntimeError("no streaming copy")
+
+
+def _stream_try(url):
+    """Streaming copy with each TeraBox cookie in turn, or None."""
+    for path in _cookie_files():
+        try:
+            return _stream_resolve(url, _load_cookies(path))
+        except Exception as exc:
+            print(f"[terabox] stream: {exc}", flush=True)
+    return None
+
+
+def _hls_download(playlist: str, out: Path, limit, progress) -> None:
+    """Fetch every segment with 16 connections, join them, remux to mp4 (no re-encode)."""
+    import concurrent.futures
+    import subprocess
+    segs = [l.strip() for l in playlist.splitlines() if l.strip().startswith("http")]
+    if not segs:
+        raise RuntimeError("empty playlist")
+    sess = requests.Session()
+    sess.headers.update({"User-Agent": UA, "Referer": "https://www.1024tera.com/"})
+    adapter = requests.adapters.HTTPAdapter(pool_connections=PARTS, pool_maxsize=PARTS)
+    sess.mount("https://", adapter)
+    folder = out.parent / "segs"
+    folder.mkdir(exist_ok=True)
+    lock, done, n_done = threading.Lock(), [0], [0]
+
+    def get(i, u):
+        for attempt in range(4):
+            try:
+                data = sess.get(u, timeout=(CONNECT_TIMEOUT, READ_TIMEOUT)).content
+                (folder / f"{i:06d}.ts").write_bytes(data)
+                with lock:
+                    done[0] += len(data)
+                    n_done[0] += 1
+                    cur, k = done[0], n_done[0]
+                if cur > limit:
+                    raise RuntimeError(f"too large (limit {limit / 1024 ** 3:.0f} GB)")
+                progress(cur, int(cur * len(segs) / k))  # total estimated from the segments so far
+                return
+            except RuntimeError:
+                raise
+            except Exception:
+                if attempt == 3:
+                    raise
+                time.sleep(2 * (attempt + 1))
+    with concurrent.futures.ThreadPoolExecutor(PARTS) as pool:
+        for fut in [pool.submit(get, i, u) for i, u in enumerate(segs)]:
+            fut.result()
+    joined = out.parent / "joined.ts"
+    with joined.open("wb") as w:
+        for i in range(len(segs)):
+            part = folder / f"{i:06d}.ts"
+            w.write(part.read_bytes())
+            part.unlink()
+    subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", str(joined), "-c", "copy", "-bsf:a", "aac_adtstoasc",
+                    "-movflags", "+faststart", str(out)], check=True, timeout=1800)
+    joined.unlink()
+
+
 # ---------------- send ----------------
 def _duration(path: str) -> float:
     import subprocess
@@ -399,7 +505,7 @@ def _fast_download(url, filepath: Path, cookies, size, limit, progress) -> None:
             fut.result()
 
 
-def _preview(app, message, title, size, thumb_path):
+def _preview(app, message, title, size, thumb_path, quality=""):
     """One card for the whole job: thumbnail, name, size; progress is added below. Returns (msg, base text)."""
     from html import escape
     from pyrogram import enums
@@ -408,8 +514,9 @@ def _preview(app, message, title, size, thumb_path):
         icon, sz = pem("box"), pem("folder")
     except Exception:
         icon, sz = "📦", "📁"
-    size_txt = (f"{size / 1024 ** 3:.2f} GB" if size >= 1024 ** 3 else f"{size / 1024 ** 2:.1f} MB") if size else "unknown"
-    base = f"{icon} <b>{escape(title[:180])}</b>\n<b>{sz} Size: {size_txt}</b>"
+    size_txt = (f"{size / 1024 ** 3:.2f} GB" if size >= 1024 ** 3 else f"{size / 1024 ** 2:.1f} MB") if size else ""
+    line = f"Size: {size_txt}" if size_txt else f"Quality: {quality} (fast stream copy)" if quality else ""
+    base = f"{icon} <b>{escape(title[:180])}</b>" + (f"\n<b>{sz} {line}</b>" if line else "")
     try:
         if thumb_path:
             msg = app.send_photo(message.chat.id, thumb_path, caption=base, parse_mode=enums.ParseMode.HTML,
@@ -530,18 +637,25 @@ def handle_terabox(app, message) -> bool:
     base = ""
     limit = _max_bytes()
     try:
-        direct_url, thumb_url, title, size, dl_cookies = _resolve(url)
+        stream = _stream_try(url)  # streaming copy first: smaller and much faster (needs a TeraBox cookie)
+        if stream:
+            playlist, title, thumb_url, quality = stream
+            direct_url, size, dl_cookies = None, 0, None
+        else:
+            playlist, quality = None, ""
+            direct_url, thumb_url, title, size, dl_cookies = _resolve(url)
         if size and size > limit:
             raise RuntimeError(f"too large: {size / 1024 ** 3:.2f} GB (limit {limit / 1024 ** 3:.0f} GB)")
         with tempfile.TemporaryDirectory(prefix="all-downloader-tera-") as temp_dir:
             folder = Path(temp_dir)
-            name = title if "." in title else (Path(urlparse(direct_url).path).name or "terabox-video.mp4")
+            name = (Path(title).stem + ".mp4") if playlist else (
+                title if "." in title else (Path(urlparse(direct_url).path).name or "terabox-video.mp4"))
             filename = re.sub(r"[^\w .()\-]+", "_", name)[:120]
             if not filename or filename in {".", ".."}:
                 filename = "terabox-video.mp4"
             filepath = folder / filename
             thumb_path = _download_thumb(thumb_url, folder)
-            pmsg, base = _preview(app, message, title, size, thumb_path)
+            pmsg, base = _preview(app, message, title, size, thumb_path, quality)
             if pmsg is not None:
                 try:
                     app.delete_messages(message.chat.id, status.id)
@@ -562,7 +676,10 @@ def handle_terabox(app, message) -> bool:
                 of = f" / {length / 1024 ** 2:.0f} MB" if length else " MB"
                 _show(app, card, (base + "\n\n" if base else "")
                       + progress_card("download", pct, detail=f"{total / 1024 ** 2:.0f}{of} · {speed:.1f} MB/s"))
-            _fast_download(direct_url, filepath, dl_cookies, size, limit, progress)
+            if playlist:
+                _hls_download(playlist, filepath, limit, progress)
+            else:
+                _fast_download(direct_url, filepath, dl_cookies, size, limit, progress)
             _show(app, card, (base + "\n\n" if base else "") + progress_card("upload", 0))
             _cache_put(url, _send_file(app, message, filepath, title, url, thumb_path) or [], title)
         app.delete_messages(message.chat.id, card.id)  # the file itself is the success signal
