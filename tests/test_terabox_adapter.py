@@ -102,3 +102,17 @@ def test_worker_resolver(monkeypatch):
     direct, thumb, title, size, cookies = tb._worker_resolve("https://terasharelink.com/s/1x")
     assert sent == {"u": "https://w.dev/", "json": {"link": "https://terasharelink.com/s/1x"}}
     assert direct == "https://w.dev/proxy?url=x" and title == "a.mp4" and size == 5 and thumb is None
+
+
+def test_cache_roundtrip(monkeypatch):
+    import types
+    from ADAPTERS import terabox as tb
+    store = {}
+    import COMMANDS.ui_kit as kit
+    monkeypatch.setattr(kit, "state_get", lambda k, d=None: store.get(k, d))
+    monkeypatch.setattr(kit, "state_set", lambda k, v: store.__setitem__(k, v))
+    url = "https://terasharelink.com/s/18KnaRqYo1qA8Smga-tgQUQ"
+    assert tb._share_key(url) == "8KnaRqYo1qA8Smga-tgQUQ"
+    vid = types.SimpleNamespace(video=types.SimpleNamespace(file_id="F1"), document=None)
+    tb._cache_put(url, [vid], "Movie.mkv")
+    assert tb._cache_get("https://www.1024terabox.com/s/18KnaRqYo1qA8Smga-tgQUQ") == {"t": "Movie.mkv", "f": [("F1", "v")]}

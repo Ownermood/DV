@@ -399,8 +399,8 @@ def _fast_download(url, filepath: Path, cookies, size, limit, progress) -> None:
             fut.result()
 
 
-def _preview(app, message, title, size, thumb_path) -> None:
-    """Preview card (thumbnail, name, size) before the download, like the other platforms."""
+def _preview(app, message, title, size, thumb_path):
+    """One card for the whole job: thumbnail, name, size; progress is added below. Returns (msg, base text)."""
     from html import escape
     from pyrogram import enums
     try:
@@ -409,16 +409,81 @@ def _preview(app, message, title, size, thumb_path) -> None:
     except Exception:
         icon, sz = "📦", "📁"
     size_txt = (f"{size / 1024 ** 3:.2f} GB" if size >= 1024 ** 3 else f"{size / 1024 ** 2:.1f} MB") if size else "unknown"
-    text = (f"{icon} <b>{escape(title[:180])}</b>\n<blockquote><b>{sz} Size: {size_txt}\n"
-            f"⬇️ Downloading in best quality…</b></blockquote>")
+    base = f"{icon} <b>{escape(title[:180])}</b>\n<b>{sz} Size: {size_txt}</b>"
     try:
         if thumb_path:
-            app.send_photo(message.chat.id, thumb_path, caption=text, parse_mode=enums.ParseMode.HTML,
-                           reply_to_message_id=message.id)
+            msg = app.send_photo(message.chat.id, thumb_path, caption=base, parse_mode=enums.ParseMode.HTML,
+                                 reply_to_message_id=message.id)
         else:
-            app.send_message(message.chat.id, text, parse_mode=enums.ParseMode.HTML, reply_to_message_id=message.id)
+            msg = app.send_message(message.chat.id, base, parse_mode=enums.ParseMode.HTML, reply_to_message_id=message.id)
+        return msg, base
     except Exception as exc:
         print(f"[terabox] preview failed: {exc}")
+        return None, base
+
+
+def _show(app, msg, text) -> None:
+    """Edit the job card (photo caption or text)."""
+    from pyrogram import enums
+    try:
+        if getattr(msg, "photo", None):
+            app.edit_message_caption(msg.chat.id, msg.id, text[:1024], parse_mode=enums.ParseMode.HTML)
+        else:
+            app.edit_message_text(msg.chat.id, msg.id, text, parse_mode=enums.ParseMode.HTML)
+    except Exception:
+        pass
+
+
+# ---------------- cache: the same share link is sent again instantly ----------------
+_CACHE_MAX = 3000
+
+
+def _share_key(url):
+    m = re.search(r"(?:/s/|surl=)1?([\w-]+)", url or "")
+    return m.group(1) if m else None
+
+
+def _cache_get(url):
+    key = _share_key(url)
+    if not key:
+        return None
+    try:
+        from COMMANDS.ui_kit import state_get
+        return (state_get("terabox_cache", {}) or {}).get(key)
+    except Exception:
+        return None
+
+
+def _cache_put(url, sent, title=""):
+    key = _share_key(url)
+    items = [(m.video.file_id, "v") if m.video else (m.document.file_id, "d") for m in sent if m and (m.video or m.document)]
+    if not key or not items:
+        return
+    try:
+        from COMMANDS.ui_kit import state_get, state_set
+        cache = state_get("terabox_cache", {}) or {}
+        cache[key] = {"t": title[:200], "f": items}
+        while len(cache) > _CACHE_MAX:
+            cache.pop(next(iter(cache)))
+        state_set("terabox_cache", cache)
+    except Exception as exc:
+        print(f"[terabox] cache save failed: {exc}")
+
+
+def _send_cached(app, message, url, entry) -> bool:
+    chat, rid = message.chat.id, message.id
+    items, title = (entry.get("f") or [], entry.get("t") or "TeraBox") if isinstance(entry, dict) else (entry, "TeraBox")
+    try:
+        for n, (fid, kind) in enumerate(items, 1):
+            cap = _caption(title, url, f"Part {n}/{len(items)}" if len(items) > 1 else "")
+            if kind == "v":
+                app.send_video(chat, fid, caption=cap, reply_to_message_id=rid, supports_streaming=True)
+            else:
+                app.send_document(chat, fid, caption=cap, reply_to_message_id=rid)
+        return True
+    except Exception as exc:
+        print(f"[terabox] cached send failed, downloading again: {exc}")
+        return False
 
 
 def _send_file(app, message, filepath: Path, title: str, url: str, thumb_path):
@@ -428,11 +493,10 @@ def _send_file(app, message, filepath: Path, title: str, url: str, thumb_path):
     is_video = filepath.suffix.lower() in VIDEO_EXT
     if size <= PART_BYTES:
         if is_video:
-            app.send_video(chat, str(filepath), caption=_caption(title, url), thumb=thumb_path,
-                           reply_to_message_id=rid, supports_streaming=True)
-        else:
-            app.send_document(chat, str(filepath), caption=_caption(title, url), thumb=thumb_path, reply_to_message_id=rid)
-        return
+            return [app.send_video(chat, str(filepath), caption=_caption(title, url), thumb=thumb_path,
+                                   reply_to_message_id=rid, supports_streaming=True)]
+        return [app.send_document(chat, str(filepath), caption=_caption(title, url), thumb=thumb_path,
+                                  reply_to_message_id=rid)]
     if not is_video:
         raise RuntimeError(f"too large: {size / 1024 ** 3:.2f} GB file (only videos can be sent in parts)")
     from DOWN_AND_UP.ffmpeg import split_video_2
@@ -440,9 +504,8 @@ def _send_file(app, message, filepath: Path, title: str, url: str, thumb_path):
     paths = [p for p in (parts or {}).get("path", []) if os.path.exists(p) and os.path.getsize(p) > 0]
     if not paths:
         raise RuntimeError("could not split the video")
-    for n, p in enumerate(paths, 1):
-        app.send_video(chat, p, caption=_caption(title, url, f"Part {n}/{len(paths)}"), thumb=thumb_path,
-                       reply_to_message_id=rid, supports_streaming=True)
+    return [app.send_video(chat, p, caption=_caption(title, url, f"Part {n}/{len(paths)}"), thumb=thumb_path,
+                           reply_to_message_id=rid, supports_streaming=True) for n, p in enumerate(paths, 1)]
 
 
 def handle_terabox(app, message) -> bool:
@@ -459,7 +522,12 @@ def handle_terabox(app, message) -> bool:
         return True
 
     html_mode = enums.ParseMode.HTML
+    cached = _cache_get(url)
+    if cached and _send_cached(app, message, url, cached):
+        return True
     status = app.send_message(message.chat.id, progress_card("search", 0), parse_mode=html_mode, reply_to_message_id=message.id)
+    card = status  # becomes the preview card (thumbnail + name + size + progress) once the file is known
+    base = ""
     limit = _max_bytes()
     try:
         direct_url, thumb_url, title, size, dl_cookies = _resolve(url)
@@ -473,8 +541,13 @@ def handle_terabox(app, message) -> bool:
                 filename = "terabox-video.mp4"
             filepath = folder / filename
             thumb_path = _download_thumb(thumb_url, folder)
-            _preview(app, message, title, size, thumb_path)
-            total, last_update, last_step = 0, 0.0, -1
+            pmsg, base = _preview(app, message, title, size, thumb_path)
+            if pmsg is not None:
+                try:
+                    app.delete_messages(message.chat.id, status.id)
+                except Exception:
+                    pass
+                card = pmsg
             state = {"last": 0.0, "start": time.monotonic()}
             length_hint = size or 0
 
@@ -487,16 +560,12 @@ def handle_terabox(app, message) -> bool:
                 pct = total * 100 / length if length else 0
                 speed = total / max(now - state["start"], 0.1) / 1024 ** 2
                 of = f" / {length / 1024 ** 2:.0f} MB" if length else " MB"
-                try:
-                    app.edit_message_text(message.chat.id, status.id,
-                                          progress_card("download", pct, detail=f"{total / 1024 ** 2:.0f}{of} · {speed:.1f} MB/s"),
-                                          parse_mode=html_mode)
-                except Exception:
-                    pass
+                _show(app, card, (base + "\n\n" if base else "")
+                      + progress_card("download", pct, detail=f"{total / 1024 ** 2:.0f}{of} · {speed:.1f} MB/s"))
             _fast_download(direct_url, filepath, dl_cookies, size, limit, progress)
-            app.edit_message_text(message.chat.id, status.id, progress_card("upload", 0), parse_mode=html_mode)
-            _send_file(app, message, filepath, title, url, thumb_path)
-        app.delete_messages(message.chat.id, status.id)  # the file itself is the success signal
+            _show(app, card, (base + "\n\n" if base else "") + progress_card("upload", 0))
+            _cache_put(url, _send_file(app, message, filepath, title, url, thumb_path) or [], title)
+        app.delete_messages(message.chat.id, card.id)  # the file itself is the success signal
     except Exception as exc:
         print(f"[terabox] {url}: {exc}")
         if isinstance(exc, NeedCookie):
@@ -509,9 +578,8 @@ def handle_terabox(app, message) -> bool:
             body = "The link may be private, deleted or need a password."
         try:
             from html import escape
-            app.edit_message_text(message.chat.id, status.id,
-                                  f"📦 <b>TeraBox download failed.</b>\n<blockquote><b>{escape(body)}</b></blockquote>",
-                                  parse_mode=html_mode)
+            _show(app, card, (base + "\n\n" if base else "")
+                  + f"📦 <b>TeraBox download failed.</b>\n<blockquote><b>{escape(body)}</b></blockquote>")
         except Exception:
             pass
     return True
