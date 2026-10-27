@@ -766,6 +766,10 @@ def handle_terabox(app, message) -> bool:
     except Exception as exc:
         print(f"[terabox] {url}: {exc}")
         meta = None
+        if "errno 2130" in str(exc) or "No file in this TeraBox share" in str(exc):
+            _show(app, status, "📦 <b>This TeraBox link is empty.</b>\n<blockquote><b>The file was deleted by the "
+                               "uploader or removed by TeraBox. Ask for a new link.</b></blockquote>")
+            return True
     if meta is None:  # old resolvers (worker / token API) still get a chance
         _run_job(app, message, url, None, "o", status)
         return True
