@@ -689,7 +689,9 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
             user_cookie_path = os.path.join("users", str(user_id), "cookie.txt")
             
             if is_youtube_url(url):
-                pass  # no cookie first for YouTube (see the cookie logic below)
+                from COMMANDS import cookie_store
+                if cookie_store.first_active("youtube"):
+                    ydl_opts['cookiefile'] = cookie_store.first_active("youtube")
             elif os.path.exists(download_cookie_path):
                 ydl_opts['cookiefile'] = download_cookie_path
                 logger.info(f"Using cookies from download directory: {download_cookie_path}")
@@ -1089,8 +1091,9 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 # YouTube: no cookie first (works from most IPs, a stale cookie itself triggers the bot check);
                 # Cookie Manager cookies are tried by the automatic cookie retry only if this fails
                 if is_youtube_url(url):
-                    common_opts['cookiefile'] = None
-                    logger.info(f"YouTube without cookies first for user {user_id}")
+                    from COMMANDS import cookie_store
+                    common_opts['cookiefile'] = cookie_store.first_active("youtube")  # admin's Cookie Manager cookie, else none
+                    logger.info(f"YouTube cookie for user {user_id}: {bool(common_opts['cookiefile'])}")
                 elif False:
                     from COMMANDS.cookies_cmd import get_youtube_cookie_urls, test_youtube_cookies_on_url, _download_content
                     

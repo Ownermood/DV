@@ -573,7 +573,8 @@ def down_and_audio(app, message, url, tags, quality_key=None, playlist_name=None
         
         # For YouTube URLs, use optimized cookie logic - check existing first on user's URL, then retry if needed
         if is_youtube_url(url):
-            cookie_file = None  # no cookie first; Cookie Manager cookies only in the automatic retry
+            from COMMANDS import cookie_store
+            cookie_file = cookie_store.first_active("youtube")  # admin's Cookie Manager cookie, else none
         elif False:
             from COMMANDS.cookies_cmd import get_youtube_cookie_urls, test_youtube_cookies_on_url, _download_content
             

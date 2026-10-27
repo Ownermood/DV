@@ -258,6 +258,10 @@ def get_video_formats(url, user_id=None, playlist_start_index=1, cookies_already
                     cookie_file = shared_cookie_path(url)
                     logger.info(f"No user cookies for non-YouTube format detection: {url}, shared cookie: {bool(cookie_file)}")
         
+        if not cookie_file and is_youtube_url(url):  # admin's Cookie Manager cookie
+            from COMMANDS import cookie_store
+            cookie_file = cookie_store.first_active("youtube")
+
         # We check whether to use —no-Cookies for this domain
         if is_no_cookie_domain(url):
             ytdl_opts['cookiefile'] = None  # Equivalent-No-Cookies
