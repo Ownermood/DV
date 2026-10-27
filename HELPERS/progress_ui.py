@@ -13,6 +13,7 @@ normalize_status() turns the old multi-line status texts ("Total Progress",
 """
 from __future__ import annotations
 
+import itertools
 import re
 
 from pyrogram import enums
@@ -56,8 +57,20 @@ def bar_blocks(blocks: int, width: int = WIDTH) -> str:
     return FILLED * blocks + EMPTY * (width - blocks)
 
 
-def bar(percent: float, width: int = WIDTH) -> str:
-    return bar_blocks(step(percent) * width // 100, width)
+_tick = itertools.count()
+
+
+def _blink() -> bool:
+    """Alternates on every card build, so the card changes even when the % does not."""
+    return next(_tick) % 2 == 0
+
+
+def bar(percent: float, width: int = WIDTH, moving: bool = False) -> str:
+    full = step(percent) * width // 100
+    text = bar_blocks(full, width)
+    if moving and full < width and _blink():  # the next block blinks ▱ -> ▰ -> ▱
+        text = FILLED * (full + 1) + EMPTY * (width - full - 1)
+    return text
 
 
 # Race track for downloading / uploading: 🏴‍☠️━━━━🏍━━━━━ 🏆 (premium animated emoji when allowed)
@@ -85,7 +98,9 @@ def track(percent: float, detail: str = "") -> str:
     m = _SPEED_RE.search(detail or "")
     speed = float(m.group(1)) if m else 0.0
     rider = _FAST if speed > 15 else _MID if speed >= 2 else _SLOW
-    return f"{_pe(_FLAG)}{'━' * pos}{_pe(rider)}{'━' * (TRACK - pos)} {_pe(_TROPHY)}"
+    ahead = TRACK - pos
+    road = ("┅" + "━" * (ahead - 1)) if ahead and _blink() else "━" * ahead  # the road ahead blinks
+    return f"{_pe(_FLAG)}{'━' * pos}{_pe(rider)}{road} {_pe(_TROPHY)}"
 
 
 def progress_card(kind: str, percent: float, process: str = "", detail: str = "") -> str:
@@ -95,7 +110,7 @@ def progress_card(kind: str, percent: float, process: str = "", detail: str = ""
         p = max(0.0, min(100.0, float(percent or 0)))
         body = f"{track(p, detail)}\n{int(p)}%"
     else:
-        body = f"{bar(percent)} {step(percent)}%"
+        body = f"{bar(percent, moving=True)} {step(percent)}%"
     if detail:
         body += "\n" + _TAG_RE.sub("", str(detail))[:120]
     return f"{_icon(key)} <b>{title}</b>\n<blockquote><b>{body}</b></blockquote>"
