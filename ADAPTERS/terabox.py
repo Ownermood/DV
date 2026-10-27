@@ -131,6 +131,8 @@ COOKIE_FILE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__fil
 UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) "
       "Chrome/131.0.0.0 Safari/537.36")
 TOKEN_API_URL = os.getenv("TERABOX_API_URL", "").strip()
+# Your own Cloudflare worker from github.com/mkhossainx/Terabox-Downloader-API (deployed with your cookie)
+WORKER_URL = os.getenv("TERABOX_WORKER_URL", "").strip().rstrip("/")
 TOKEN_API_TOKEN = os.getenv("TERABOX_API_TOKEN", "").strip()
 PART_BYTES = int(1.95 * 1024 ** 3)       # Telegram bot upload limit per file
 VIDEO_EXT = {".mp4", ".mkv", ".mov", ".webm", ".m4v", ".avi", ".flv", ".ts"}
@@ -223,6 +225,20 @@ def _token_api_resolve(url: str):
     return f["download_url"], None, f.get("filename") or "TeraBox video", int(f.get("size") or 0), {}
 
 
+def _worker_resolve(url: str):
+    """POST {"link": url} -> {file_name, download_link, thumbnail, size_bytes, proxy_url}; download via proxy_url."""
+    if not WORKER_URL:
+        raise RuntimeError("TERABOX_WORKER_URL not set")
+    with requests.post(WORKER_URL + "/", json={"link": url}, timeout=(CONNECT_TIMEOUT, READ_TIMEOUT)) as r:
+        data = r.json()
+    if data.get("error"):
+        raise RuntimeError(f"worker: {data['error']}")
+    direct = data.get("proxy_url") or data.get("download_link")
+    if not direct or urlparse(direct).scheme not in {"http", "https"}:
+        raise RuntimeError("worker returned no download link")
+    return direct, data.get("thumbnail") or None, data.get("file_name") or "TeraBox video", int(data.get("size_bytes") or 0), {}
+
+
 def _api_resolve(url: str):
     """Old public extraction endpoint."""
     with requests.post(API_ENDPOINT, json={"url": url}, timeout=(CONNECT_TIMEOUT, READ_TIMEOUT)) as response:
@@ -237,7 +253,7 @@ def _api_resolve(url: str):
 def _resolve(url: str):
     """First working resolver. On total failure raises; NeedCookie (with name/size) if TeraBox saw the file."""
     errors, need = [], None
-    for fn in (_native_resolve, _token_api_resolve, _api_resolve):
+    for fn in (_native_resolve, _worker_resolve, _token_api_resolve, _api_resolve):
         try:
             return fn(url)
         except NeedCookie as exc:
@@ -323,7 +339,8 @@ def handle_terabox(app, message) -> bool:
             thumb_path = _download_thumb(thumb_url, folder)
             total, last_update, last_step = 0, 0.0, -1
             with requests.get(direct_url, stream=True, allow_redirects=True, cookies=dl_cookies or None,
-                              headers={"User-Agent": UA}, timeout=(CONNECT_TIMEOUT, READ_TIMEOUT)) as response:
+                              headers={"User-Agent": UA, "Referer": "https://terabox.com/"},
+                              timeout=(CONNECT_TIMEOUT, READ_TIMEOUT)) as response:
                 response.raise_for_status()
                 length = int(response.headers.get("Content-Length") or size or 0)
                 if length and length > limit:

@@ -85,3 +85,20 @@ def test_mirror_domains_and_lookalikes():
     assert tb.is_terabox_url("https://terasharelink.com/s/18Kna")
     assert tb.is_terabox_url("https://www.1024tera.com/sharing/link?surl=x")
     assert not tb.is_terabox_url("https://evilterabox.com/s/1")
+
+
+def test_worker_resolver(monkeypatch):
+    from ADAPTERS import terabox as tb
+
+    class R:
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+        def json(self):
+            return {"file_name": "a.mp4", "download_link": "https://d/x", "size_bytes": 5,
+                    "proxy_url": "https://w.dev/proxy?url=x", "thumbnail": ""}
+    sent = {}
+    monkeypatch.setattr(tb, "WORKER_URL", "https://w.dev")
+    monkeypatch.setattr(tb.requests, "post", lambda u, json=None, **k: (sent.update(u=u, json=json), R())[1])
+    direct, thumb, title, size, cookies = tb._worker_resolve("https://terasharelink.com/s/1x")
+    assert sent == {"u": "https://w.dev/", "json": {"link": "https://terasharelink.com/s/1x"}}
+    assert direct == "https://w.dev/proxy?url=x" and title == "a.mp4" and size == 5 and thumb is None
