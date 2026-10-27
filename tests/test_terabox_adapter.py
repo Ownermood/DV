@@ -116,3 +116,23 @@ def test_cache_roundtrip(monkeypatch):
     vid = types.SimpleNamespace(video=types.SimpleNamespace(file_id="F1"), document=None)
     tb._cache_put(url, [vid], "Movie.mkv")
     assert tb._cache_get("https://www.1024terabox.com/s/18KnaRqYo1qA8Smga-tgQUQ") == {"t": "Movie.mkv", "f": [("F1", "v")]}
+
+
+def test_meta_has_every_key(monkeypatch):
+    from ADAPTERS import terabox as tb
+
+    class R:
+        def __init__(self, url, text="", js=None):
+            self.url, self.text, self._js = url, text, js
+        def raise_for_status(self): pass
+        def json(self): return self._js
+
+    page = R("https://www.1024tera.com/sharing/link?surl=abc", 'x fn%28%22TOKEN%22%29 dp-logid=1&')
+    lst = R("", js={"errno": 0, "uk": 1, "share_id": 2, "list": [{"isdir": "0", "category": "1", "fs_id": "9",
+            "server_filename": "a.mkv", "size": "100", "width": 1920, "height": 800, "duration": 60,
+            "thumbs": {"url3": "http://t"}}]})
+    info = R("", js={"uk": 1, "shareid": 2, "sign": "s", "timestamp": 3})
+    seq = iter([page, lst, info])
+    monkeypatch.setattr(tb.requests.Session, "get", lambda self, *a, **k: next(seq))
+    m = tb._meta("https://terasharelink.com/s/1abc", {})
+    assert m["thumb"] == "http://t" and m["height"] == 1080 and m["title"] == "a.mkv" and m["video"]

@@ -601,7 +601,9 @@ def _meta(url, cookies):
             "uk": info.get("uk") or data.get("uk"), "shareid": info.get("shareid") or data.get("share_id"),
             "sign": info.get("sign"), "timestamp": info.get("timestamp"), "duration": float(f.get("duration") or 0),
             "title": f.get("server_filename") or "TeraBox video", "size": int(f.get("size") or 0),
-            "height": max(int(f.get("height") or 0), int(f.get("width") or 0) * 9 // 16),  # 1920x800 counts as 1080p "thumb": thumbs.get("url3") or thumbs.get("url2"),
+            # 1920x800 counts as 1080p
+            "height": max(int(f.get("height") or 0), int(f.get("width") or 0) * 9 // 16),
+            "thumb": thumbs.get("url3") or thumbs.get("url2"),
             "logged_in": "ndus" in cookies}
 
 
