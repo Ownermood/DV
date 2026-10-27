@@ -350,6 +350,8 @@ def _fast_download(url, filepath: Path, cookies, size, limit, progress) -> None:
             raise RuntimeError(f"too large (limit {limit / 1024 ** 3:.0f} GB)")
         progress(cur, total_len)
 
+    print(f"[terabox] download: HTTP {code}, size {length or size or 0}, "
+          f"{'parallel' if length and length >= 2 * MIN_PART else 'single stream'}", flush=True)
     if not length or length < 2 * MIN_PART:  # no range support / small file: one stream
         with sess.get(final, stream=True, timeout=(CONNECT_TIMEOUT, READ_TIMEOUT)) as r:
             r.raise_for_status()
@@ -473,19 +475,24 @@ def handle_terabox(app, message) -> bool:
             thumb_path = _download_thumb(thumb_url, folder)
             _preview(app, message, title, size, thumb_path)
             total, last_update, last_step = 0, 0.0, -1
-            state = {"last": 0.0, "step": -1}
+            state = {"last": 0.0, "start": time.monotonic()}
+            length_hint = size or 0
 
             def progress(total, length):
                 now = time.monotonic()
+                if now - state["last"] < 4:  # every 4 s: MB done / total and speed
+                    return
+                state["last"] = now
+                length = length or length_hint
                 pct = total * 100 / length if length else 0
-                if now - state["last"] > 4 and int(pct // 10) != state["step"]:
-                    state["last"], state["step"] = now, int(pct // 10)
-                    try:
-                        app.edit_message_text(message.chat.id, status.id,
-                                              progress_card("download", pct, detail=f"{total / 1024 ** 2:.0f} MB"),
-                                              parse_mode=html_mode)
-                    except Exception:
-                        pass
+                speed = total / max(now - state["start"], 0.1) / 1024 ** 2
+                of = f" / {length / 1024 ** 2:.0f} MB" if length else " MB"
+                try:
+                    app.edit_message_text(message.chat.id, status.id,
+                                          progress_card("download", pct, detail=f"{total / 1024 ** 2:.0f}{of} · {speed:.1f} MB/s"),
+                                          parse_mode=html_mode)
+                except Exception:
+                    pass
             _fast_download(direct_url, filepath, dl_cookies, size, limit, progress)
             app.edit_message_text(message.chat.id, status.id, progress_card("upload", 0), parse_mode=html_mode)
             _send_file(app, message, filepath, title, url, thumb_path)
