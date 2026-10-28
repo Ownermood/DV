@@ -78,8 +78,8 @@ def split_video_2(dir, video_name, video_path, video_size, max_size, duration, u
     Returns:
         dict: Dictionary with video parts information
     """
-    # 10% headroom: parts are cut by time, and the bitrate is not the same all through the video
-    rounds = max(2, math.ceil(video_size / (max_size * 0.9)))
+    # as few parts as fit (3.6 GB -> 2 parts); a part that comes out too big is cut in two by the caller
+    rounds = max(2, math.ceil(video_size / max_size))
     n = duration / rounds
     ranges = []
     caption_lst = []

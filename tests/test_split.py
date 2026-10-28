@@ -10,6 +10,7 @@ def test_lazy_split_plans_parts_without_cutting(tmp_path):
     assert r["path"][0].endswith("T - Part 1.mp4") and r["path"][1].endswith("T - Part 2.mp4")
 
 
-def test_split_keeps_headroom_for_uneven_bitrate(tmp_path):
-    r = split_video_2(str(tmp_path), "T", "x.mp4", int(3.8 * GB), int(1.95 * GB), 3600, 1, lazy=True)
-    assert len(r["path"]) == 3   # 3.8 / 2 parts = 1.9 GB each would be too close to the limit
+def test_split_uses_as_few_parts_as_fit(tmp_path):
+    plan = lambda gb: len(split_video_2(str(tmp_path), "T", "x.mp4", int(gb * GB), int(1.95 * GB), 3600, 1, lazy=True)["path"])
+    assert plan(2.1) == 2 and plan(3.6) == 2 and plan(3.85) == 2   # Telegram: 2 GB per file
+    assert plan(4.0) == 3

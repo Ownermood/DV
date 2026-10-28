@@ -5,6 +5,7 @@ import shutil as _shutil_mod  # module-level alias: functions below import shuti
 # ########################################
 
 from HELPERS.logger import send_to_all  # Imported at the very top to guarantee visibility
+import itertools
 import os
 import threading
 import time
@@ -2001,39 +2002,62 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 returned = split_video_2(dir_path, sanitize_filename_strict(caption_name), after_rename_abs_path, int(video_size_in_bytes), max_size, int(duration), user_id, lazy=True)
                 caption_lst = returned.get("video")
                 path_lst = returned.get("path")
-                ranges = returned.get("ranges") or []
-                failed_parts = []
+                ranges = list(returned.get("ranges") or [])
+                failed_parts = []   # (part number, reason)
                 part_title = original_video_title or caption_name
+                part_base = sanitize_filename_strict(caption_name)
                 # Note: split_msg_ids is already initialized at function start, don't reset it here
-                for p in range(len(caption_lst) if caption_lst else 0):
-                    caption_name = caption_lst[p] if caption_lst and p < len(caption_lst) else f"part_{p+1}"
-                    part_label = f"Part {p + 1}/{len(caption_lst)}"
+                for p in itertools.count():
+                    if p >= len(caption_lst):
+                        break
                     # cut this part now (not all parts up front): the disk holds the video + one part
-                    if p < len(ranges):
+                    reason = ""
+                    while p < len(ranges):
+                        if not os.path.exists(after_rename_abs_path):
+                            reason = "source video file is gone"
+                            break
                         ffmpeg_extract_subclip(after_rename_abs_path, ranges[p][0], ranges[p][1], targetname=path_lst[p])
-                        if p == len(caption_lst) - 1 and os.path.exists(after_rename_abs_path):
-                            os.remove(after_rename_abs_path)  # every part is cut: free the space for the upload
-                    if not os.path.exists(path_lst[p]) or os.path.getsize(path_lst[p]) == 0 or os.path.getsize(path_lst[p]) > 2000 * 1024 * 1024:
-                        logger.error(f"split part {part_label} missing, empty or over 2 GB: {path_lst[p]}")
-                        failed_parts.append(p + 1)
+                        size_p = os.path.getsize(path_lst[p]) if os.path.exists(path_lst[p]) else 0
+                        if size_p > max_size and ranges[p][1] - ranges[p][0] > 60:
+                            # uneven bitrate: this stretch is bigger than the rest -> cut it in two
+                            os.remove(path_lst[p])
+                            a, b = ranges[p]
+                            ranges[p:p + 1] = [(a, (a + b) / 2), ((a + b) / 2, b)]
+                            caption_lst = [f"{part_base} - Part {k + 1}" for k in range(len(ranges))]
+                            path_lst = [os.path.join(dir_path, c + ".mp4") for c in caption_lst]
+                            continue
+                        reason = "" if size_p else "ffmpeg could not cut it (see app log)"
+                        break
+                    caption_name = caption_lst[p]
+                    part_label = f"Part {p + 1}/{len(caption_lst)}"
+                    if p == len(caption_lst) - 1 and os.path.exists(after_rename_abs_path):
+                        os.remove(after_rename_abs_path)  # every part is cut: free the space for the upload
+                    if not reason and os.path.getsize(path_lst[p]) > 2000 * 1024 * 1024:
+                        reason = "still over 2 GB after cutting"
+                    if reason:
+                        logger.error(f"split {part_label} failed: {reason}")
+                        failed_parts.append((p + 1, reason))
+                        if os.path.exists(path_lst[p]):
+                            os.remove(path_lst[p])
                         continue
                     part_result = get_duration_thumb(message, dir_path, path_lst[p], sanitize_filename_strict(caption_name))
                     if part_result is None:
-                        failed_parts.append(p + 1)
+                        failed_parts.append((p + 1, "ffprobe could not read the part"))
                         os.remove(path_lst[p])
                         continue
                     part_duration, splited_thumb_dir = part_result
                     # --- TikTok: Don't Pass Title ---
+                    part_err = None
                     try:  # one failed part must not stop the next ones
                         video_msg = send_videos(message, path_lst[p], '' if force_no_title else part_title, part_duration, splited_thumb_dir, info_text, proc_msg.id, full_video_title, tags_text_final, part=part_label)
-                    except Exception as part_err:
-                        if "Cancelled" in type(part_err).__name__:
+                    except Exception as e_part:
+                        if "Cancelled" in type(e_part).__name__:
                             raise
-                        logger.error(f"split part {part_label} upload failed: {part_err}")
-                        video_msg = None
+                        logger.error(f"split part {part_label} upload failed: {e_part}")
+                        part_err, video_msg = e_part, None
                     if not video_msg:
                         logger.error("send_videos returned None for split part; skipping cache save for this part")
-                        failed_parts.append(p + 1)
+                        failed_parts.append((p + 1, f"upload failed: {part_err}" if part_err else "upload failed"))
                         if os.path.exists(path_lst[p]):
                             os.remove(path_lst[p])
                         continue
@@ -2219,9 +2243,12 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     sent_n = len(caption_lst) - len(failed_parts)
                     safe_edit_message_text(user_id, proc_msg_id,
                         f"⚠️ <b>Sent {sent_n} of {len(caption_lst)} parts.</b>\n"
-                        f"<blockquote>Part {', '.join(map(str, failed_parts))} could not be sent. Send the link again to retry.</blockquote>",
+                        f"<blockquote>Part {', '.join(str(n) for n, _ in failed_parts)} could not be sent. Send the link again to retry.</blockquote>",
                         parse_mode=enums.ParseMode.HTML)
-                    log_error_to_channel(message, f"Split video: parts {failed_parts} of {len(caption_lst)} failed", url)
+                    import shutil as _shutil_split
+                    free_gb = _shutil_split.disk_usage(dir_path).free / 1024 ** 3
+                    log_error_to_channel(message, "Split video: " + "; ".join(f"part {n}/{len(caption_lst)}: {why}" for n, why in failed_parts)
+                                         + f" · free disk {free_gb:.1f} GB", url)
                 else:
                     safe_delete_messages(chat_id=user_id, message_ids=[proc_msg_id], revoke=True)  # file itself is the success signal
                 send_to_logger(message, safe_get_messages(user_id).VIDEO_UPLOAD_COMPLETED_SPLITTING_LOG_MSG)
