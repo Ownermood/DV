@@ -473,8 +473,17 @@ def _show_link_menu(client, message, key, label) -> None:
                 try:
                     from COMMANDS.image_cmd import image_command
                     from HELPERS.safe_messeger import fake_message
-                    image_command(client, fake_message(f"/img {extract_url(message.text)}", _owner_of(message),
-                                                       original_chat_id=uid, original_message=message))
+                    from HELPERS import group_mirror
+                    twin = getattr(message, "_dm_twin", None)   # group request: photos go to the DM (+ group copy)
+                    target = twin or message
+                    if twin:
+                        group_mirror.start(twin.chat.id, message)
+                    try:
+                        image_command(client, fake_message(f"/img {extract_url(message.text)}", _owner_of(message),
+                                                           original_chat_id=target.chat.id, original_message=target))
+                    finally:
+                        if twin:
+                            group_mirror.stop(client, twin.chat.id)
                     return
                 except Exception as exc:
                     logger.warning(f"[ui] image download failed, trying the video pipeline: {exc}")
@@ -570,7 +579,11 @@ def _after_markup(message) -> InlineKeyboardMarkup:
 def _run_choice(client, message, choice, picks=None) -> None:
     """Hand the stored link to the legacy pipeline (keeps ban/sub/rate checks)."""
     from URL_PARSERS.url_extractor import url_distractor
-    from HELPERS import cancel
+    from HELPERS import cancel, group_mirror
+    twin = getattr(message, "_dm_twin", None)   # group request: runs in the member's DM
+    group_msg, message = message, twin or message
+    if twin:
+        group_mirror.start(twin.chat.id, group_msg)   # progress + file shown in the group too
     cancel.clear(message.chat.id)  # a new download: an old Cancel tap must not stop it
     cancel.set_owner(message.chat.id, _owner_of(message))
     original = message.text
@@ -593,6 +606,8 @@ def _run_choice(client, message, choice, picks=None) -> None:
         logger.error(f"[ui] choice {choice} failed: {exc}")
     finally:
         message.text = original
+        if twin:
+            group_mirror.stop(client, twin.chat.id)
 
 
 # ---------------- many links: one-by-one queue ----------------
@@ -783,20 +798,21 @@ def group_door(client, message):
         _delete_later(client, uid, [message.id, getattr(hint, "id", None)])
         message.stop_propagation()
     person = message.from_user
-    group = message.chat.title or "the group"
-    name = _mention(person)
-    if _start_in_dm(client, person, url, group):
-        note = send(client, uid, lambda: (t(uid, "dm_sent", name=name), _dm_markup()), reply_to_message_id=message.id, **_topic(message))
+    message.text = url  # the pipeline reads the link from the message text
+    dm = _make_twin(client, message, url)
+    if dm:  # preview + quality in the group; the download runs in the member's DM, the file comes to both
+        message._dm_twin = dm
+        _run_link(client, message, url)
     else:  # never started the bot: Telegram lets a bot DM only people who started it
         token = secrets.token_hex(6)
+        note = send(client, uid, lambda: (t(uid, "dm_start", name=_mention(person)), _dm_markup(f"dl{token}")),
+                    reply_to_message_id=message.id, **_topic(message))
         with _pending_lock:
             now = time.time()
             for k in [k for k, v in _DM_WAIT.items() if now - v[3] > _DM_WAIT_TTL]:
                 _DM_WAIT.pop(k, None)
-            _DM_WAIT[token] = (person.id, url, group, now)
-        note = send(client, uid, lambda: (t(uid, "dm_start", name=name), _dm_markup(f"dl{token}")),
-                    reply_to_message_id=message.id, **_topic(message))
-    _delete_later(client, uid, [message.id, getattr(note, "id", None)])
+            _DM_WAIT[token] = (person.id, url, message, now, getattr(note, "id", None))
+        _delete_later(client, uid, [message.id, getattr(note, "id", None)], after=_DM_WAIT_TTL)
     message.stop_propagation()
 
 
@@ -826,7 +842,7 @@ def _dm_markup(start=None) -> Optional[InlineKeyboardMarkup]:
     return InlineKeyboardMarkup([[btn("chat", "Open DM", url=f"https://t.me/{me}", style=BLUE)]])
 
 
-def _delete_later(client, chat_id, ids) -> None:
+def _delete_later(client, chat_id, ids, after=None) -> None:
     ids = [i for i in ids if i]
 
     def run():
@@ -834,24 +850,25 @@ def _delete_later(client, chat_id, ids) -> None:
             client.delete_messages(chat_id, ids)
         except Exception as exc:
             logger.info(f"[group] clean-up in {chat_id} failed: {exc}")
-    timer = threading.Timer(GROUP_CLEAN_AFTER, run)
+    timer = threading.Timer(after or GROUP_CLEAN_AFTER, run)
     timer.daemon = True
     timer.start()
 
 
-def _start_in_dm(client, person, url, group) -> bool:
-    """Run a group request in the person's DM: the link card there, then the usual preview / download.
-    False when the bot can't write to them (they never started it, or blocked it)."""
+def _make_twin(client, group_msg, url):
+    """The member's DM copy of a group request: the download runs there (their own lock, limits,
+    Cancel, folder) and the file stays there. None when the bot can't write to them."""
+    person = group_msg.from_user
+    group = group_msg.chat.title or "the group"
     try:
         dm = client.send_message(person.id, t(person.id, "dm_link", group=html.escape(group[:60]), url=html.escape(url)),
                                  parse_mode=enums.ParseMode.HTML, disable_web_page_preview=True)
     except Exception as exc:
         logger.info(f"[group] can't DM {person.id}: {exc}")
-        return False
+        return None
     dm.from_user = person      # the bot wrote it; the pipeline must see the person
-    dm.text = url              # the pipeline reads the link from the message text
-    _run_link(client, dm, url)
-    return True
+    dm.text = url
+    return dm
 
 
 def _run_link(client, message, url) -> None:
@@ -868,13 +885,25 @@ def _run_link(client, message, url) -> None:
 
 
 def _resume_from_group(client, user, token) -> bool:
-    """/start dl<token> from the group's Start Bot button: run the waiting link in this DM."""
+    """/start dl<token> from the group's Start Bot button: the waiting link's menu appears in the group."""
     with _pending_lock:
         item = _DM_WAIT.get(token)
         if not item or item[0] != user.id:
             return False
         _DM_WAIT.pop(token, None)
-    return _start_in_dm(client, user, item[1], item[2])
+    _, url, group_msg, _, note_id = item
+    dm = _make_twin(client, group_msg, url)
+    if not dm:
+        return False
+    group_msg._dm_twin = dm
+    group_msg.text = url
+    if note_id:
+        try:
+            client.delete_messages(group_msg.chat.id, note_id)
+        except Exception:
+            pass
+    _run_link(client, group_msg, url)
+    return True
 
 
 def join_card(client, message) -> None:

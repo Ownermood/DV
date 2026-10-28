@@ -855,13 +855,19 @@ def on_choice(app, cq) -> None:
 
 
 def _run_job(app, message, url, meta, q, card) -> None:
-    from HELPERS import cancel
+    from HELPERS import cancel, group_mirror
+    twin = getattr(message, "_dm_twin", None)   # group request: the file goes to the member's DM (+ group copy)
+    if twin:
+        group_mirror.start(twin.chat.id, message)
+        message = twin
     cancel.clear(message.chat.id)  # a new download: an old Cancel tap must not stop it
     cancel.set_owner(message.chat.id, getattr(getattr(message, "from_user", None), "id", None) or message.chat.id)
     try:
         _run_job_inner(app, message, url, meta, q, card)
     finally:
         _own_delete(meta)  # the copy in the own account is not needed any more (a retry copies again)
+        if twin:
+            group_mirror.stop(app, twin.chat.id)
 
 
 def _run_job_inner(app, message, url, meta, q, card) -> None:
@@ -955,7 +961,7 @@ def _run_job_inner(app, message, url, meta, q, card) -> None:
                 return
             if not own_thumb:
                 _cache_put(key, sent, title)
-        app.delete_messages(message.chat.id, card.id)  # the file itself is the success signal
+        app.delete_messages(card.chat.id, card.id)  # the file itself is the success signal (card may be in a group)
     except Exception as exc:
         if cancel.is_set(uid):  # the Cancel button already replaced the card
             return

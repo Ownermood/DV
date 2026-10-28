@@ -164,4 +164,10 @@ def edit_card(edit_fn, chat_id, message_id, text: str, force=False):
         if result is None and _PREMIUM_RE.search(text):
             edit_fn(chat_id, message_id, strip_premium(text), **kw)
     edit_later(run, chat_id, message_id, force=force)
+    try:  # group request running in the member's DM: same card in the group
+        from HELPERS.group_mirror import mirror_card
+        from HELPERS.app_instance import get_app
+        mirror_card(get_app(), chat_id, text, kw.get("reply_markup"))
+    except Exception:
+        pass
     return True

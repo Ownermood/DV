@@ -339,27 +339,48 @@ class _Client:
         self.deleted.append((chat, ids))
 
 
-def test_group_request_goes_to_dm(monkeypatch):
+def _gm(person, chat=-100, mid=5):
     from types import SimpleNamespace as NS
-    runs = []
-    monkeypatch.setattr(ui, "_run_link", lambda c, m, u: runs.append((m.chat.id, m.from_user.id, m.text)))
+    return NS(id=mid, chat=NS(id=chat, title="Fans"), from_user=person, text="/dl x",
+              message_thread_id=None, is_topic_message=False)
+
+
+def test_group_request_gets_dm_twin():
+    from types import SimpleNamespace as NS
     person = NS(id=77, username=None, first_name="Ann")
     c = _Client()
-    assert ui._start_in_dm(c, person, "https://youtu.be/dQw4w9WgXcQ", "Fans") is True
-    assert c.sent[0][0] == 77 and "Fans" in c.sent[0][1]
-    assert runs == [(77, 77, "https://youtu.be/dQw4w9WgXcQ")]   # the person owns the DM menu
+    dm = ui._make_twin(c, _gm(person), "https://youtu.be/dQw4w9WgXcQ")
+    assert dm.chat.id == 77 and dm.from_user is person and dm.text == "https://youtu.be/dQw4w9WgXcQ"
+    assert "Fans" in c.sent[0][1] and "Pick the quality in the group" in c.sent[0][1]
+    assert ui._make_twin(_Client(can_dm=False), _gm(person), "https://pin.it/4abcd") is None   # never started
 
 
-def test_group_request_waits_for_start(monkeypatch):
+def test_start_button_brings_the_menu_to_the_group(monkeypatch):
     from types import SimpleNamespace as NS
     runs = []
-    monkeypatch.setattr(ui, "_run_link", lambda c, m, u: runs.append(u))
+    monkeypatch.setattr(ui, "_run_link", lambda c, m, u: runs.append((m.chat.id, m._dm_twin.chat.id, u)))
     person = NS(id=78, username="bob", first_name="Bob")
-    assert ui._start_in_dm(_Client(can_dm=False), person, "https://pin.it/4abcd", "Fans") is False
-    ui._DM_WAIT["tok"] = (78, "https://pin.it/4abcd", "Fans", __import__("time").time())
+    ui._DM_WAIT["tok"] = (78, "https://pin.it/4abcd", _gm(person), __import__("time").time(), 9)
     assert ui._resume_from_group(_Client(), NS(id=99), "tok") is False      # someone else's button
-    assert ui._resume_from_group(_Client(), person, "tok") is True and runs == ["https://pin.it/4abcd"]
-    assert "tok" not in ui._DM_WAIT                                          # one use
+    c = _Client()
+    assert ui._resume_from_group(c, person, "tok") is True
+    assert runs == [(-100, 78, "https://pin.it/4abcd")]                      # menu in the group, job in the DM
+    assert c.deleted == [(-100, 9)] and "tok" not in ui._DM_WAIT              # prompt gone, one use
+
+
+def test_choice_runs_on_the_dm_twin(monkeypatch):
+    from types import SimpleNamespace as NS
+    import URL_PARSERS.url_extractor as ux
+    from HELPERS import group_mirror
+    seen = []
+    monkeypatch.setattr(ux, "url_distractor", lambda c, m: seen.append((m.chat.id, group_mirror.active(m.chat.id) is not None)))
+    monkeypatch.setattr(ui, "_after_markup", lambda m: None)
+    person = NS(id=79, username=None, first_name="C")
+    gm = _gm(person)
+    gm._dm_twin = NS(id=1, chat=NS(id=79), from_user=person, text="https://youtu.be/dQw4w9WgXcQ")
+    ui._run_choice(_Client(), gm, "b")
+    assert seen == [(79, True)]                        # downloaded in the DM, mirrored while it ran
+    assert group_mirror.active(79) is None             # mirror ends with the job
 
 
 def test_group_messages_deleted_later(monkeypatch):
