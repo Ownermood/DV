@@ -136,3 +136,10 @@ def test_meta_has_every_key(monkeypatch):
     monkeypatch.setattr(tb.requests.Session, "get", lambda self, *a, **k: next(seq))
     m = tb._meta("https://terasharelink.com/s/1abc", {})
     assert m["thumb"] == "http://t" and m["height"] == 1080 and m["title"] == "a.mkv" and m["video"]
+
+
+def test_part_label_bold_on_top_outside_quote():
+    from ADAPTERS import terabox
+    cap = terabox._caption("My Video", "https://terabox.com/s/1x", "Part 2/3")
+    assert cap.startswith("<b>🎞 Part 2/3</b>\n") and "Part 2/3" not in cap.split("\n", 1)[1]
+    assert not terabox._caption("My Video", "https://terabox.com/s/1x").startswith("<b>🎞")

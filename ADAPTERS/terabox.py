@@ -366,8 +366,8 @@ def _caption(title: str, url: str, part: str = "") -> str:
     from html import escape
     from HELPERS.caption import build_quoted_caption
     bot = os.getenv("BOT_NAME", "Downloader_Villanbot")
-    head = f"<b>{escape(title[:300])}</b>" + (f"\n{part}" if part else "")
-    return build_quoted_caption(head, "", "", "", f'<a href="{escape(url)}">🔗 TeraBox</a> @{bot}')
+    cap = build_quoted_caption(f"<b>{escape(title[:300])}</b>", "", "", "", f'<a href="{escape(url)}">🔗 TeraBox</a> @{bot}')
+    return f"<b>🎞 {part}</b>\n{cap}" if part else cap  # parts: bold on top, outside the quotes
 
 
 PARTS = 16                    # parallel connections (TeraBox throttles each connection)

@@ -89,8 +89,8 @@ def send_videos(
         # Form HTML caption: title outside the quote, timecodes outside the quote, description in the quote, tags and link outside the quote
         from HELPERS.caption import build_quoted_caption
         cap = build_quoted_caption(title_html, pre_block, blockquote_content, tags_block, link_block)
-        if part:  # split video: "🎞 Part 1/2" under everything
-            cap = f"{cap}\n\n<b>🎞 {part}</b>"
+        if part:  # split video: "🎞 Part 1/2" in bold on top, outside the quotes, seen at a glance
+            cap = f"<b>🎞 {part}</b>\n{cap}"
 
         def _should_generate_cover(video_path: str, duration_seconds: int) -> bool:
             try:
