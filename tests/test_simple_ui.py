@@ -94,7 +94,7 @@ def test_all_i18n_keys_format():
     assert list(ui_kit.T) == ["en"]  # English only
     for table in ui_kit.T.values():
         for k in table:
-            ui_kit.t(None, k, name="n", platform="p", title="t", max_gb="4", platforms="x", state="s")
+            ui_kit.t(None, k, name="n", platform="p", title="t", max_gb="4", platforms="x", state="s", group="g", me="m")
 
 
 def test_bold_everywhere_including_quotes():
@@ -289,3 +289,13 @@ def test_owner_of_prefers_sender():
     from types import SimpleNamespace as NS
     assert ui._owner_of(NS(from_user=NS(id=5), chat=NS(id=-100))) == 5
     assert ui._owner_of(NS(from_user=None, chat=NS(id=7))) == 7
+
+
+def test_group_greeting_and_add_button(monkeypatch):
+    monkeypatch.setattr(ui.Config, "BOT_NAME", "Downloader_Villanbot", raising=False)
+    txt = ui.group_text("<Fans>")
+    assert "&lt;Fans&gt;" in txt and "@Downloader_Villanbot" in txt and "/dl" in txt
+    assert ui._add_group_url() == "https://t.me/Downloader_Villanbot?startgroup=true"
+    urls = [b.url for row in ui._start_markup(1).inline_keyboard for b in row]
+    assert ui._add_group_url() in urls
+    assert [c for c, _ in ui.GROUP_MENU] == ["dl", "help"]

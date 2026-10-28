@@ -252,10 +252,24 @@ T = {
                     "{music} MP3 audio from any link\n"
                     "{image} HD thumbnail download\n"
                     "{chat} Clean captions in a neat quote\n"
+                    "{clap} Works in groups too: add me and use <code>/dl link</code>\n"
                     "{down} Fast and free, no login needed</blockquote>\n\n"
                     "{box} <b>Supported</b>\n"
                     "<blockquote>{platforms}</blockquote>\n\n"
                     "{down} <b>Send a link to start!</b>"),
+        "add_group": "Add to Group",
+        "group_hi": ("{wave} <b>Hello {group}!</b> Thanks for adding <b>{bot}</b> {party}\n\n"
+                     "<blockquote>{bolt} Everyone here can now save videos, reels, shorts and music in seconds.</blockquote>\n\n"
+                     "{stars} <b>How to use</b>\n"
+                     "<blockquote>{down} <code>/dl link</code>\n"
+                     "{chat} <code>@{me} link</code>\n"
+                     "{memo} Reply <code>/dl</code> to any message that has a link</blockquote>\n\n"
+                     "{check} <b>Good to know</b>\n"
+                     "<blockquote>{ok} Only the person who sent the link can pick the quality or cancel\n"
+                     "{like} I stay silent otherwise: normal chat is never touched\n"
+                     "{medal} Best quality, up to {max_gb} GB</blockquote>\n\n"
+                     "{box} <b>Supported</b>\n"
+                     "<blockquote>{platforms}</blockquote>"),
         "help": "Help", "admin": "Admin Panel", "back": "Back", "close": "Close",
         "help_text": ("{question} <b>What I can do</b>\n\n<blockquote expandable>"
                       "{bolt} Auto best quality, up to {max_gb} GB. If the best quality is too big, I step down "

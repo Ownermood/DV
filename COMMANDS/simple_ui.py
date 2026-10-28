@@ -44,6 +44,10 @@ BOT_MENU = [
     ("start", "Start"),
     ("help", "What this bot can do"),
 ]
+GROUP_MENU = [
+    ("dl", "Download a link: /dl <link>"),
+    ("help", "How to use me in this group"),
+]
 
 _URL_RE = re.compile(r"https?://[^\s<>\"']+", re.I)
 
@@ -120,8 +124,26 @@ def _is_admin(user_id: int) -> bool:
         return False
 
 
+def _add_group_url() -> str:
+    me = (getattr(Config, "BOT_NAME", "") or "").lstrip("@")
+    return f"https://t.me/{me}?startgroup=true" if me else ""
+
+
+def _group_markup(user_id) -> Optional[InlineKeyboardMarkup]:
+    url = _add_group_url()
+    return InlineKeyboardMarkup([[btn("plus", t(user_id, "add_group"), url=url, style=BLUE)]]) if url else None
+
+
+def group_text(title: str = "", user_id=None) -> str:
+    name = html.escape(title.strip()) if title else "everyone"
+    return t(user_id, "group_hi", group=name, me=html.escape((getattr(Config, "BOT_NAME", "") or "").lstrip("@")),
+             max_gb=_max_gb(), platforms=_platform_lines())
+
+
 def _start_markup(user_id) -> InlineKeyboardMarkup:
     rows = [[btn("question", t(user_id, "help"), cb="ui|help", style=GREEN)]]
+    if _add_group_url():
+        rows.append([btn("plus", t(user_id, "add_group"), url=_add_group_url(), style=BLUE)])
     if _is_admin(user_id):
         rows.append([btn("crown", t(user_id, "admin"), cb="ap|home", style=RED)])
     return InlineKeyboardMarkup(rows)
@@ -160,6 +182,7 @@ def _ensure_menu(client) -> None:
             logger.info(f"[ui] clearing {type(scope).__name__} menu: {exc}")
     try:
         client.set_bot_commands([BotCommand(c, d) for c, d in BOT_MENU])
+        client.set_bot_commands([BotCommand(c, d) for c, d in GROUP_MENU], scope=BotCommandScopeAllGroupChats())
     except Exception as exc:
         logger.warning(f"[ui] set_bot_commands failed: {exc}")
     from COMMANDS.admin_panel import ensure_admin_menus
@@ -661,10 +684,19 @@ def group_door(client, message):
     """Groups: anyone can use the bot with "/dl <link>" or "@bot <link>"; everything else in the group is ignored."""
     if not getattr(message, "from_user", None) or message.from_user.is_bot:
         return
+    _ensure_menu(client)
+    uid = message.chat.id
+    words = (message.text or "").split()
+    cmd = words[0].lower() if words else ""
+    me = (getattr(Config, "BOT_NAME", "") or "").lower().lstrip("@")
+    if cmd.startswith("/") and cmd[1:].split("@")[0] in ("start", "help") and (
+            "@" not in cmd or cmd.split("@", 1)[1] == me):
+        send(client, uid, lambda: (group_text(message.chat.title or "", uid), _group_markup(uid)),
+             reply_to_message_id=message.id)
+        message.stop_propagation()
     url = _group_link(client, message)
     if url is None:
         return
-    uid = message.chat.id
     activity.touch(message.from_user.id)
     if not url:
         send(client, uid, lambda: (f"{em('down')} <b>Send a link with the command:</b>\n"
@@ -686,6 +718,17 @@ def group_door(client, message):
     message.stop_propagation()
 
 
+@app.on_message(filters.group & filters.new_chat_members, group=-1)
+def group_welcome(client, message):
+    """The bot was added to a group: greet and show how to use it."""
+    if not any(getattr(m, "is_self", False) for m in message.new_chat_members or []):
+        return
+    _ensure_menu(client)
+    uid = message.chat.id
+    send(client, uid, lambda: (group_text(message.chat.title or "", uid), _group_markup(uid)))
+    message.stop_propagation()
+
+
 @app.on_message(filters.private & filters.text, group=-1)
 def front_door(client, message):
     _ensure_menu(client)
@@ -702,6 +745,8 @@ def front_door(client, message):
         if handle_admin_input(client, message):
             message.stop_propagation()
 
+    if text.startswith("/") and text[1:].split()[0].split("@")[0].lower() in GROUP_COMMANDS and _URL_RE.search(text):
+        text = message.text = text.split(None, 1)[1].strip()   # "/dl <link>" works in private too
     if text.startswith("/"):
         cmd = text[1:].split()[0].split("@")[0].lower()
         if cmd == "start":
