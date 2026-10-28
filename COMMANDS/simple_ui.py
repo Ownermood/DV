@@ -389,6 +389,11 @@ def _yt_preview(info, picks, label="YouTube") -> str:
     return "\n".join(x for x in lines if x)[:1024]
 
 
+def _owner_of(message) -> int:
+    """Who sent the link: the user in a group, the chat itself in a private chat."""
+    return getattr(getattr(message, "from_user", None), "id", None) or message.chat.id
+
+
 def _incomplete_youtube(url) -> bool:
     """watch?v= / youtu.be / shorts link whose video ID is not the full 11 characters (copied badly)."""
     m = re.search(r"(?:[?&]v=|youtu\.be/|/shorts/|/live/|/embed/)([\w-]*)", url or "")
@@ -426,7 +431,7 @@ def _show_link_menu(client, message, key, label) -> None:
                 try:
                     from COMMANDS.image_cmd import image_command
                     from HELPERS.safe_messeger import fake_message
-                    image_command(client, fake_message(f"/img {extract_url(message.text)}", uid,
+                    image_command(client, fake_message(f"/img {extract_url(message.text)}", _owner_of(message),
                                                        original_chat_id=uid, original_message=message))
                     return
                 except Exception as exc:
@@ -512,6 +517,7 @@ def _run_choice(client, message, choice, picks=None) -> None:
     from URL_PARSERS.url_extractor import url_distractor
     from HELPERS import cancel
     cancel.clear(message.chat.id)  # a new download: an old Cancel tap must not stop it
+    cancel.set_owner(message.chat.id, _owner_of(message))
     original = message.text
     try:
         message._ui_format = None
@@ -629,6 +635,57 @@ def _send_thumbnail(client, message) -> None:
             os.remove(path)
 
 
+GROUP_COMMANDS = ("dl", "download")
+
+
+def _group_link(client, message):
+    """Link to download from a group message: "/dl <link>", "/dl" as a reply to a link, or a mention + link.
+    None when the message is not for the bot."""
+    text = message.text or ""
+    first = text.split()[0].lower() if text.split() else ""
+    me = (getattr(Config, "BOT_NAME", "") or "").lower().lstrip("@")
+    is_cmd = first.startswith("/") and first[1:].split("@")[0] in GROUP_COMMANDS and (
+        "@" not in first or first.split("@", 1)[1] == me)
+    mentioned = bool(me) and f"@{me}" in text.lower()
+    replied = getattr(message, "reply_to_message", None)
+    if not (is_cmd or mentioned):
+        return None
+    url = extract_url(text)
+    if not url and replied:  # "/dl" (or a mention) as a reply to a message with the link
+        url = extract_url(replied.text or replied.caption or "")
+    return url or ""
+
+
+@app.on_message(filters.group & filters.text, group=-1)
+def group_door(client, message):
+    """Groups: anyone can use the bot with "/dl <link>" or "@bot <link>"; everything else in the group is ignored."""
+    if not getattr(message, "from_user", None) or message.from_user.is_bot:
+        return
+    url = _group_link(client, message)
+    if url is None:
+        return
+    uid = message.chat.id
+    activity.touch(message.from_user.id)
+    if not url:
+        send(client, uid, lambda: (f"{em('down')} <b>Send a link with the command:</b>\n"
+                                   f"<blockquote><code>/dl https://…</code>\nor <code>@{getattr(Config, 'BOT_NAME', '')} https://…</code>\n"
+                                   "or reply <code>/dl</code> to a message that has the link.</blockquote>", None),
+             reply_to_message_id=message.id)
+        message.stop_propagation()
+    found = detect_platform(url)
+    if found is None:
+        send(client, uid, lambda: (unsupported_text(uid), None), reply_to_message_id=message.id)
+        message.stop_propagation()
+    message.text = url  # the pipeline reads the link from the message text
+    key, label, _, _ = found
+    if key == "terabox":
+        from URL_PARSERS.url_extractor import url_distractor
+        threading.Thread(target=url_distractor, args=(client, message), daemon=True).start()
+    else:
+        _show_link_menu(client, message, key, label)
+    message.stop_propagation()
+
+
 @app.on_message(filters.private & filters.text, group=-1)
 def front_door(client, message):
     _ensure_menu(client)
@@ -693,8 +750,8 @@ def cancel_download(client, cq):
     """❌ Cancel on a downloading / uploading card (only the user who started it)."""
     from HELPERS import cancel
     try:
-        uid = int(cq.data.split("|")[1])
-        if cq.from_user.id != uid:
+        uid = int(cq.data.split("|")[1])  # the chat (a user, or a group)
+        if cq.from_user.id not in (uid, cancel.owner(uid)):
             cq.answer("Only the person who sent the link can cancel it.", show_alert=True)
         else:
             cancel.request(uid)
@@ -730,7 +787,7 @@ def ui_callbacks(client, cq):
         elif action == "x" and len(parts) == 4:
             with _pending_lock:
                 item = _AFTER.get(parts[2])
-            original = item[0] if item and item[0].chat.id == uid else None
+            original = item[0] if item and _owner_of(item[0]) == uid else None
             if original is None:
                 cq.answer(t(uid, "expired"), show_alert=True)
             else:
@@ -746,7 +803,7 @@ def ui_callbacks(client, cq):
             token, choice = parts[2], parts[3]
             with _pending_lock:
                 item = _PENDING.get(token)
-            original = item[0] if item and item[0].chat.id == uid else None
+            original = item[0] if item and _owner_of(item[0]) == uid else None
             if original is None:
                 cq.answer(t(uid, "expired"), show_alert=True)
             elif choice == "t":

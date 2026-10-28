@@ -538,8 +538,9 @@ def is_user_blocked(message):
     messages = safe_get_messages(message.chat.id)
     use_firebase = getattr(Config, 'USE_FIREBASE', True)
     if mongo_db.enabled():
+        person = getattr(getattr(message, "from_user", None), "id", None) or message.chat.id  # the person (groups)
         is_blocked = db.child("bot").child(Config.BOT_NAME_FOR_USERS).child("blocked_users").child(
-            str(int(message.chat.id))).get().val() is not None
+            str(int(person))).get().val() is not None
         if is_blocked:
             send_to_all(message, safe_get_messages().DB_USER_BANNED_MSG)
         return is_blocked

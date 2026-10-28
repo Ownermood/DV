@@ -264,3 +264,28 @@ def test_incomplete_youtube_link():
     assert not ui._incomplete_youtube("https://youtu.be/dQw4w9WgXcQ?si=x")
     assert not ui._incomplete_youtube("https://youtube.com/shorts/61AaTfgy1-k")
     assert not ui._incomplete_youtube("https://www.youtube.com/playlist?list=PL123")
+
+
+def _gmsg(text, reply=None):
+    from types import SimpleNamespace as NS
+    return NS(text=text, reply_to_message=NS(text=reply, caption=None) if reply else None)
+
+
+@pytest.mark.parametrize("text,reply,want", [
+    ("/dl https://youtu.be/dQw4w9WgXcQ", None, "https://youtu.be/dQw4w9WgXcQ"),
+    ("/dl@Downloader_Villanbot https://youtu.be/dQw4w9WgXcQ", None, "https://youtu.be/dQw4w9WgXcQ"),
+    ("@Downloader_Villanbot https://pin.it/4abcd", None, "https://pin.it/4abcd"),
+    ("/dl", "look https://pin.it/4abcd", "https://pin.it/4abcd"),
+    ("/dl", None, ""),
+    ("https://youtu.be/dQw4w9WgXcQ", None, None),           # plain chat in the group: ignored
+    ("/dl@OtherBot https://pin.it/4abcd", None, None),       # another bot's command
+])
+def test_group_link(monkeypatch, text, reply, want):
+    monkeypatch.setattr(ui.Config, "BOT_NAME", "Downloader_Villanbot", raising=False)
+    assert ui._group_link(None, _gmsg(text, reply)) == want
+
+
+def test_owner_of_prefers_sender():
+    from types import SimpleNamespace as NS
+    assert ui._owner_of(NS(from_user=NS(id=5), chat=NS(id=-100))) == 5
+    assert ui._owner_of(NS(from_user=None, chat=NS(id=7))) == 7

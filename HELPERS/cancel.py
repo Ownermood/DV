@@ -8,11 +8,22 @@ from __future__ import annotations
 import threading
 
 _flags = set()
+_owners = {}   # chat id -> user id who started the running download (groups)
 _lock = threading.Lock()
 
 
 class Cancelled(RuntimeError):
     """The user tapped Cancel."""
+
+
+def set_owner(chat_id, user_id) -> None:
+    with _lock:
+        _owners[int(chat_id)] = int(user_id)
+
+
+def owner(chat_id):
+    with _lock:
+        return _owners.get(int(chat_id), int(chat_id))
 
 
 def request(user_id) -> None:

@@ -50,8 +50,9 @@ def is_user_in_channel(app, message):
         return True
     try:
         logger.info(LoggerMsg.LIMITTER_CHANNEL_CHECK_MEMBERSHIP_LOG_MSG.format(user_id=message.chat.id, channel=Config.SUBSCRIBE_CHANNEL))
+        member_id = getattr(getattr(message, "from_user", None), "id", None) or message.chat.id  # the person (groups)
         cht_member = app.get_chat_member(
-            Config.SUBSCRIBE_CHANNEL, message.chat.id)
+            Config.SUBSCRIBE_CHANNEL, member_id)
         logger.info(LoggerMsg.LIMITTER_CHANNEL_CHECK_STATUS_LOG_MSG.format(user_id=message.chat.id, status=cht_member.status))
         if cht_member.status == ChatMemberStatus.MEMBER or cht_member.status == ChatMemberStatus.OWNER or cht_member.status == ChatMemberStatus.ADMINISTRATOR:
             logger.info(LoggerMsg.LIMITTER_CHANNEL_CHECK_IS_MEMBER_LOG_MSG.format(user_id=message.chat.id))

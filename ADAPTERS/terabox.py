@@ -812,7 +812,8 @@ def on_choice(app, cq) -> None:
     _, token, q = (cq.data.split("|") + ["", ""])[:3]
     with _jobs_lock:
         job = _JOBS.get(token)
-    if not job or job[0].chat.id != cq.from_user.id:
+    sender = getattr(getattr(job[0], "from_user", None), "id", None) or job[0].chat.id if job else None
+    if not job or sender != cq.from_user.id:
         cq.answer("This menu expired. Send the link again.", show_alert=True)
         return
     message, url, meta, card, _ = job
@@ -835,6 +836,7 @@ def on_choice(app, cq) -> None:
 def _run_job(app, message, url, meta, q, card) -> None:
     from HELPERS import cancel
     cancel.clear(message.chat.id)  # a new download: an old Cancel tap must not stop it
+    cancel.set_owner(message.chat.id, getattr(getattr(message, "from_user", None), "id", None) or message.chat.id)
     try:
         _run_job_inner(app, message, url, meta, q, card)
     finally:
