@@ -114,6 +114,22 @@ def _log_kind(msg):
     return "📝", "Log", plain[:300]
 
 
+def _short_error(msg) -> str:
+    """The old error template (cookie advice, /clean, guide links, code, description, full error)
+    -> the friendly reason + one line of the real error."""
+    plain = re.sub(r"<[^>]+>", "", str(msg or ""))
+    raw = ""
+    m = re.search(r"Description:\s*(.+)", plain) or re.search(r"(ERROR:.+)", plain)
+    if m:
+        raw = m.group(1).strip()
+    elif plain.strip():
+        raw = plain.strip().split("\n")[-1]
+    reason = re.sub(r"<[^>]+>", "", friendly_error(raw or plain)).strip().split("\n")[0] if raw else ""
+    from html import escape
+    raw = escape(raw[:300])
+    return (f"<b>{escape(reason)}</b>\n" if reason and reason != raw else "") + (f"<code>{raw}</code>" if raw else "")
+
+
 def log_card(message, icon: str, title: str, msg, url: str = None) -> str:
     """Card for the log channels: user (clickable name, @username, ID), platform + link, event, time."""
     from datetime import datetime, timedelta, timezone
@@ -166,6 +182,8 @@ _FRIENDLY = (
     (("private", "login", "log in", "sign in", "members-only", "age", "cookies", "authentication", "401", "403",
       "empty media response"), "lips", "This link is private or needs login.",
      "Only public posts can be downloaded."),
+    (("looks truncated", "incomplete youtube id", "invalid url", "is not a valid url"), "warn",
+     "This link is incomplete or broken.", "Copy the full link and send it again."),
     (("not available", "unavailable", "removed", "deleted", "404", "does not exist", "no video"), "ban",
      "This post is unavailable.", "It may be deleted, region-locked or the link is wrong."),
     (("too large", "file size", "exceeds", "limit"), None, None, None),  # keep the original size-limit text
@@ -243,7 +261,7 @@ def send_error_to_user(message, msg, url: str = None):
     user_id = message.chat.id
     # Send to LOG_EXCEPTION channel for error tracking
     if getattr(Config, "LOG_EXCEPTION", 0):  # 0 = no log channel set
-        safe_send_message(Config.LOG_EXCEPTION, log_card(message, "⚠️", "Error", msg, url),
+        safe_send_message(Config.LOG_EXCEPTION, log_card(message, "⚠️", "Error", _short_error(msg), url),
                           parse_mode=enums.ParseMode.HTML, disable_web_page_preview=True)
     # Send to user: short message; full details stay in LOG_EXCEPTION / logs
     friendly = friendly_error(msg)
@@ -266,5 +284,5 @@ def log_error_to_channel(message, msg, url: str = None):
     """
     # Send to LOG_EXCEPTION channel for error tracking
     if getattr(Config, "LOG_EXCEPTION", 0):  # 0 = no log channel set
-        safe_send_message(Config.LOG_EXCEPTION, log_card(message, "⚠️", "Error", msg, url),
+        safe_send_message(Config.LOG_EXCEPTION, log_card(message, "⚠️", "Error", _short_error(msg), url),
                           parse_mode=enums.ParseMode.HTML, disable_web_page_preview=True)

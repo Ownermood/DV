@@ -41,3 +41,14 @@ def test_log_kinds():
     assert _log_kind("User entered a <b>url</b>\n <b>user's name:</b> X\nURL: https://youtu.be/x") == ("📥", "New download", "")
     assert _log_kind("Playlist videos sent: 3/3 files (quality=720p) to user 1")[1] == "Sent"
     assert _log_kind("✅ Cookies file is working") is None
+
+
+def test_short_error_from_old_template():
+    from HELPERS.logger import _short_error
+    old = ("Supported: YouTube, Instagram\nYou may need cookie for downloading this video. First, clean your workspace via /clean command\n"
+           "For Youtube - get cookie via /cookie command.\n────────────────\n❌ Error Code: UNKNOWN_ERROR\n"
+           "📝 Description: ERROR: [youtube:truncated_id] jrbRbXX8R9: Incomplete YouTube ID jrbRbXX8R9. URL x looks truncated.\n"
+           "🔧 Full Error: ERROR: [youtube:truncated_id] ...")
+    out = _short_error(old)
+    assert "/clean" not in out and "cookie" not in out.lower() and "Full Error" not in out
+    assert "incomplete or broken" in out and "truncated_id" in out

@@ -389,8 +389,19 @@ def _yt_preview(info, picks, label="YouTube") -> str:
     return "\n".join(x for x in lines if x)[:1024]
 
 
+def _incomplete_youtube(url) -> bool:
+    """watch?v= / youtu.be / shorts link whose video ID is not the full 11 characters (copied badly)."""
+    m = re.search(r"(?:[?&]v=|youtu\.be/|/shorts/|/live/|/embed/)([\w-]*)", url or "")
+    return bool(m) and len(m.group(1)) != 11
+
+
 def _show_link_menu(client, message, key, label) -> None:
     uid = message.chat.id
+    if key == "youtube" and _incomplete_youtube(extract_url(message.text)):
+        send(client, uid, lambda: (f"{em('warn')} <b>This YouTube link is incomplete.</b>\n"
+                                   "<blockquote>Part of the video ID is missing. Copy the full link and send it again.</blockquote>",
+                                   None), reply_to_message_id=message.id)
+        return
     from HELPERS import cancel
     cancel.clear(uid)  # a new link: an old Cancel tap must not stop it
     token = _remember(message, key)

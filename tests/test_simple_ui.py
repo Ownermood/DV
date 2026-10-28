@@ -257,3 +257,10 @@ def test_preview_other_platform():
             "formats": [{"vcodec": "h264", "acodec": "aac", "height": 720, "filesize": 5 * 1024 ** 2, "format_id": "x"}]}
     text = ui._yt_preview(info, ui._yt_pick(info), "Instagram")
     assert "Reel text" in text and "1.2K" in text and "someone" in text and "720p — 5.0MB" in text
+
+
+def test_incomplete_youtube_link():
+    assert ui._incomplete_youtube("https://www.youtube.com/watch?v=jrbRbXX8R9")
+    assert not ui._incomplete_youtube("https://youtu.be/dQw4w9WgXcQ?si=x")
+    assert not ui._incomplete_youtube("https://youtube.com/shorts/61AaTfgy1-k")
+    assert not ui._incomplete_youtube("https://www.youtube.com/playlist?list=PL123")
