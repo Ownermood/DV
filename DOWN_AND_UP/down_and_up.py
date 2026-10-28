@@ -2537,8 +2537,11 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 # end-of-task subs cache clearing handled in unified success branches below
                                 else:
                                     logger.error(f"Error in manual forward after error: {e2}")
-                        safe_edit_message_text(user_id, proc_msg_id,
-                            f"{info_text}\n{full_bar}   100.0%\n<b>{safe_get_messages(user_id).DOWN_UP_VIDEO_DURATION_MSG}</b> <i>{TimeFormatter(duration * 1000)}</i>\n{safe_get_messages(user_id).DOWN_UP_ONE_FILE_UPLOADED_MSG}")
+                        if is_playlist:  # the card is used again for the next video
+                            safe_edit_message_text(user_id, proc_msg_id,
+                                f"{info_text}\n{full_bar}   100.0%\n<b>{safe_get_messages(user_id).DOWN_UP_VIDEO_DURATION_MSG}</b> <i>{TimeFormatter(duration * 1000)}</i>\n{safe_get_messages(user_id).DOWN_UP_ONE_FILE_UPLOADED_MSG}")
+                        else:
+                            safe_delete_messages(chat_id=user_id, message_ids=[proc_msg_id], revoke=True)  # file itself is the success signal
                         
                         # Clean up video file and thumbnail
                         if os.path.exists(after_rename_abs_path):

@@ -469,6 +469,8 @@ def _show_link_menu(client, message, key, label) -> None:
                 try:
                     from COMMANDS.image_cmd import image_command
                     from HELPERS.safe_messeger import fake_message
+                    from HELPERS import group_clean
+                    group_clean.track(message)
                     image_command(client, fake_message(f"/img {extract_url(message.text)}", _owner_of(message),
                                                        original_chat_id=uid, original_message=message))
                     return
@@ -569,6 +571,8 @@ def _run_choice(client, message, choice, picks=None) -> None:
     from HELPERS import cancel
     cancel.clear(message.chat.id)  # a new download: an old Cancel tap must not stop it
     cancel.set_owner(message.chat.id, _owner_of(message))
+    from HELPERS import group_clean
+    group_clean.track(message)  # groups: when the file arrives, only the file stays (preview cards came before)
     original = message.text
     try:
         message._ui_format = None

@@ -32,6 +32,8 @@ app = Client(
     max_concurrent_transmissions=8,   # default 1 = every user's upload waits for the previous one
 )
 set_app(app)  # before any module with handlers is imported
+from HELPERS.group_clean import install as _group_clean  # noqa: E402
+_group_clean(app)  # groups: only the requested file stays (see HELPERS/group_clean.py)
 
 from DATABASE.cache_db import start_auto_cache_reloader  # noqa: E402
 import DATABASE.firebase_init  # noqa: E402,F401  (database: MongoDB / local JSON)

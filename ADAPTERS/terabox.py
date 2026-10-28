@@ -858,6 +858,8 @@ def _run_job(app, message, url, meta, q, card) -> None:
     from HELPERS import cancel
     cancel.clear(message.chat.id)  # a new download: an old Cancel tap must not stop it
     cancel.set_owner(message.chat.id, getattr(getattr(message, "from_user", None), "id", None) or message.chat.id)
+    from HELPERS import group_clean
+    group_clean.track(message)  # groups: when the file arrives, only the file stays
     try:
         _run_job_inner(app, message, url, meta, q, card)
     finally:
