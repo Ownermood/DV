@@ -798,6 +798,13 @@ def bot_promoted(client, update):
         send(client, uid, lambda: (t(uid, "admin_ready"), None))
 
 
+@app.on_message(filters.me | filters.bot, group=-100)
+def ignore_own_messages(client, message):
+    """The bot's own messages (e.g. echoed from another session) and other bots are never requests:
+    answering them looped ("Send me a link." / a status message with a URL started a new download)."""
+    message.stop_propagation()
+
+
 @app.on_message(filters.group & filters.text, group=-1)
 def group_door(client, message):
     """Groups: anyone can use the bot with "/dl <link>" or "@bot <link>"; everything else in the group is ignored."""

@@ -455,3 +455,17 @@ def test_image_command_runs_once_per_link(monkeypatch):
     image_cmd.image_command(None, m)          # after it finished: runs again
     assert len(calls) == 2
     assert "Nothing to download" in image_cmd._img_done_text(1, 0, 1000, 0)
+
+
+def test_own_and_bot_messages_are_ignored():
+    import asyncio
+    from types import SimpleNamespace as NS
+    from pyrogram import filters, StopPropagation
+    f = filters.me | filters.bot
+    own = NS(from_user=NS(is_self=True, is_bot=True), outgoing=True)
+    echoed = NS(from_user=NS(is_self=False, is_bot=True), outgoing=False)   # same bot from another session
+    person = NS(from_user=NS(is_self=False, is_bot=False), outgoing=False)
+    run = lambda m: asyncio.run(f(None, m))
+    assert run(own) and run(echoed) and not run(person)
+    with pytest.raises(StopPropagation):
+        ui.ignore_own_messages(None, NS(stop_propagation=lambda: (_ for _ in ()).throw(StopPropagation())))

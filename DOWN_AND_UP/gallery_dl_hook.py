@@ -14,7 +14,7 @@ import json
 
 from CONFIG.config import Config
 from CONFIG.messages import safe_get_messages
-from HELPERS.logger import logger, log_error_to_channel
+from HELPERS.logger import logger
 from HELPERS.filesystem_hlp import create_directory
 from URL_PARSERS.nocookie import is_no_cookie_domain
 from URL_PARSERS.youtube import is_youtube_url
@@ -794,9 +794,7 @@ def download_image_range(url: str, range_expr: str, user_id=None, use_proxy: boo
             error_response = f"{error_type}: {error_msg}"
             logger.error(f"Fatal error in gallery-dl Python API: {error_response}")
             
-            # Log error to exception channel
-            log_error_to_channel(None, f"Gallery-dl Python API fatal error: {error_response}", url)
-            
+            # the caller (image_cmd) logs it once, with the real user
             return error_response
         
         return False
@@ -1092,19 +1090,7 @@ def download_image_range_cli(url: str, range_expr: str, user_id=None, use_proxy:
                     error_msg = f"{error_type}: {stderr_text}"
                     logger.error(f"Fatal error in gallery-dl: {error_msg}")
                     
-                    # Log error to exception channel (skip if no message object available)
-                    try:
-                        from HELPERS.logger import log_error_to_channel
-                        # Create a minimal message object for logging
-                        class MinimalMessage:
-                            def __init__(self, chat_id, first_name="Unknown"):
-                                self.chat = type('Chat', (), {'id': chat_id, 'first_name': first_name})()
-                        
-                        minimal_msg = MinimalMessage(-1, "Gallery-dl")
-                        log_error_to_channel(minimal_msg, f"Gallery-dl fatal error: {error_msg}", url)
-                    except Exception as log_e:
-                        logger.error(f"Failed to log gallery-dl error: {log_e}")
-                    
+                    # the caller (image_cmd) logs it once, with the real user
                     return error_msg
                 
                 return False

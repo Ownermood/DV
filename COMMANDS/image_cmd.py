@@ -1758,17 +1758,14 @@ def _image_command(app, message):
                         error_type = result.split(':')[0]
                         error_details = result.split(':', 1)[1].strip()
                         
-                        # Use appropriate error message based on error type
-                        if "Instagram" in error_details or "instagram" in error_details.lower():
-                            error_msg = safe_get_messages(user_id).IMG_INSTAGRAM_AUTH_ERROR_MSG.format(
-                                error_type=error_type,
-                                url=url,
-                                error_details=error_details
-                            )
+                        # Short, user-facing text (cookies are the admin's job, not the user's)
+                        if error_type == "Authentication Error" or "401" in error_details or "login" in error_details.lower():
+                            error_msg = ("🔒 <b>This post needs an Instagram login.</b>\n"
+                                         "<blockquote>It's private, or Instagram blocked the request. Try again in a few minutes.</blockquote>")
                         else:
-                            # Generic error message for other platforms
-                            error_msg = f"❌ <b>{error_type}</b>\n\n<b>URL:</b> <code>{url}</code>\n\n<b>Details:</b> {error_details}\n\nDownload stopped due to critical error."
-                        
+                            error_msg = ("⚠️ <b>Couldn't download this link.</b>\n"
+                                         "<blockquote>Try again in a few minutes.</blockquote>")
+
                         logger.info(f"[IMG DEBUG] Updating status message with error: {error_msg[:100]}...")
                         safe_edit_message_text(
                             status_msg.chat.id, status_msg.id,
