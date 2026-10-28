@@ -3,7 +3,6 @@ from CONFIG.config import Config
 from CONFIG.messages import safe_get_messages
 from CONFIG.logger_msg import LoggerMsg
 from HELPERS.logger import logger, get_log_channel
-from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from pyrogram.enums import ChatMemberStatus
 import os
 from HELPERS.safe_messeger import safe_send_message
@@ -37,61 +36,31 @@ def TimeFormatter(milliseconds: int) -> str:
 
 # Check the USAGE of the BOT
 
+def is_member(app, user_id) -> bool:
+    """The person is in the force-join channel (or no channel is configured)."""
+    if not getattr(Config, 'SUBSCRIBE_CHANNEL', 0):
+        return True
+    try:
+        status = app.get_chat_member(Config.SUBSCRIBE_CHANNEL, user_id).status
+        return status in (ChatMemberStatus.MEMBER, ChatMemberStatus.OWNER, ChatMemberStatus.ADMINISTRATOR,
+                          ChatMemberStatus.RESTRICTED)
+    except Exception as e:  # not a participant (or the bot can't see the channel)
+        logger.info(LoggerMsg.LIMITTER_CHANNEL_CHECK_ERROR_LOG_MSG.format(user_id=user_id, error=e))
+        return False
+
+
 def is_user_in_channel(app, message):
-    messages = safe_get_messages(message.chat.id)
-    # Bypass subscription checks for explicitly allowed groups
+    """Force-join check; a clean join card (Join Channel / I've Joined) when the person isn't in the channel."""
     try:
         if int(getattr(message.chat, 'id', 0)) in getattr(Config, 'ALLOWED_GROUP', []):
             return True
     except Exception:
         pass
-    # Force-join is optional: no channel configured -> everyone allowed
-    if not getattr(Config, 'SUBSCRIBE_CHANNEL', 0):
+    member_id = getattr(getattr(message, "from_user", None), "id", None) or message.chat.id  # the person (groups)
+    if is_member(app, member_id):
         return True
-    try:
-        logger.info(LoggerMsg.LIMITTER_CHANNEL_CHECK_MEMBERSHIP_LOG_MSG.format(user_id=message.chat.id, channel=Config.SUBSCRIBE_CHANNEL))
-        member_id = getattr(getattr(message, "from_user", None), "id", None) or message.chat.id  # the person (groups)
-        cht_member = app.get_chat_member(
-            Config.SUBSCRIBE_CHANNEL, member_id)
-        logger.info(LoggerMsg.LIMITTER_CHANNEL_CHECK_STATUS_LOG_MSG.format(user_id=message.chat.id, status=cht_member.status))
-        if cht_member.status == ChatMemberStatus.MEMBER or cht_member.status == ChatMemberStatus.OWNER or cht_member.status == ChatMemberStatus.ADMINISTRATOR:
-            logger.info(LoggerMsg.LIMITTER_CHANNEL_CHECK_IS_MEMBER_LOG_MSG.format(user_id=message.chat.id))
-            return True
-        else:
-            logger.info(LoggerMsg.LIMITTER_CHANNEL_CHECK_NOT_MEMBER_LOG_MSG.format(user_id=message.chat.id))
-            return False
-
-    except Exception as e:
-        logger.error(LoggerMsg.LIMITTER_CHANNEL_CHECK_ERROR_LOG_MSG.format(user_id=message.chat.id, error=e))
-        text = f"{safe_get_messages(message.chat.id).TO_USE_MSG}\n \n{safe_get_messages(message.chat.id).CREDITS_MSG}"
-        
-        # Channel join button
-        channel_button = InlineKeyboardButton(
-            safe_get_messages(message.chat.id).CHANNEL_JOIN_BUTTON_MSG, url=Config.SUBSCRIBE_CHANNEL_URL)
-        keyboard = InlineKeyboardMarkup([[channel_button]])
-        
-        # Use safe send to avoid FloodWait on texts
-        safe_send_message(
-            chat_id=message.chat.id,
-            text=text,
-            reply_markup=keyboard
-        )
-        return False
-    
-    # If user is not a member, send subscription message
-    text = f"{safe_get_messages(message.chat.id).TO_USE_MSG}\n \n{safe_get_messages(message.chat.id).CREDITS_MSG}"
-    
-    # Channel join button
-    channel_button = InlineKeyboardButton(
-        safe_get_messages(message.chat.id).CHANNEL_JOIN_BUTTON_MSG, url=Config.SUBSCRIBE_CHANNEL_URL)
-    keyboard = InlineKeyboardMarkup([[channel_button]])
-    
-    # Use safe send to avoid FloodWait on texts
-    safe_send_message(
-        chat_id=message.chat.id,
-        text=text,
-        reply_markup=keyboard
-    )
+    from COMMANDS.simple_ui import join_card
+    join_card(app, message)
     return False
 
 

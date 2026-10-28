@@ -259,6 +259,14 @@ T = {
                     "<blockquote>{platforms}</blockquote>\n\n"
                     "{down} <b>Send a link to start!</b>"),
         "add_group": "Add to Group",
+        "join_needed": ("{crown} <b>One quick step!</b>\n"
+                        "<blockquote>Join {channel} to use me. It's free and takes a second.</blockquote>\n"
+                        "{ok} Then tap <b>I've Joined</b> and your download starts."),
+        "dm_sent": ("{down} {name}, your download is coming in my DM {party}\n"
+                    "<blockquote>Open the chat with me to pick the quality.</blockquote>"),
+        "dm_start": ("{wave} {name}, start me in DM first!\n"
+                     "<blockquote>Tap <b>Start Bot</b>. Your download begins there automatically.</blockquote>"),
+        "dm_link": "{down} <b>Your link from {group}</b>\n<blockquote>{url}</blockquote>",
         "need_admin": ("{crown} <b>Please make me an admin</b> {love}\n"
                        "<blockquote>I work in this group only as an admin. No special rights are needed, "
                        "just promote me and send the link again.</blockquote>"),
@@ -270,8 +278,8 @@ T = {
                      "{chat} <code>@{me} link</code>\n"
                      "{memo} Reply <code>/dl</code> to any message that has a link</blockquote>\n\n"
                      "{check} <b>Good to know</b>\n"
-                     "<blockquote>{ok} Only the person who sent the link can pick the quality or cancel\n"
-                     "{like} I stay silent otherwise: normal chat is never touched\n"
+                     "<blockquote>{ok} Your file arrives in my DM (start me once), so the group stays clean\n"
+                     "{like} Your request leaves the group after 1 minute; normal chat is never touched\n"
                      "{medal} Best quality, up to {max_gb} GB</blockquote>\n\n"
                      "{box} <b>Supported</b>\n"
                      "<blockquote>{platforms}</blockquote>"),

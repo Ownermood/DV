@@ -469,8 +469,6 @@ def _show_link_menu(client, message, key, label) -> None:
                 try:
                     from COMMANDS.image_cmd import image_command
                     from HELPERS.safe_messeger import fake_message
-                    from HELPERS import group_clean
-                    group_clean.track(message)
                     image_command(client, fake_message(f"/img {extract_url(message.text)}", _owner_of(message),
                                                        original_chat_id=uid, original_message=message))
                     return
@@ -571,8 +569,6 @@ def _run_choice(client, message, choice, picks=None) -> None:
     from HELPERS import cancel
     cancel.clear(message.chat.id)  # a new download: an old Cancel tap must not stop it
     cancel.set_owner(message.chat.id, _owner_of(message))
-    from HELPERS import group_clean
-    group_clean.track(message)  # groups: when the file arrives, only the file stays (preview cards came before)
     original = message.text
     try:
         message._ui_format = None
@@ -771,23 +767,124 @@ def group_door(client, message):
         message.stop_propagation()
     activity.touch(message.from_user.id)
     if not url:
-        send(client, uid, lambda: (f"{em('down')} <b>Send a link with the command:</b>\n"
+        hint = send(client, uid, lambda: (f"{em('down')} <b>Send a link with the command:</b>\n"
                                    f"<blockquote><code>/dl https://…</code>\nor <code>@{getattr(Config, 'BOT_NAME', '')} https://…</code>\n"
                                    "or reply <code>/dl</code> to a message that has the link.</blockquote>", None),
              reply_to_message_id=message.id)
+        _delete_later(client, uid, [message.id, getattr(hint, "id", None)])
         message.stop_propagation()
     found = detect_platform(url)
     if found is None:
-        send(client, uid, lambda: (unsupported_text(uid), None), reply_to_message_id=message.id)
+        hint = send(client, uid, lambda: (unsupported_text(uid), None), reply_to_message_id=message.id)
+        _delete_later(client, uid, [message.id, getattr(hint, "id", None)])
         message.stop_propagation()
-    message.text = url  # the pipeline reads the link from the message text
+    person = message.from_user
+    group = message.chat.title or "the group"
+    name = _mention(person)
+    if _start_in_dm(client, person, url, group):
+        note = send(client, uid, lambda: (t(uid, "dm_sent", name=name), _dm_markup()), reply_to_message_id=message.id)
+    else:  # never started the bot: Telegram lets a bot DM only people who started it
+        token = secrets.token_hex(6)
+        with _pending_lock:
+            now = time.time()
+            for k in [k for k, v in _DM_WAIT.items() if now - v[3] > _DM_WAIT_TTL]:
+                _DM_WAIT.pop(k, None)
+            _DM_WAIT[token] = (person.id, url, group, now)
+        note = send(client, uid, lambda: (t(uid, "dm_start", name=name), _dm_markup(f"dl{token}")),
+                    reply_to_message_id=message.id)
+    _delete_later(client, uid, [message.id, getattr(note, "id", None)])
+    message.stop_propagation()
+
+
+GROUP_CLEAN_AFTER = 60          # the /dl message and the bot's note leave the group after 1 min
+_DM_WAIT = {}                   # start token -> (user id, url, group title, since)
+_DM_WAIT_TTL = 30 * 60
+
+
+def _mention(user) -> str:
+    if getattr(user, "username", None):
+        return "@" + user.username
+    return f'<a href="tg://user?id={user.id}">{html.escape((user.first_name or "there")[:40])}</a>'
+
+
+def _dm_markup(start=None) -> Optional[InlineKeyboardMarkup]:
+    me = (getattr(Config, "BOT_NAME", "") or "").lstrip("@")
+    if not me:
+        return None
+    if start:
+        return InlineKeyboardMarkup([[btn("play", "Start Bot", url=f"https://t.me/{me}?start={start}", style=GREEN)]])
+    return InlineKeyboardMarkup([[btn("chat", "Open DM", url=f"https://t.me/{me}", style=BLUE)]])
+
+
+def _delete_later(client, chat_id, ids) -> None:
+    ids = [i for i in ids if i]
+
+    def run():
+        try:
+            client.delete_messages(chat_id, ids)
+        except Exception as exc:
+            logger.info(f"[group] clean-up in {chat_id} failed: {exc}")
+    timer = threading.Timer(GROUP_CLEAN_AFTER, run)
+    timer.daemon = True
+    timer.start()
+
+
+def _start_in_dm(client, person, url, group) -> bool:
+    """Run a group request in the person's DM: the link card there, then the usual preview / download.
+    False when the bot can't write to them (they never started it, or blocked it)."""
+    try:
+        dm = client.send_message(person.id, t(person.id, "dm_link", group=html.escape(group[:60]), url=html.escape(url)),
+                                 parse_mode=enums.ParseMode.HTML, disable_web_page_preview=True)
+    except Exception as exc:
+        logger.info(f"[group] can't DM {person.id}: {exc}")
+        return False
+    dm.from_user = person      # the bot wrote it; the pipeline must see the person
+    dm.text = url              # the pipeline reads the link from the message text
+    _run_link(client, dm, url)
+    return True
+
+
+def _run_link(client, message, url) -> None:
+    """Preview card (or TeraBox menu) for one link, like a link sent in private."""
+    found = detect_platform(url)
+    if not found:
+        return
     key, label, _, _ = found
     if key == "terabox":
         from URL_PARSERS.url_extractor import url_distractor
         threading.Thread(target=url_distractor, args=(client, message), daemon=True).start()
     else:
-        _show_link_menu(client, message, key, label)
-    message.stop_propagation()
+        threading.Thread(target=_show_link_menu, args=(client, message, key, label), daemon=True).start()
+
+
+def _resume_from_group(client, user, token) -> bool:
+    """/start dl<token> from the group's Start Bot button: run the waiting link in this DM."""
+    with _pending_lock:
+        item = _DM_WAIT.get(token)
+        if not item or item[0] != user.id:
+            return False
+        _DM_WAIT.pop(token, None)
+    return _start_in_dm(client, user, item[1], item[2])
+
+
+def join_card(client, message) -> None:
+    """Force-join: Join Channel + I've Joined (re-checks and starts the same link)."""
+    uid = message.chat.id
+    url = getattr(Config, "SUBSCRIBE_CHANNEL_URL", "") or ""
+    m = re.search(r"t\.me/([A-Za-z0-9_]{4,})/?$", url)
+    channel = f"<b>@{m.group(1)}</b>" if m else "<b>our channel</b>"
+    token = secrets.token_hex(4)
+    with _pending_lock:
+        now = time.time()
+        for k in [k for k, v in _JOIN.items() if now - v[2] > _DM_WAIT_TTL]:
+            _JOIN.pop(k, None)
+        _JOIN[token] = (message, extract_url(getattr(message, "text", "") or ""), now)
+    rows = [[btn("plus", "Join Channel", url=url, style=BLUE)]] if url else []
+    rows.append([btn("ok", "I've Joined", cb=f"ui|fj|{token}", style=GREEN)])
+    send(client, uid, lambda: (t(uid, "join_needed", channel=channel), InlineKeyboardMarkup(rows)))
+
+
+_JOIN = {}                      # token -> (message, url, since)
 
 
 @app.on_message(filters.group & filters.new_chat_members, group=-1)
@@ -824,6 +921,9 @@ def front_door(client, message):
     if text.startswith("/"):
         cmd = text[1:].split()[0].split("@")[0].lower()
         if cmd == "start":
+            payload = text.split(None, 1)[1].strip() if len(text.split()) > 1 else ""
+            if payload.startswith("dl") and message.from_user and _resume_from_group(client, message.from_user, payload[2:]):
+                message.stop_propagation()   # the group link runs here now
             send_start(client, chat_id, message.from_user.first_name if message.from_user else "")
             message.stop_propagation()
         if cmd == "help":
@@ -914,6 +1014,22 @@ def ui_callbacks(client, cq):
                 cq.answer(t(uid, "started") if parts[3] == "a" else t(uid, "thumb"))
                 fn = _send_thumbnail if parts[3] == "t" else (lambda c, m: _run_choice(c, m, "a"))
                 threading.Thread(target=fn, args=(client, original), daemon=True).start()
+        elif action == "fj" and len(parts) == 3:
+            from HELPERS.limitter import is_member
+            with _pending_lock:
+                item = _JOIN.get(parts[2])
+            if not item or _owner_of(item[0]) != uid:
+                cq.answer(t(uid, "expired"), show_alert=True)
+            elif not is_member(client, uid):
+                cq.answer("You haven't joined yet. Join the channel, then tap again.", show_alert=True)
+            else:
+                with _pending_lock:
+                    _JOIN.pop(parts[2], None)
+                cq.answer("Thanks for joining!")
+                msg.delete()
+                if item[1]:
+                    item[0].text = item[1]
+                    _run_link(client, item[0], item[1])
         elif action == "home":
             edit(client, msg, lambda: (welcome_text(cq.from_user.first_name or "", uid), _start_markup(uid)))
         elif action == "close":

@@ -94,7 +94,7 @@ def test_all_i18n_keys_format():
     assert list(ui_kit.T) == ["en"]  # English only
     for table in ui_kit.T.values():
         for k in table:
-            ui_kit.t(None, k, name="n", platform="p", title="t", max_gb="4", platforms="x", state="s", group="g", me="m")
+            ui_kit.t(None, k, name="n", platform="p", title="t", max_gb="4", platforms="x", state="s", group="g", me="m", channel="c", url="u")
 
 
 def test_bold_everywhere_including_quotes():
@@ -320,3 +320,59 @@ def test_group_needs_bot_admin(monkeypatch):
     assert ui._is_bot_admin(C(), -5) is True and calls == [-5]
     assert len(sent) == 1 and "admin" in sent[0]
     assert "admin" in ui.t(None, "need_admin")
+
+
+class _Client:
+    def __init__(self, can_dm=True):
+        self.can_dm, self.sent, self.deleted = can_dm, [], []
+
+    def send_message(self, chat, text, **kw):
+        if chat > 0 and not self.can_dm:
+            raise RuntimeError("PEER_ID_INVALID")
+        from types import SimpleNamespace as NS
+        self.sent.append((chat, text))
+        return NS(id=len(self.sent), chat=NS(id=chat), text=text)
+
+    def delete_messages(self, chat, ids):
+        self.deleted.append((chat, ids))
+
+
+def test_group_request_goes_to_dm(monkeypatch):
+    from types import SimpleNamespace as NS
+    runs = []
+    monkeypatch.setattr(ui, "_run_link", lambda c, m, u: runs.append((m.chat.id, m.from_user.id, m.text)))
+    person = NS(id=77, username=None, first_name="Ann")
+    c = _Client()
+    assert ui._start_in_dm(c, person, "https://youtu.be/dQw4w9WgXcQ", "Fans") is True
+    assert c.sent[0][0] == 77 and "Fans" in c.sent[0][1]
+    assert runs == [(77, 77, "https://youtu.be/dQw4w9WgXcQ")]   # the person owns the DM menu
+
+
+def test_group_request_waits_for_start(monkeypatch):
+    from types import SimpleNamespace as NS
+    runs = []
+    monkeypatch.setattr(ui, "_run_link", lambda c, m, u: runs.append(u))
+    person = NS(id=78, username="bob", first_name="Bob")
+    assert ui._start_in_dm(_Client(can_dm=False), person, "https://pin.it/4abcd", "Fans") is False
+    ui._DM_WAIT["tok"] = (78, "https://pin.it/4abcd", "Fans", __import__("time").time())
+    assert ui._resume_from_group(_Client(), NS(id=99), "tok") is False      # someone else's button
+    assert ui._resume_from_group(_Client(), person, "tok") is True and runs == ["https://pin.it/4abcd"]
+    assert "tok" not in ui._DM_WAIT                                          # one use
+
+
+def test_group_messages_deleted_later(monkeypatch):
+    import time
+    monkeypatch.setattr(ui, "GROUP_CLEAN_AFTER", 0.05)
+    c = _Client()
+    ui._delete_later(c, -100, [5, None, 6])
+    time.sleep(0.3)
+    assert c.deleted == [(-100, [5, 6])]
+
+
+def test_mention_and_dm_buttons(monkeypatch):
+    from types import SimpleNamespace as NS
+    monkeypatch.setattr(ui.Config, "BOT_NAME", "Downloader_Villanbot", raising=False)
+    assert ui._mention(NS(id=1, username="ann", first_name="A")) == "@ann"
+    assert 'tg://user?id=2' in ui._mention(NS(id=2, username=None, first_name="<B>"))
+    url = ui._dm_markup("dlabc").inline_keyboard[0][0].url
+    assert url == "https://t.me/Downloader_Villanbot?start=dlabc" and len("dlabc") <= 64
