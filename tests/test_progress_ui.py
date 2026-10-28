@@ -63,3 +63,25 @@ def test_upload_progress_bar_5_args(monkeypatch):
     monkeypatch.setattr(ds, "app", type("A", (), {"edit_message_text": lambda self, *a, **k: edits.append(a[2]) or True})())
     ds.progress_bar(50 * 1024 ** 2, 100 * 1024 ** 2, 7, 99, "status")
     assert edits and "Uploading" in edits[-1] and "50 / 100 MB" in edits[-1] and "50%" in edits[-1]
+
+
+def test_progress_edit_never_blocks_and_group_is_spaced():
+    import threading, time
+    from HELPERS import progress_ui as p
+    gate, calls = threading.Event(), []
+
+    def slow_edit(chat, msg, text, **kw):
+        calls.append(chat)
+        gate.wait(2)  # Telegram FloodWait / slow edit
+        return True
+
+    t0 = time.monotonic()
+    p.edit_card(slow_edit, -1001, 1, "x")
+    assert time.monotonic() - t0 < 0.5                   # the transfer is not held up
+    assert p.edit_later(lambda: None, -1001, 1) is False  # previous edit of this card still running
+    assert p.edit_later(lambda: None, -1001, 2) is False  # same group within GROUP_GAP
+    assert p.edit_later(lambda: None, -1001, 3, force=True) is True
+    assert p.edit_later(lambda: None, 55, 1) is True       # private chat: no group spacing
+    gate.set()
+    time.sleep(0.2)
+    assert calls == [-1001]

@@ -847,7 +847,7 @@ def _run_job_inner(app, message, url, meta, q, card) -> None:
     """Download the chosen quality (streaming copy or original file) and send it; the card shows the progress."""
     from HELPERS import cancel
     uid = message.chat.id
-    from HELPERS.progress_ui import progress_card
+    from HELPERS.progress_ui import progress_card, edit_later
     from html import escape
     key = url + ("" if q == "o" else f"#{q}")
     cached = _cache_get(key)
@@ -903,9 +903,9 @@ def _run_job_inner(app, message, url, meta, q, card) -> None:
                 pct = total * 100 / length if length else 0
                 speed = total / max(now - state["start"], 0.1) / 1024 ** 2
                 of = f" / {length / 1024 ** 2:.0f} MB" if length else " MB"
-                _show(app, card, (base + "\n\n" if base else "")
-                      + progress_card("download", pct, detail=f"{total / 1024 ** 2:.0f}{of} · {speed:.1f} MB/s"),
-                      cancel.markup(uid))
+                text = (base + "\n\n" if base else "") + progress_card(
+                    "download", pct, detail=f"{total / 1024 ** 2:.0f}{of} · {speed:.1f} MB/s")
+                edit_later(lambda: cancel.is_set(uid) or _show(app, card, text, cancel.markup(uid)), card.chat.id, card.id)
             if playlist:
                 _hls_download(playlist, filepath, limit, progress, meta["sess"].cookies.get_dict(), meta["base"] + "/")
             else:
@@ -920,9 +920,10 @@ def _run_job_inner(app, message, url, meta, q, card) -> None:
                     return
                 up["last"] = now
                 speed = done / max(now - up["start"], 0.1) / 1024 ** 2
-                _show(app, card, (base + "\n\n" if base else "") + progress_card(
+                text = (base + "\n\n" if base else "") + progress_card(
                     "upload", done * 100 / total if total else 0,
-                    detail=f"{done / 1024 ** 2:.0f} / {total / 1024 ** 2:.0f} MB · {speed:.1f} MB/s"), cancel.markup(uid))
+                    detail=f"{done / 1024 ** 2:.0f} / {total / 1024 ** 2:.0f} MB · {speed:.1f} MB/s")
+                edit_later(lambda: cancel.is_set(uid) or _show(app, card, text, cancel.markup(uid)), card.chat.id, card.id)
             sent = _send_file(app, message, filepath, title, url, thumb_path, upload_progress) or []
             if cancel.is_set(uid):  # upload stopped by ❌ Cancel: keep the "cancelled" card
                 return

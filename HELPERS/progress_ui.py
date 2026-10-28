@@ -13,6 +13,8 @@ from __future__ import annotations
 
 import itertools
 import re
+import threading
+import time
 
 from pyrogram import enums
 
@@ -104,9 +106,45 @@ def strip_premium(text: str) -> str:
     return _PREMIUM_RE.sub(r"\1", text)
 
 
-def edit_card(edit_fn, chat_id, message_id, text: str):
+# Progress edits run in the background: a download / upload never waits on Telegram.
+# Groups allow about 20 edits a minute, and a FloodWait sleep inside the progress
+# callback used to stall the whole transfer there.
+GROUP_GAP = 5.0
+_edit_lock = threading.Lock()
+_busy = set()       # (chat, message) whose previous edit is still running
+_chat_last = {}     # group chat -> last progress edit (monotonic)
+
+
+def edit_later(fn, chat_id, message_id, force=False) -> bool:
+    """Run fn() in a thread. Skipped while this card's previous edit is still running,
+    and in groups when the chat was edited less than GROUP_GAP seconds ago (unless force)."""
+    key = (chat_id, message_id)
+    now = time.monotonic()
+    with _edit_lock:
+        if key in _busy:
+            return False
+        group = isinstance(chat_id, int) and chat_id < 0
+        if group and not force and now - _chat_last.get(chat_id, 0.0) < GROUP_GAP:
+            return False
+        _busy.add(key)
+        if group:
+            _chat_last[chat_id] = now
+
+    def run():
+        try:
+            fn()
+        except Exception:
+            pass
+        finally:
+            with _edit_lock:
+                _busy.discard(key)
+    threading.Thread(target=run, daemon=True).start()
+    return True
+
+
+def edit_card(edit_fn, chat_id, message_id, text: str, force=False):
     """Edit with HTML; if Telegram rejects premium emoji, retry with plain emoji.
-    Downloading / uploading cards get the ❌ Cancel button."""
+    Downloading / uploading cards get the ❌ Cancel button. Runs in the background."""
     kw = {"parse_mode": enums.ParseMode.HTML}
     if any(f"<b>{_KINDS[k][1]}</b>" in text for k in ("download", "upload")):
         try:
@@ -114,10 +152,16 @@ def edit_card(edit_fn, chat_id, message_id, text: str):
             kw["reply_markup"] = markup(chat_id)
         except Exception:
             pass
-    try:
-        result = edit_fn(chat_id, message_id, text, **kw)
-    except Exception:
-        result = None
-    if result is None and _PREMIUM_RE.search(text):
-        result = edit_fn(chat_id, message_id, strip_premium(text), **kw)
-    return result
+
+    def run():
+        from HELPERS.cancel import is_set
+        if "reply_markup" in kw and is_set(chat_id):
+            return  # ❌ Cancel already replaced this card
+        try:
+            result = edit_fn(chat_id, message_id, text, **kw)
+        except Exception:
+            result = None
+        if result is None and _PREMIUM_RE.search(text):
+            edit_fn(chat_id, message_id, strip_premium(text), **kw)
+    edit_later(run, chat_id, message_id, force=force)
+    return True
