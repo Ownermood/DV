@@ -62,7 +62,7 @@ def normalize_path_for_ffmpeg(path, for_ffmpeg=True):
 
 
 
-def split_video_2(dir, video_name, video_path, video_size, max_size, duration, user_id):
+def split_video_2(dir, video_name, video_path, video_size, max_size, duration, user_id, lazy=False):
     messages = safe_get_messages(None)
     """
     Split a video into multiple parts
@@ -78,8 +78,10 @@ def split_video_2(dir, video_name, video_path, video_size, max_size, duration, u
     Returns:
         dict: Dictionary with video parts information
     """
-    rounds = (math.floor(video_size / max_size)) + 1
+    # 10% headroom: parts are cut by time, and the bitrate is not the same all through the video
+    rounds = max(2, math.ceil(video_size / (max_size * 0.9)))
     n = duration / rounds
+    ranges = []
     caption_lst = []
     path_lst = []
 
@@ -99,6 +101,9 @@ def split_video_2(dir, video_name, video_path, video_size, max_size, duration, u
 
             caption_lst.append(cap_name)
             path_lst.append(target_name)
+            ranges.append((start_time, end_time))
+            if lazy:  # the caller cuts each part right before sending it (half the disk space)
+                continue
 
             try:
                 # Use progress logging
@@ -117,7 +122,8 @@ def split_video_2(dir, video_name, video_path, video_size, max_size, duration, u
 
         split_vid_dict = {
             "video": caption_lst,
-            "path": path_lst
+            "path": path_lst,
+            "ranges": ranges,
         }
 
         logger.info(safe_get_messages(user_id).FFMPEG_VIDEO_SPLIT_SUCCESS_MSG.format(count=len(path_lst)))

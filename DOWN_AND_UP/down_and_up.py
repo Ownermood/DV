@@ -21,7 +21,7 @@ from HELPERS.download_status import set_active_download, clear_download_start_ti
 from HELPERS.progress_ui import bar_blocks, progress_card, edit_card
 from HELPERS.safe_messeger import safe_delete_messages, safe_edit_message_text, safe_forward_messages
 from HELPERS.filesystem_hlp import sanitize_filename, sanitize_filename_strict, cleanup_user_temp_files, create_directory, check_disk_space
-from DOWN_AND_UP.ffmpeg import get_duration_thumb, get_video_info_ffprobe, create_default_thumbnail, split_video_2
+from DOWN_AND_UP.ffmpeg import get_duration_thumb, get_video_info_ffprobe, create_default_thumbnail, split_video_2, ffmpeg_extract_subclip
 from DOWN_AND_UP.sender import send_videos
 from DATABASE.firebase_init import write_logs
 from URL_PARSERS.tags import generate_final_tags, save_user_tags
@@ -2021,21 +2021,44 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
             if int(video_size_in_bytes) > max_size:
                 safe_edit_message_text(user_id, proc_msg_id,
                     f"{info_text}\n{full_bar}   100.0%\n<i>⚠️ Your video size ({video_size}) is too large.</i>\n<i>Splitting file...</i> ✂️")
-                returned = split_video_2(dir_path, sanitize_filename_strict(caption_name), after_rename_abs_path, int(video_size_in_bytes), max_size, int(duration), user_id)
+                returned = split_video_2(dir_path, sanitize_filename_strict(caption_name), after_rename_abs_path, int(video_size_in_bytes), max_size, int(duration), user_id, lazy=True)
                 caption_lst = returned.get("video")
                 path_lst = returned.get("path")
-                # Accumulate all IDs of split video parts
+                ranges = returned.get("ranges") or []
+                failed_parts = []
+                part_title = original_video_title or caption_name
                 # Note: split_msg_ids is already initialized at function start, don't reset it here
                 for p in range(len(caption_lst) if caption_lst else 0):
                     caption_name = caption_lst[p] if caption_lst and p < len(caption_lst) else f"part_{p+1}"
+                    part_label = f"Part {p + 1}/{len(caption_lst)}"
+                    # cut this part now (not all parts up front): the disk holds the video + one part
+                    if p < len(ranges):
+                        ffmpeg_extract_subclip(after_rename_abs_path, ranges[p][0], ranges[p][1], targetname=path_lst[p])
+                        if p == len(caption_lst) - 1 and os.path.exists(after_rename_abs_path):
+                            os.remove(after_rename_abs_path)  # every part is cut: free the space for the upload
+                    if not os.path.exists(path_lst[p]) or os.path.getsize(path_lst[p]) == 0 or os.path.getsize(path_lst[p]) > 2000 * 1024 * 1024:
+                        logger.error(f"split part {part_label} missing, empty or over 2 GB: {path_lst[p]}")
+                        failed_parts.append(p + 1)
+                        continue
                     part_result = get_duration_thumb(message, dir_path, path_lst[p], sanitize_filename_strict(caption_name))
                     if part_result is None:
+                        failed_parts.append(p + 1)
+                        os.remove(path_lst[p])
                         continue
                     part_duration, splited_thumb_dir = part_result
                     # --- TikTok: Don't Pass Title ---
-                    video_msg = send_videos(message, path_lst[p], '' if force_no_title else caption_name, part_duration, splited_thumb_dir, info_text, proc_msg.id, full_video_title, tags_text_final)
+                    try:  # one failed part must not stop the next ones
+                        video_msg = send_videos(message, path_lst[p], '' if force_no_title else part_title, part_duration, splited_thumb_dir, info_text, proc_msg.id, full_video_title, tags_text_final, part=part_label)
+                    except Exception as part_err:
+                        if "Cancelled" in type(part_err).__name__:
+                            raise
+                        logger.error(f"split part {part_label} upload failed: {part_err}")
+                        video_msg = None
                     if not video_msg:
                         logger.error("send_videos returned None for split part; skipping cache save for this part")
+                        failed_parts.append(p + 1)
+                        if os.path.exists(path_lst[p]):
+                            os.remove(path_lst[p])
                         continue
                     #found_type = None
                     # Note: Forwarding to log channels is now handled in send_videos function
@@ -2215,7 +2238,15 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 actual_video_count = len(split_msg_ids) if split_msg_ids else video_count
                 success_msg = f"<b>{safe_get_messages(user_id).DOWN_UP_UPLOAD_COMPLETE_MSG}</b> - {actual_video_count} {safe_get_messages(user_id).DOWN_UP_FILES_UPLOADED_MSG}.\n{safe_get_messages(user_id).CREDITS_MSG}"
                 logger.info(f"down_and_up: sending final success message for split video: {success_msg}")
-                safe_delete_messages(chat_id=user_id, message_ids=[proc_msg_id], revoke=True)  # file itself is the success signal
+                if failed_parts:  # say which parts are missing instead of failing silently
+                    sent_n = len(caption_lst) - len(failed_parts)
+                    safe_edit_message_text(user_id, proc_msg_id,
+                        f"⚠️ <b>Sent {sent_n} of {len(caption_lst)} parts.</b>\n"
+                        f"<blockquote>Part {', '.join(map(str, failed_parts))} could not be sent. Send the link again to retry.</blockquote>",
+                        parse_mode=enums.ParseMode.HTML)
+                    log_error_to_channel(message, f"Split video: parts {failed_parts} of {len(caption_lst)} failed", url)
+                else:
+                    safe_delete_messages(chat_id=user_id, message_ids=[proc_msg_id], revoke=True)  # file itself is the success signal
                 send_to_logger(message, safe_get_messages(user_id).VIDEO_UPLOAD_COMPLETED_SPLITTING_LOG_MSG)
                 
             else:
