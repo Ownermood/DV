@@ -757,32 +757,32 @@ def group_door(client, message):
     if cmd.startswith("/") and cmd[1:].split("@")[0] in ("start", "help") and (
             "@" not in cmd or cmd.split("@", 1)[1] == me):
         send(client, uid, lambda: (group_text(message.chat.title or "", uid), _group_markup(uid)),
-             reply_to_message_id=message.id)
+             reply_to_message_id=message.id, **_topic(message))
         message.stop_propagation()
     url = _group_link(client, message)
     if url is None:
         return
     if not _is_bot_admin(client, uid):
-        send(client, uid, lambda: (t(uid, "need_admin"), None), reply_to_message_id=message.id)
+        send(client, uid, lambda: (t(uid, "need_admin"), None), reply_to_message_id=message.id, **_topic(message))
         message.stop_propagation()
     activity.touch(message.from_user.id)
     if not url:
         hint = send(client, uid, lambda: (f"{em('down')} <b>Send a link with the command:</b>\n"
                                    f"<blockquote><code>/dl https://…</code>\nor <code>@{getattr(Config, 'BOT_NAME', '')} https://…</code>\n"
                                    "or reply <code>/dl</code> to a message that has the link.</blockquote>", None),
-             reply_to_message_id=message.id)
+             reply_to_message_id=message.id, **_topic(message))
         _delete_later(client, uid, [message.id, getattr(hint, "id", None)])
         message.stop_propagation()
     found = detect_platform(url)
     if found is None:
-        hint = send(client, uid, lambda: (unsupported_text(uid), None), reply_to_message_id=message.id)
+        hint = send(client, uid, lambda: (unsupported_text(uid), None), reply_to_message_id=message.id, **_topic(message))
         _delete_later(client, uid, [message.id, getattr(hint, "id", None)])
         message.stop_propagation()
     person = message.from_user
     group = message.chat.title or "the group"
     name = _mention(person)
     if _start_in_dm(client, person, url, group):
-        note = send(client, uid, lambda: (t(uid, "dm_sent", name=name), _dm_markup()), reply_to_message_id=message.id)
+        note = send(client, uid, lambda: (t(uid, "dm_sent", name=name), _dm_markup()), reply_to_message_id=message.id, **_topic(message))
     else:  # never started the bot: Telegram lets a bot DM only people who started it
         token = secrets.token_hex(6)
         with _pending_lock:
@@ -791,9 +791,15 @@ def group_door(client, message):
                 _DM_WAIT.pop(k, None)
             _DM_WAIT[token] = (person.id, url, group, now)
         note = send(client, uid, lambda: (t(uid, "dm_start", name=name), _dm_markup(f"dl{token}")),
-                    reply_to_message_id=message.id)
+                    reply_to_message_id=message.id, **_topic(message))
     _delete_later(client, uid, [message.id, getattr(note, "id", None)])
     message.stop_propagation()
+
+
+def _topic(message) -> dict:
+    """Forum groups: answer inside the same topic the command came from, never in another one."""
+    tid = getattr(message, "message_thread_id", None)
+    return {"message_thread_id": tid} if tid and getattr(message, "is_topic_message", False) else {}
 
 
 GROUP_CLEAN_AFTER = 60          # the /dl message and the bot's note leave the group after 1 min
@@ -896,7 +902,7 @@ def group_welcome(client, message):
     uid = message.chat.id
     admin = _is_bot_admin(client, uid)
     send(client, uid, lambda: (group_text(message.chat.title or "", uid)
-                               + ("" if admin else "\n\n" + t(uid, "need_admin")), _group_markup(uid)))
+                               + ("" if admin else "\n\n" + t(uid, "need_admin")), _group_markup(uid)), **_topic(message))
     message.stop_propagation()
 
 

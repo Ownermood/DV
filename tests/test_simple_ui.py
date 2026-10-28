@@ -376,3 +376,10 @@ def test_mention_and_dm_buttons(monkeypatch):
     assert 'tg://user?id=2' in ui._mention(NS(id=2, username=None, first_name="<B>"))
     url = ui._dm_markup("dlabc").inline_keyboard[0][0].url
     assert url == "https://t.me/Downloader_Villanbot?start=dlabc" and len("dlabc") <= 64
+
+
+def test_forum_topic_answers_stay_in_topic():
+    from types import SimpleNamespace as NS
+    assert ui._topic(NS(message_thread_id=42, is_topic_message=True)) == {"message_thread_id": 42}
+    assert ui._topic(NS(message_thread_id=None, is_topic_message=False)) == {}   # General / normal group
+    assert ui._topic(NS(message_thread_id=9, is_topic_message=False)) == {}      # reply thread, not a topic
