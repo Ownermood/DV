@@ -5,7 +5,7 @@ from HELPERS import app_instance
 class _FakeApp:
     def on_message(self, *a, **k):
         return lambda f: f
-    on_callback_query = on_message
+    on_callback_query = on_chat_member_updated = on_message
 
 
 app_instance.set_app(_FakeApp())
@@ -299,3 +299,24 @@ def test_group_greeting_and_add_button(monkeypatch):
     urls = [b.url for row in ui._start_markup(1).inline_keyboard for b in row]
     assert ui._add_group_url() in urls
     assert [c for c, _ in ui.GROUP_MENU] == ["dl", "help"]
+
+
+def test_group_needs_bot_admin(monkeypatch):
+    from types import SimpleNamespace as NS
+    from pyrogram import enums
+    calls, sent = [], []
+
+    class C:
+        def get_chat_member(self, chat, who):
+            calls.append(chat)
+            return NS(status=enums.ChatMemberStatus.MEMBER)
+    ui._bot_admin.clear()
+    assert ui._is_bot_admin(C(), -5) is False and ui._is_bot_admin(C(), -5) is False
+    assert calls == [-5]                                    # cached
+    monkeypatch.setattr(ui, "send", lambda c, chat, build, **k: sent.append(build()[0]))
+    upd = NS(chat=NS(id=-5), new_chat_member=NS(user=NS(is_self=True), status=enums.ChatMemberStatus.ADMINISTRATOR),
+             old_chat_member=NS(status=enums.ChatMemberStatus.MEMBER))
+    ui.bot_promoted(C(), upd)
+    assert ui._is_bot_admin(C(), -5) is True and calls == [-5]
+    assert len(sent) == 1 and "admin" in sent[0]
+    assert "admin" in ui.t(None, "need_admin")

@@ -679,6 +679,40 @@ def _group_link(client, message):
     return url or ""
 
 
+_ADMIN_TTL = 600
+_bot_admin = {}   # group chat -> (is admin, checked at)
+
+
+def _is_bot_admin(client, chat_id) -> bool:
+    """The bot works in a group only as an admin. Cached 10 min; promotions update it at once."""
+    ok, at = _bot_admin.get(chat_id, (None, 0.0))
+    if ok is not None and time.time() - at < _ADMIN_TTL:
+        return ok
+    try:
+        status = client.get_chat_member(chat_id, "me").status
+        ok = status in (enums.ChatMemberStatus.ADMINISTRATOR, enums.ChatMemberStatus.OWNER)
+    except Exception as exc:
+        logger.info(f"[group] admin check {chat_id}: {exc}")
+        ok = False
+    _bot_admin[chat_id] = (ok, time.time())
+    return ok
+
+
+@app.on_chat_member_updated(filters.group)
+def bot_promoted(client, update):
+    """The bot's own rights changed in a group: remember it, and say thanks when promoted."""
+    new = getattr(update, "new_chat_member", None)
+    if not new or not getattr(getattr(new, "user", None), "is_self", False):
+        return
+    uid = update.chat.id
+    ok = new.status in (enums.ChatMemberStatus.ADMINISTRATOR, enums.ChatMemberStatus.OWNER)
+    was = _bot_admin.get(uid, (None, 0.0))[0]
+    _bot_admin[uid] = (ok, time.time())
+    old = getattr(getattr(update, "old_chat_member", None), "status", None)
+    if ok and not was and old not in (enums.ChatMemberStatus.ADMINISTRATOR, enums.ChatMemberStatus.OWNER):
+        send(client, uid, lambda: (t(uid, "admin_ready"), None))
+
+
 @app.on_message(filters.group & filters.text, group=-1)
 def group_door(client, message):
     """Groups: anyone can use the bot with "/dl <link>" or "@bot <link>"; everything else in the group is ignored."""
@@ -697,6 +731,9 @@ def group_door(client, message):
     url = _group_link(client, message)
     if url is None:
         return
+    if not _is_bot_admin(client, uid):
+        send(client, uid, lambda: (t(uid, "need_admin"), None), reply_to_message_id=message.id)
+        message.stop_propagation()
     activity.touch(message.from_user.id)
     if not url:
         send(client, uid, lambda: (f"{em('down')} <b>Send a link with the command:</b>\n"
@@ -725,7 +762,9 @@ def group_welcome(client, message):
         return
     _ensure_menu(client)
     uid = message.chat.id
-    send(client, uid, lambda: (group_text(message.chat.title or "", uid), _group_markup(uid)))
+    admin = _is_bot_admin(client, uid)
+    send(client, uid, lambda: (group_text(message.chat.title or "", uid)
+                               + ("" if admin else "\n\n" + t(uid, "need_admin")), _group_markup(uid)))
     message.stop_propagation()
 
 

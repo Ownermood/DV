@@ -258,6 +258,10 @@ T = {
                     "<blockquote>{platforms}</blockquote>\n\n"
                     "{down} <b>Send a link to start!</b>"),
         "add_group": "Add to Group",
+        "need_admin": ("{crown} <b>Please make me an admin</b> {love}\n"
+                       "<blockquote>I work in this group only as an admin. No special rights are needed, "
+                       "just promote me and send the link again.</blockquote>"),
+        "admin_ready": "{check} <b>Thanks for making me an admin!</b> {party}\n<blockquote>Send <code>/dl link</code> to start.</blockquote>",
         "group_hi": ("{wave} <b>Hello {group}!</b> Thanks for adding <b>{bot}</b> {party}\n\n"
                      "<blockquote>{bolt} Everyone here can now save videos, reels, shorts and music in seconds.</blockquote>\n\n"
                      "{stars} <b>How to use</b>\n"
