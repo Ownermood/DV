@@ -472,13 +472,20 @@ def _preview(app, message, title, size, thumb_path, quality=""):
     try:
         if thumb_path:
             msg = app.send_photo(message.chat.id, thumb_path, caption=base, parse_mode=enums.ParseMode.HTML,
-                                 reply_to_message_id=message.id)
+                                 reply_to_message_id=message.id, **_topic_kw(message))
         else:
-            msg = app.send_message(message.chat.id, base, parse_mode=enums.ParseMode.HTML, reply_to_message_id=message.id)
+            msg = app.send_message(message.chat.id, base, parse_mode=enums.ParseMode.HTML, reply_to_message_id=message.id,
+                                   **_topic_kw(message))
         return msg, base
     except Exception as exc:
         print(f"[terabox] preview failed: {exc}")
         return None, base
+
+
+def _topic_kw(message) -> dict:
+    """Forum groups: stay in the topic the link came from."""
+    tid = getattr(message, "message_thread_id", None)
+    return {"message_thread_id": tid} if tid and getattr(message, "is_topic_message", False) else {}
 
 
 def _show(app, msg, text, markup=None) -> None:
@@ -573,6 +580,7 @@ def _send_file(app, message, filepath: Path, title: str, url: str, thumb_path, o
 
 # ---------------- quality menu ----------------
 QUALITIES = ("1080", "720", "480")
+GROUP_MENU_TTL = 30           # groups: an unused quality menu is deleted after 30 s
 _JOBS = {}                 # token -> (message, url, meta, card message, ts)
 _JOBS_TTL = 6 * 3600
 _jobs_lock = threading.Lock()
@@ -777,7 +785,7 @@ def handle_terabox(app, message) -> bool:
         app.send_message(message.chat.id, "TeraBox support is disabled.", reply_to_message_id=message.id)
         return True
     status = app.send_message(message.chat.id, progress_card("search", 0), parse_mode=enums.ParseMode.HTML,
-                              reply_to_message_id=message.id)
+                              reply_to_message_id=message.id, **_topic_kw(message))
     try:
         meta = _meta_try(url)
     except Exception as exc:
@@ -825,6 +833,19 @@ def handle_terabox(app, message) -> bool:
         for k in [k for k, v in _JOBS.items() if now - v[4] > _JOBS_TTL]:
             _JOBS.pop(k, None)
         _JOBS[token] = (message, url, meta, card, now)
+    if message.chat.id < 0:  # group: an unused menu goes after 30 s, with the /dl message
+        def expire():
+            with _jobs_lock:
+                if _JOBS.pop(token, None) is None:
+                    return   # a quality was picked
+            _own_delete(meta)
+            try:
+                app.delete_messages(message.chat.id, [card.id, message.id])
+            except Exception:
+                pass
+        timer = threading.Timer(GROUP_MENU_TTL, expire)
+        timer.daemon = True
+        timer.start()
     return True
 
 

@@ -406,3 +406,19 @@ def test_forum_topic_answers_stay_in_topic():
     assert ui._topic(NS(message_thread_id=42, is_topic_message=True)) == {"message_thread_id": 42}
     assert ui._topic(NS(message_thread_id=None, is_topic_message=False)) == {}   # General / normal group
     assert ui._topic(NS(message_thread_id=9, is_topic_message=False)) == {}      # reply thread, not a topic
+
+
+def test_unused_group_menu_goes_after_30s(monkeypatch):
+    import time
+    from types import SimpleNamespace as NS
+    monkeypatch.setattr(ui, "GROUP_MENU_TTL", 0.05)
+    c = _Client()
+    gm = NS(id=5, chat=NS(id=-100))
+    ui._PENDING["unused"] = (gm, "youtube", time.time())
+    ui._PENDING["picked"] = (gm, "youtube", time.time())
+    ui._expire_group_menu(c, gm, "unused", 11)
+    ui._expire_group_menu(c, gm, "picked", 12)
+    ui._PENDING.pop("picked")                       # the member chose a quality in time
+    ui._expire_group_menu(c, NS(id=1, chat=NS(id=55)), "dm", 13)   # private chats: never
+    time.sleep(0.3)
+    assert c.deleted == [(-100, [11, 5])] and "unused" not in ui._PENDING

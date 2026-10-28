@@ -433,14 +433,14 @@ def _show_link_menu(client, message, key, label) -> None:
     if key == "youtube" and _incomplete_youtube(extract_url(message.text)):
         send(client, uid, lambda: (f"{em('warn')} <b>This YouTube link is incomplete.</b>\n"
                                    "<blockquote>Part of the video ID is missing. Copy the full link and send it again.</blockquote>",
-                                   None), reply_to_message_id=message.id)
+                                   None), reply_to_message_id=message.id, **_topic(message))
         return
     from HELPERS import cancel
     cancel.clear(uid)  # a new link: an old Cancel tap must not stop it
     from COMMANDS.user_prefs import quality as _default_quality
     pref = _default_quality(_owner_of(message), key)
     token = _remember(message, key)
-    menu = send(client, uid, lambda: (t(uid, "loading"), None), reply_to_message_id=message.id)
+    menu = send(client, uid, lambda: (t(uid, "loading"), None), reply_to_message_id=message.id, **_topic(message))
 
     def work():
         info = _probe(extract_url(message.text), uid)
@@ -497,9 +497,10 @@ def _show_link_menu(client, message, key, label) -> None:
                 photo = (f"https://i.ytimg.com/vi/{info['id']}/hqdefault.jpg" if key == "youtube"
                          else _thumb_bytes(info.get("thumbnail")))
                 if photo:
-                    send(client, uid, lambda: (_yt_preview(info, picks, label), kb), photo=photo,
-                         reply_to_message_id=message.id)
+                    card = send(client, uid, lambda: (_yt_preview(info, picks, label), kb), photo=photo,
+                                reply_to_message_id=message.id, **_topic(message))
                     menu.delete()
+                    _expire_group_menu(client, message, token, getattr(card, "id", None))
                     return
             except Exception as exc:
                 logger.warning(f"[ui] preview failed, text menu instead: {exc}")
@@ -507,15 +508,38 @@ def _show_link_menu(client, message, key, label) -> None:
             try:
                 edit(client, menu, lambda: (_yt_preview(info, picks, label),
                                             _choice_rows(uid, token, sizes, is_yt=bool(sizes))))
+                _expire_group_menu(client, message, token, menu.id)
                 return
             except Exception as exc:
                 logger.warning(f"[ui] menu edit failed: {exc}")
         try:
             edit(client, menu, lambda: (t(uid, "pick_yt", title=title, max_gb=_max_gb()),
                                         _choice_rows(uid, token, sizes, is_yt=True)))
+            _expire_group_menu(client, message, token, menu.id)
         except Exception as exc:
             logger.warning(f"[ui] yt menu edit failed: {exc}")
     threading.Thread(target=work, daemon=True).start()
+
+
+GROUP_MENU_TTL = 30   # an unused quality menu in a group goes after 30 s (with the /dl message)
+
+
+def _expire_group_menu(client, message, token, menu_id) -> None:
+    if message.chat.id > 0 or not menu_id:
+        return
+
+    def run():
+        with _pending_lock:
+            if _PENDING.pop(token, None) is None:
+                return   # a quality was picked: the download cleans up itself
+            _SIZES.pop(token, None)
+        try:
+            client.delete_messages(message.chat.id, [menu_id, message.id])
+        except Exception as exc:
+            logger.info(f"[group] menu clean-up failed: {exc}")
+    timer = threading.Timer(GROUP_MENU_TTL, run)
+    timer.daemon = True
+    timer.start()
 
 
 def _pref_choice(pref, picks):
