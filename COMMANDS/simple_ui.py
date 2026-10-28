@@ -68,8 +68,19 @@ def detect_platform(text: str) -> Optional[Tuple[str, str, str, str]]:
         return None
     for key, (label, emoji, suffixes) in PLATFORMS.items():
         if any(host == s or host.endswith("." + s) for s in suffixes):
+            if key == "instagram" and not _instagram_content(url):
+                return None   # profile / API / explore pages: not one post (gallery-dl would crawl up to 1000 items)
             return key, label, emoji, url
     return None
+
+
+_IG_CONTENT = re.compile(r"^/(?:[\w.]+/)?(?:p|reels?|tv|stories|share|s)/", re.I)
+
+
+def _instagram_content(url) -> bool:
+    """A post, reel, IGTV, story or share link (instagr.am short links are posts)."""
+    parsed = urlparse(url)
+    return (parsed.hostname or "").endswith("instagr.am") or bool(_IG_CONTENT.match(parsed.path or "/"))
 
 
 def welcome_text(first_name: str = "", user_id=None) -> str:

@@ -422,3 +422,36 @@ def test_unused_group_menu_goes_after_30s(monkeypatch):
     ui._expire_group_menu(c, NS(id=1, chat=NS(id=55)), "dm", 13)   # private chats: never
     time.sleep(0.3)
     assert c.deleted == [(-100, [11, 5])] and "unused" not in ui._PENDING
+
+
+@pytest.mark.parametrize("url,ok", [
+    ("https://www.instagram.com/reel/Dd8AD0LP4vg/?stkn=x", True),
+    ("https://www.instagram.com/p/C0abc/", True),
+    ("https://www.instagram.com/someone/reel/C0abc/", True),
+    ("https://www.instagram.com/stories/someone/123/", True),
+    ("https://www.instagram.com/share/reel/abc/", True),
+    ("https://instagr.am/p/C0abc/", True),
+    ("https://www.instagram.com/api/v1/media/4013602588675238339/info/", False),
+    ("https://www.instagram.com/someone/", False),
+    ("https://www.instagram.com/explore/", False),
+])
+def test_instagram_only_single_posts(url, ok):
+    assert (ui.detect_platform(url) is not None) is ok
+
+
+def test_image_command_runs_once_per_link(monkeypatch):
+    import threading, time
+    from types import SimpleNamespace as NS
+    from COMMANDS import image_cmd
+    calls, gate = [], threading.Event()
+    monkeypatch.setattr(image_cmd, "_image_command", lambda app, m: (calls.append(m.text), gate.wait(1)))
+    m = NS(chat=NS(id=5), text="/img https://www.instagram.com/p/x/")
+    t = threading.Thread(target=image_cmd.image_command, args=(None, m))
+    t.start()
+    time.sleep(0.1)
+    image_cmd.image_command(None, m)          # same link while the first runs: dropped
+    gate.set()
+    t.join()
+    image_cmd.image_command(None, m)          # after it finished: runs again
+    assert len(calls) == 2
+    assert "Nothing to download" in image_cmd._img_done_text(1, 0, 1000, 0)

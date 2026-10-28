@@ -712,8 +712,37 @@ def get_reply_message_id(message):
     else:
         return message.id
 
+def _img_done_text(user_id, downloaded, expected, sent) -> str:
+    if not sent:  # nothing came out of the link: say so instead of "Download complete 0 / 1000"
+        return ("⚠️ <b>Nothing to download in this link.</b>\n"
+                "<blockquote>Send a post, reel or story link (private posts need a login).</blockquote>")
+    return (safe_get_messages(user_id).DOWNLOAD_COMPLETE_MSG +
+            f"{safe_get_messages(user_id).DOWNLOADED_STATUS_MSG} <b>{downloaded}</b> / <b>{expected}</b>\n"
+            f"{safe_get_messages(user_id).SENT_STATUS_MSG} <b>{sent}</b>")
+
+
+_img_running = set()          # (chat, url) being downloaded right now
+_img_lock = __import__("threading").Lock()
+
+
 @background_handler(label="image_command")
 def image_command(app, message):
+    """One run per chat + link at a time: a second call for the same link is dropped (no status spam)."""
+    m = re.search(r"https?://\S+", getattr(message, "text", "") or "")
+    key = (message.chat.id, m.group(0) if m else "")
+    with _img_lock:
+        if key in _img_running:
+            logger.warning(f"[IMG] already running for {key}, duplicate call dropped")
+            return
+        _img_running.add(key)
+    try:
+        return _image_command(app, message)
+    finally:
+        with _img_lock:
+            _img_running.discard(key)
+
+
+def _image_command(app, message):
     messages = safe_get_messages(message.chat.id)
     """Handle /img command for downloading images"""
     user_id = message.from_user.id
@@ -3694,9 +3723,7 @@ def image_command(app, message):
                         safe_edit_message_text(
                             user_id,
                             status_msg.id,
-                            safe_get_messages(user_id).DOWNLOAD_COMPLETE_MSG +
-                            f"{safe_get_messages(user_id).DOWNLOADED_STATUS_MSG} <b>{total_downloaded}</b> / <b>{final_expected}</b>\n"
-                            f"{safe_get_messages(user_id).SENT_STATUS_MSG} <b>{total_sent}</b>",
+                            _img_done_text(user_id, total_downloaded, final_expected, total_sent),
                             parse_mode=enums.ParseMode.HTML,
                         )
                         completion_sent = True
@@ -3733,9 +3760,7 @@ def image_command(app, message):
                 safe_edit_message_text(
                     user_id,
                     status_msg.id,
-                    safe_get_messages(user_id).DOWNLOAD_COMPLETE_MSG +
-                    f"{safe_get_messages(user_id).DOWNLOADED_STATUS_MSG} <b>{total_downloaded}</b> / <b>{final_expected}</b>\n"
-                    f"{safe_get_messages(user_id).SENT_STATUS_MSG} <b>{total_sent}</b>",
+                    _img_done_text(user_id, total_downloaded, final_expected, total_sent),
                     parse_mode=enums.ParseMode.HTML,
                 )
                 completion_sent = True
