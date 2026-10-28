@@ -59,7 +59,9 @@ def test_format_for_caps_size_and_height(monkeypatch):
     f = ui.format_for(None)
     assert "[filesize<?3891M]" in f and "height" not in f and f.endswith("/b")
     f = ui.format_for(720)
-    assert f.startswith("bv*[height<=720][filesize<?3891M]") and f.endswith("/b[height<=720]")
+    assert f.startswith("bv*[aspect_ratio<1][width<=720][filesize<?3891M]")       # reels: 720 wide
+    assert "+ba/bv*[height<=720][filesize<?3891M]" in f                           # landscape: 720 high
+    assert f.endswith("/b")   # never "Requested format is not available"
 
 
 def test_yt_sizes_adds_audio_and_buckets():

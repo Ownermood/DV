@@ -1619,37 +1619,14 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 if error_message and not error_message_sent:
                     # Check for specific error types and send appropriate messages
                     if "Postprocessing" in error_message and "Invalid argument" in error_message:
-                        postprocessing_message = (
-                            safe_get_messages(user_id).FILE_PROCESSING_ERROR_INVALID_ARG_MSG +
-                            "**Possible causes:**\n"
-                            "• Corrupted or incomplete download\n"
-                            "• Unsupported file format or codec\n"
-                            "• File system permissions issue\n"
-                            "• Insufficient disk space\n\n"
-                            "**Solutions:**\n"
-                            "• Try downloading again with different settings\n"
-                            "• Check if you have enough disk space\n"
-                            "• Try a different quality or format\n"
-                            "• If the problem persists, the video source may be corrupted"
-                        )
-                        send_error_to_user(message, postprocessing_message)
+                        send_error_to_user(message, "⚠️ <b>The video downloaded but couldn't be processed.</b>\n"
+                                                    "<blockquote>Send the link again, or pick another quality.</blockquote>")
                         error_message_sent = True
                     elif "Requested format is not available" in error_message:
-                        format_error_message = (
-                            safe_get_messages(user_id).FORMAT_NOT_AVAILABLE_MSG +
-                            "**Possible causes:**\n"
-                            "• The video doesn't have the requested format (e.g., webm, mp4)\n"
-                            "• The video quality is not available in the requested format\n"
-                            "• The video source has limited format options\n\n"
-                            "**Solutions:**\n"
-                            "• Try downloading with a different quality setting\n"
-                            "• Use the 'Always Ask' menu to see available formats\n"
-                            "• Try changing your format preferences in /args settings\n"
-                            "• The system will automatically try alternative formats"
-                        )
-                        send_error_to_user(message, format_error_message)
+                        send_error_to_user(message, "⚠️ <b>This quality isn't available for this video.</b>\n"
+                                                    "<blockquote>Send the link again and pick <b>Best Quality</b>.</blockquote>")
                         error_message_sent = True
-                
+
                 with playlist_errors_lock:
                     error_key = f"{user_id}_{playlist_name}"
                     if error_key not in playlist_errors:

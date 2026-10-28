@@ -112,9 +112,13 @@ def format_for(height: Optional[int] = None) -> str:
     resolution automatically when the bigger one exceeds the size cap.
     Unknown sizes pass (`<?`); the downloader's own size check is the backstop."""
     cap = int(float(getattr(Config, "MAX_FILE_SIZE_GB", 4)) * 1024 * 0.95)  # 5% headroom for audio
-    h = f"[height<={int(height)}]" if height else ""
     size = f"[filesize<?{cap}M][filesize_approx<?{cap}M]"
-    return f"bv*{h}{size}+ba/b{h}{size}/b{h}"
+    if not height:
+        return f"bv*{size}+ba/b{size}/b"
+    # vertical videos (reels, shorts): "720p" is 720 wide x 1280 high, so they are matched on the width.
+    # The last steps never fail: no such quality at all -> the best there is.
+    v, h = f"[aspect_ratio<1][width<={int(height)}]", f"[height<={int(height)}]"
+    return f"bv*{v}{size}+ba/bv*{h}{size}+ba/b{v}{size}/b{h}{size}/b{v}/b{h}/bv*{size}+ba/b"
 
 
 def _is_admin(user_id: int) -> bool:
