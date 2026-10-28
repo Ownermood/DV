@@ -52,3 +52,17 @@ def test_short_error_from_old_template():
     out = _short_error(old)
     assert "/clean" not in out and "cookie" not in out.lower() and "Full Error" not in out
     assert "incomplete or broken" in out and "truncated_id" in out
+
+
+def test_user_side_errors_do_not_alert(monkeypatch):
+    from HELPERS import alerts
+    sent = []
+    monkeypatch.setattr(alerts, "_owners_dm", sent.append)
+    alerts._fails.clear()
+    old = ("<blockquote>Check <a href='x'>here</a> if your site supported</blockquote>\n❌ Error Code: UNKNOWN_ERROR\n"
+           "📝 Description: ERROR: [youtube:truncated_id] jrbRbXX8R9: Incomplete YouTube ID jrbRbXX8R9. URL x looks truncated.")
+    alerts.download_failed(1, "https://www.youtube.com/watch?v=jrbRbXX8R9", old)
+    alerts.download_failed(1, "https://youtu.be/x", "ERROR: [youtube] x: Private video. Sign in if you've been granted access")
+    assert sent == []
+    alerts.download_failed(1, "https://youtu.be/x", "<b>❌ Error Code: X</b>\n📝 Description: ERROR: Sign in to confirm you're not a bot")
+    assert len(sent) == 1 and "<blockquote>Check" not in sent[0] and "not a bot" in sent[0]

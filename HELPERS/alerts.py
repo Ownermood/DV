@@ -29,11 +29,26 @@ def _owners_dm(text: str) -> None:
         logger.warning(f"[alerts] DM failed: {exc}")
 
 
+# The user's own problem (bad / private / deleted link, too big): nothing for the owners to fix
+USER_SIDE = ("looks truncated", "incomplete youtube id", "invalid url", "unsupported url", "is not a valid url",
+             "private video", "video unavailable", "this video is unavailable", "has been removed", "not available",
+             "does not exist", "404", "too large", "file size", "exceeds", "members-only", "age-restricted",
+             "no video formats", "no video in this post", "premieres in", "live event will begin")
+
+
+def _real_error(error: str) -> str:
+    """The one line that matters out of the old error templates (HTML, cookie advice, codes)."""
+    import re
+    plain = re.sub(r"<[^>]+>", "", str(error or ""))
+    m = re.search(r"Description:\s*(.+)", plain) or re.search(r"(ERROR:.+)", plain)
+    return (m.group(1) if m else plain.strip().split("\n")[-1] if plain.strip() else "").strip()
+
+
 def _kind(error: str) -> str:
     low = (error or "").lower()
     for key, kind in (("not a bot", "YouTube bot check"), ("sign in", "login needed"), ("login", "login needed"),
-                      ("private", "private"), ("403", "HTTP 403"), ("404", "not found"), ("timed out", "timeout"),
-                      ("timeout", "timeout"), ("too large", "too large"), ("unsupported", "unsupported")):
+                      ("cookie", "cookie problem"), ("403", "HTTP 403 (blocked)"), ("429", "rate limited"),
+                      ("timed out", "timeout"), ("timeout", "timeout"), ("connection", "network")):
         if key in low:
             return kind
     return "other error"
@@ -41,6 +56,9 @@ def _kind(error: str) -> str:
 
 def download_failed(user_id, url: str, error: str) -> None:
     """A user saw a download error. The first one of a kind DMs the owners; repeats are counted."""
+    error = _real_error(error)
+    if not error or any(k in error.lower() for k in USER_SIDE):
+        return  # the user's link, not the bot: no DM
     site = (urlparse(url or "").hostname or "unknown").replace("www.", "")
     key = (site, _kind(error))
     now = time.time()
