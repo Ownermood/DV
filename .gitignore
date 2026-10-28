@@ -14,6 +14,7 @@ CONFIG/.active_sessions.json
 *.session-wal
 *.log
 users/
+user_thumbs/
 cookies/
 TXT/cookie.txt
 TXT/cookies/

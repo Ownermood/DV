@@ -38,6 +38,7 @@ import DATABASE.firebase_init  # noqa: E402,F401  (database: MongoDB / local JSO
 import URL_PARSERS.url_extractor  # noqa: E402,F401  (download pipeline)
 from COMMANDS import simple_ui  # noqa: E402,F401  (front door)
 from COMMANDS import admin_panel  # noqa: E402,F401  (admin panel)
+from COMMANDS import user_prefs  # noqa: E402,F401  (user settings: thumbnail, default quality)
 
 print(safe_get_messages(None).MAGIC_ALL_MODULES_LOADED_MSG)
 

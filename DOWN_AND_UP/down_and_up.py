@@ -58,6 +58,16 @@ def _handle_quality_key_error(e: Exception, split_msg_ids: list, is_playlist: bo
     # For split videos, check if we have split_msg_ids; for regular videos, check successful_uploads
     logger.info(f"Final check after quality_key error: successful_uploads={successful_uploads}, len(indices_to_download)={len(indices_to_download)}, split_msg_ids={split_msg_ids}, is_playlist={is_playlist}")
 
+def _own_thumb(chat_id, url) -> bool:
+    """The person who asked (group member or private user) has an own thumbnail for this platform."""
+    try:
+        from HELPERS import cancel
+        from COMMANDS.user_prefs import has_thumb_for_url
+        return has_thumb_for_url(cancel.owner(chat_id), url)
+    except Exception:
+        return False
+
+
 def _save_video_cache_with_logging(url: str, safe_quality_key: str, message_ids: list, original_text: str = None, user_id: int = None):
     """Save video to cache with channel type logging."""
     try:
@@ -69,6 +79,8 @@ def _save_video_cache_with_logging(url: str, safe_quality_key: str, message_ids:
                 logger.info(LoggerMsg.DOWN_UP_SKIPPING_CACHE_SEND_AS_FILE_LOG_MSG.format(user_id=user_id, url=url, quality=safe_quality_key))
                 return
         
+        if user_id is not None and _own_thumb(user_id, url):
+            return  # the person's own thumbnail is on this copy: not for other users
         # Determine channel type for logging
         from HELPERS.porn import is_porn
         is_nsfw = is_porn(url, "", "", None)
@@ -193,7 +205,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
     playlist_indices_all = requested_indices[:] if requested_indices else []
     cached_videos = {}
     uncached_indices = []
-    if safe_quality_key and is_playlist:
+    if safe_quality_key and is_playlist and not _own_thumb(user_id, url):
         # Check if Always Ask mode is enabled - if yes, skip cache completely
         from HELPERS.porn import is_porn
         is_nsfw = is_porn(url, "", "", None) or user_forced_nsfw

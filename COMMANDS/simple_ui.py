@@ -142,6 +142,7 @@ def group_text(title: str = "", user_id=None) -> str:
 
 def _start_markup(user_id) -> InlineKeyboardMarkup:
     rows = [[btn("question", t(user_id, "help"), cb="ui|help", style=GREEN)]]
+    rows[0].append(btn("memo", "Settings", cb="st|home", style=BLUE))
     if _add_group_url():
         rows.append([btn("plus", t(user_id, "add_group"), url=_add_group_url(), style=BLUE)])
     if _is_admin(user_id):
@@ -432,6 +433,8 @@ def _show_link_menu(client, message, key, label) -> None:
         return
     from HELPERS import cancel
     cancel.clear(uid)  # a new link: an old Cancel tap must not stop it
+    from COMMANDS.user_prefs import quality as _default_quality
+    pref = _default_quality(_owner_of(message), key)
     token = _remember(message, key)
     menu = send(client, uid, lambda: (t(uid, "loading"), None), reply_to_message_id=message.id)
 
@@ -442,6 +445,18 @@ def _show_link_menu(client, message, key, label) -> None:
         if picks:
             _SIZES[token] = picks
         title = html.escape((info or {}).get("title") or label)[:200]
+        auto = _pref_choice(pref, picks) if pref and (info or key == "youtube") else None
+        if auto:  # ⚙️ the person's default quality: no menu, start right away
+            try:
+                menu.delete()
+            except Exception:
+                pass
+            with _pending_lock:
+                _PENDING.pop(token, None)
+                _SIZES.pop(token, None)
+            activity.download(uid)
+            _run_choice(client, message, auto, picks)
+            return
         if not info and key != "youtube":  # photo posts / no info (gallery-dl sites): download straight away
             try:
                 menu.delete()
@@ -488,6 +503,19 @@ def _show_link_menu(client, message, key, label) -> None:
         except Exception as exc:
             logger.warning(f"[ui] yt menu edit failed: {exc}")
     threading.Thread(target=work, daemon=True).start()
+
+
+def _pref_choice(pref, picks):
+    """Menu choice for a default quality: MP3 / best as is; a height falls to the next lower one
+    that fits the size limit. None = no such quality fits: show the menu."""
+    if pref == "a" or not picks:
+        return pref
+    fits = [h for h, p in picks.items() if p[0]]
+    if pref == "b":
+        return "b" if fits else None
+    lower = [h for h in fits if h <= int(pref)]
+    pick = max(lower) if lower else (min(fits) if fits else None)
+    return str(pick) if pick else None
 
 
 def _too_big(token, choice):
@@ -607,7 +635,10 @@ def _run_queue(client, uid) -> None:
                     return
                 m, url = q.pop(0)
             activity.download(uid)
-            _run_choice(client, m, "b")   # waits until this link is sent
+            from COMMANDS.user_prefs import quality as _default_quality
+            found = detect_platform(url)
+            pref = _default_quality(_owner_of(m), found[0]) if found and found[0] != "terabox" else None
+            _run_choice(client, m, pref or "b")   # waits until this link is sent
     except Exception as exc:
         logger.error(f"[ui] queue for {uid} stopped: {exc}")
         with _queue_lock:

@@ -253,6 +253,7 @@ T = {
                     "{image} HD thumbnail download\n"
                     "{chat} Clean captions in a neat quote\n"
                     "{clap} Works in groups too: add me and use <code>/dl link</code>\n"
+                    "{memo} Settings: your own thumbnail and default quality\n"
                     "{down} Fast and free, no login needed</blockquote>\n\n"
                     "{box} <b>Supported</b>\n"
                     "<blockquote>{platforms}</blockquote>\n\n"

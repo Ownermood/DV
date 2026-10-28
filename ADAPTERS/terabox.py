@@ -548,7 +548,7 @@ def _send_cached(app, message, url, entry) -> bool:
         return False
 
 
-def _send_file(app, message, filepath: Path, title: str, url: str, thumb_path, on_progress=None):
+def _send_file(app, message, filepath: Path, title: str, url: str, thumb_path, on_progress=None, cover=None):
     """Send the file; videos over the Telegram limit go out in parts. on_progress(done, total) during upload."""
     chat, rid = message.chat.id, message.id
     size = filepath.stat().st_size
@@ -556,7 +556,7 @@ def _send_file(app, message, filepath: Path, title: str, url: str, thumb_path, o
     kw = {"progress": on_progress} if on_progress else {}
     if size <= PART_BYTES:
         if is_video:
-            return [app.send_video(chat, str(filepath), caption=_caption(title, url), thumb=thumb_path,
+            return [app.send_video(chat, str(filepath), caption=_caption(title, url), thumb=thumb_path, cover=cover,
                                    reply_to_message_id=rid, supports_streaming=True, **kw)]
         return [app.send_document(chat, str(filepath), caption=_caption(title, url), thumb=thumb_path,
                                   reply_to_message_id=rid, **kw)]
@@ -567,7 +567,7 @@ def _send_file(app, message, filepath: Path, title: str, url: str, thumb_path, o
     paths = [p for p in (parts or {}).get("path", []) if os.path.exists(p) and os.path.getsize(p) > 0]
     if not paths:
         raise RuntimeError("could not split the video")
-    return [app.send_video(chat, p, caption=_caption(title, url, f"Part {n}/{len(paths)}"), thumb=thumb_path,
+    return [app.send_video(chat, p, caption=_caption(title, url, f"Part {n}/{len(paths)}"), thumb=thumb_path, cover=cover,
                            reply_to_message_id=rid, supports_streaming=True, **kw) for n, p in enumerate(paths, 1)]
 
 
@@ -746,6 +746,23 @@ def _menu_kb(token, meta):
     return InlineKeyboardMarkup(rows)
 
 
+def _default_quality(message, meta):
+    """The person's default TeraBox quality (Settings) as a menu choice, or None (show the menu).
+    Best = the original file; a height falls to the next lower stream copy this account gets."""
+    try:
+        from COMMANDS.user_prefs import quality, person_of
+        pref = quality(person_of(message), "terabox")
+    except Exception:
+        return None
+    if not pref or pref == "a":
+        return None
+    if pref == "b" or not meta.get("video"):
+        return "o"
+    have = [int(q) for q in QUALITIES if meta.get("available") is None or q in meta["available"]]
+    lower = [h for h in have if h <= int(pref)]
+    return str(max(lower)) if lower else None
+
+
 def handle_terabox(app, message) -> bool:
     """TeraBox link: preview card with qualities (streaming copies are fast, the original is full quality)."""
     import secrets
@@ -795,6 +812,10 @@ def handle_terabox(app, message) -> bool:
                 app.delete_messages(message.chat.id, status.id)
             except Exception:
                 pass
+    auto = _default_quality(message, meta)
+    if auto:  # ⚙️ the person's default quality: no menu, start right away
+        threading.Thread(target=_run_job, args=(app, message, url, meta, auto, card), daemon=True).start()
+        return True
     hint = ("⚡ Stream copies are the fastest · 📁 Original = the real full-quality file"
             if meta["video"] else "")
     _show(app, card, base + (f"\n<blockquote><b>{hint}</b></blockquote>" if hint else "")
@@ -850,7 +871,12 @@ def _run_job_inner(app, message, url, meta, q, card) -> None:
     from HELPERS.progress_ui import progress_card, edit_later
     from html import escape
     key = url + ("" if q == "o" else f"#{q}")
-    cached = _cache_get(key)
+    try:  # ⚙️ the person's own thumbnail (Settings): such copies stay out of the shared cache
+        from COMMANDS.user_prefs import media_for, person_of
+        own_thumb, own_cover = media_for(person_of(message), "terabox")
+    except Exception:
+        own_thumb, own_cover = None, None
+    cached = None if own_thumb else _cache_get(key)
     if cached and _send_cached(app, message, url, cached):
         try:
             card.delete()
@@ -890,7 +916,7 @@ def _run_job_inner(app, message, url, meta, q, card) -> None:
             if not filename or filename in {".", ".."}:
                 filename = "terabox-video.mp4"
             filepath = folder / filename
-            thumb_path = _download_thumb(thumb_url, folder)
+            thumb_path = own_thumb or _download_thumb(thumb_url, folder)
             state = {"last": 0.0, "start": time.monotonic()}
 
             def progress(total, length):
@@ -924,10 +950,11 @@ def _run_job_inner(app, message, url, meta, q, card) -> None:
                     "upload", done * 100 / total if total else 0,
                     detail=f"{done / 1024 ** 2:.0f} / {total / 1024 ** 2:.0f} MB · {speed:.1f} MB/s")
                 edit_later(lambda: cancel.is_set(uid) or _show(app, card, text, cancel.markup(uid)), card.chat.id, card.id)
-            sent = _send_file(app, message, filepath, title, url, thumb_path, upload_progress) or []
+            sent = _send_file(app, message, filepath, title, url, thumb_path, upload_progress, cover=own_cover) or []
             if cancel.is_set(uid):  # upload stopped by ❌ Cancel: keep the "cancelled" card
                 return
-            _cache_put(key, sent, title)
+            if not own_thumb:
+                _cache_put(key, sent, title)
         app.delete_messages(message.chat.id, card.id)  # the file itself is the success signal
     except Exception as exc:
         if cancel.is_set(uid):  # the Cancel button already replaced the card

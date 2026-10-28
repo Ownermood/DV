@@ -37,6 +37,11 @@ def send_videos(
     text = message.text or ""
     m = re.search(r'https?://[^\s\*]+', text)
     video_url = m.group(0) if m else ""
+    try:  # ⚙️ the person's own thumbnail (Settings) for this platform
+        from COMMANDS.user_prefs import media_for_url, person_of
+        own_thumb, own_cover = media_for_url(person_of(message), video_url)
+    except Exception:
+        own_thumb, own_cover = None, None
     temp_desc_path = os.path.join(os.path.dirname(video_abs_path), "full_description.txt")
     was_truncated = False
     
@@ -229,7 +234,7 @@ def send_videos(
             messages = safe_get_messages(user_id)
             nonlocal was_paid
             # For free messages: external preview without padding; for paid: 320x320 cover
-            local_thumb_free = _gen_free_cover(video_abs_path)
+            local_thumb_free = own_thumb or _gen_free_cover(video_abs_path)
             # Paid media only in private chats; in groups/channels send regular video
             try:
                 chat_type = getattr(message.chat, "type", None)
@@ -300,6 +305,7 @@ def send_videos(
                 height=int(v_h2) if v_h2 else height,
                 supports_streaming=True,
                 thumb=local_thumb_free,
+                cover=own_cover,
                 has_spoiler=bool(is_spoiler),  # NSFW: blurred until tapped (paid media is off by default)
                 progress=progress_bar,
                 progress_args=(
@@ -325,7 +331,7 @@ def send_videos(
             messages = safe_get_messages(user_id)
             nonlocal was_paid
             # For free documents: external preview without padding
-            local_thumb = _gen_free_cover(video_abs_path) or thumb_file_path
+            local_thumb = own_thumb or _gen_free_cover(video_abs_path) or thumb_file_path
             try:
                 if not local_thumb or not os.path.exists(local_thumb):
                     local_thumb = os.path.join(os.path.dirname(video_abs_path), os.path.splitext(os.path.basename(video_abs_path))[0] + ".jpg")
