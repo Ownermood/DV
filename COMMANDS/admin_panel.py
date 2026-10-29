@@ -36,7 +36,8 @@ app = get_app()
 IST = timezone(timedelta(hours=5, minutes=30))
 _START_TS = time.time()
 _MAX_BROADCAST_RECORDS = 10
-_DEAD_ERRORS = ("USER_IS_BLOCKED", "INPUT_USER_DEACTIVATED", "USER_DEACTIVATED", "PEER_ID_INVALID", "CHAT_WRITE_FORBIDDEN")
+_DEAD_ERRORS = ("USER_IS_BLOCKED", "INPUT_USER_DEACTIVATED", "USER_DEACTIVATED", "PEER_ID_INVALID", "CHAT_WRITE_FORBIDDEN",
+                "CHANNEL_PRIVATE", "CHAT_FORBIDDEN", "CHANNEL_INVALID", "USER_BANNED_IN_CHANNEL", "CHAT_ID_INVALID")
 OWNERS = {int(a) for a in Config.ADMIN if int(a) > 0}   # from .env, never removable
 
 _input = {}          # admin_id -> pending action
@@ -150,9 +151,18 @@ def _user_counts():
 
 
 def all_users() -> list:
-    users = set(_db_users())
+    """People (private chats). Group ids an old version saved in the user list are left out."""
+    users = {u for u in _db_users() if u > 0}
     users.update(a for a in Config.ADMIN if a > 0)
     return sorted(users)
+
+
+def all_targets() -> tuple:
+    """(users, groups) a broadcast goes to, blocked ones left out."""
+    from COMMANDS.groups_store import all_groups
+    blocked = blocked_users()   # once, not once per user
+    groups = set(all_groups()) | {u for u in _db_users() if u < 0}   # old versions saved groups as users
+    return [u for u in all_users() if u not in blocked], sorted(g for g in groups if g not in blocked)
 
 
 def blocked_users() -> set:
@@ -660,11 +670,10 @@ def _make_draft(client, uid, src):
             _album_parts.pop(k, None)
         _album_parts[gid] = now
     _put_draft(uid, {"chat": src.chat.id, "id": src.id, "album": bool(gid)})
-    blocked = blocked_users()   # once, not once per user
-    total = len([u for u in all_users() if u not in blocked])
+    users, groups = all_targets()
     send(client, uid, lambda: (card("popcorn", small_caps("Broadcast preview"), [
         row("chat", "Message", "album" if gid else "the message above"),
-        row("hug", "Will be sent to", f"{total} users"),
+        row("hug", "Will be sent to", f"{len(users)} users · {len(groups)} groups"),
         row("ok", "Forward tag", "no · copied exactly, premium emojis kept")]),
         InlineKeyboardMarkup([[btn("ok", "Send", cb="ap|bcgo|0", style=GREEN),
                                btn("plus", "Send + Pin", cb="ap|bcgo|1", style=PLAIN)],
@@ -735,8 +744,8 @@ def _broadcast(client, admin_id, draft, pin):
             draft["msg"] = client.get_messages(draft["chat"], draft["id"])   # for its buttons
         except Exception:
             draft["msg"] = None
-        blocked = blocked_users()
-        users = [u for u in all_users() if u not in blocked]
+        people, groups = all_targets()
+        users = people + groups   # groups too (pinned there only where the bot may pin)
         total = len(users)
         prog = send(client, admin_id, lambda: (_bc_card(stats, total, started), stop_kb))
         if prog is not None:
@@ -769,6 +778,9 @@ def _broadcast(client, admin_id, draft, pin):
                     stats["failed"] += 1
                     if any(e in str(exc).upper() for e in _DEAD_ERRORS):
                         stats["blocked"] += 1
+                        if uid < 0:   # the bot was removed from this group / can't write there
+                            from COMMANDS.groups_store import forget
+                            forget(uid)
                     else:
                         logger.info(f"[broadcast] {uid}: {exc}")
                     break

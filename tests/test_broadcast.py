@@ -45,6 +45,9 @@ def env(monkeypatch):
     monkeypatch.setattr(ap, "state_set", lambda k, v: state.__setitem__(k, v))
     monkeypatch.setattr(ap, "all_users", lambda: [1, 2, 3, 4])
     monkeypatch.setattr(ap, "blocked_users", lambda: {4})
+    monkeypatch.setattr(ap, "_db_users", lambda: {})
+    from COMMANDS import groups_store
+    monkeypatch.setattr(groups_store, "all_groups", lambda: [])
     monkeypatch.setattr(ap, "_is_admin", lambda uid: uid == 1)
     ap._bc_job.update(on=False, stop=False)
     ap._drafts.clear()
@@ -85,3 +88,37 @@ def test_error_never_leaves_broadcast_stuck(env, monkeypatch):
     assert ap._start_broadcast(None, _Client(), 1, False) == ""
     _wait()
     assert ap._bc_job["on"] is False      # the next broadcast can start
+
+
+def test_broadcast_goes_to_groups_too(env, monkeypatch):
+    from COMMANDS import groups_store
+    monkeypatch.setattr(groups_store, "all_groups", lambda: [-100111, -100222])
+    monkeypatch.setattr(ap, "_db_users", lambda: {2: 0, -100333: 0})     # old versions saved a group as a user
+    forgotten = []
+    monkeypatch.setattr(groups_store, "forget", forgotten.append)
+    c = _Client(fail={-100222})
+    c.copy_message_orig = c.copy_message
+
+    def copy(uid, chat, mid, **k):
+        if uid == -100222:
+            raise RuntimeError("CHAT_WRITE_FORBIDDEN")
+        return c.copy_message_orig(uid, chat, mid, **k)
+    c.copy_message = copy
+    ap._put_draft(1, {"chat": 1, "id": 9, "album": False})
+    assert ap._start_broadcast(None, c, 1, False) == ""
+    _wait()
+    assert c.copies == [1, 2, 3, -100333, -100111]          # users, then groups
+    assert forgotten == [-100222]                             # removed group is dropped from the list
+
+
+def test_groups_store_remember_and_forget(monkeypatch):
+    from COMMANDS import groups_store as gs
+    state = {}
+    monkeypatch.setattr(gs, "state_get", lambda k, d=None: state.get(k, d))
+    monkeypatch.setattr(gs, "state_set", lambda k, v: state.__setitem__(k, v))
+    gs._known.clear()
+    gs.remember(NS(id=-1001, title="Fans"))
+    gs.remember(NS(id=55, title="private"))                  # not a group
+    assert gs.all_groups() == [-1001]
+    gs.forget(-1001)
+    assert gs.all_groups() == []

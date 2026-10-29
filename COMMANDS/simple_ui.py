@@ -790,6 +790,12 @@ def bot_promoted(client, update):
     if not new or not getattr(getattr(new, "user", None), "is_self", False):
         return
     uid = update.chat.id
+    from COMMANDS import groups_store
+    if new.status in (enums.ChatMemberStatus.LEFT, enums.ChatMemberStatus.BANNED):
+        groups_store.forget(uid)   # removed from the group: no more broadcasts there
+        _bot_admin.pop(uid, None)
+        return
+    groups_store.remember(update.chat)
     ok = new.status in (enums.ChatMemberStatus.ADMINISTRATOR, enums.ChatMemberStatus.OWNER)
     was = _bot_admin.get(uid, (None, 0.0))[0]
     _bot_admin[uid] = (ok, time.time())
@@ -810,6 +816,8 @@ def group_door(client, message):
     """Groups: anyone can use the bot with "/dl <link>" or "@bot <link>"; everything else in the group is ignored."""
     if not getattr(message, "from_user", None) or message.from_user.is_bot:
         return
+    from COMMANDS import groups_store
+    groups_store.remember(message.chat)   # for broadcasts
     _ensure_menu(client)
     uid = message.chat.id
     words = (message.text or "").split()
@@ -975,6 +983,8 @@ def group_welcome(client, message):
         return
     _ensure_menu(client)
     uid = message.chat.id
+    from COMMANDS import groups_store
+    groups_store.remember(message.chat)   # for broadcasts
     admin = _is_bot_admin(client, uid)
     send(client, uid, lambda: (group_text(message.chat.title or "", uid)
                                + ("" if admin else "\n\n" + t(uid, "need_admin")), _group_markup(uid)), **_topic(message))
