@@ -1,4 +1,4 @@
-from ADAPTERS.terabox import is_terabox_url, _extract_direct_link
+from ADAPTERS.terabox import is_terabox_url
 
 
 def test_recognizes_supported_terabox_hosts():
@@ -10,13 +10,6 @@ def test_rejects_lookalike_and_non_http_urls():
     assert not is_terabox_url("https://terabox.com.attacker.example/s/abc")
     assert not is_terabox_url("javascript://terabox.com")
     assert not is_terabox_url("https://example.com/terabox.com")
-
-
-def test_extracts_common_resolution_payload():
-    direct, thumb, title = _extract_direct_link({"response": [{"resolutions": {"HD Video": "https://cdn.example/video.mp4"}, "thumb": "https://cdn.example/thumb.jpg", "file_name": "video.mp4"}]})
-    assert direct == "https://cdn.example/video.mp4"
-    assert thumb == "https://cdn.example/thumb.jpg"
-    assert title == "video.mp4"
 
 
 def test_native_resolver_flow(monkeypatch):
@@ -143,3 +136,22 @@ def test_part_label_bold_on_top_outside_quote():
     cap = terabox._caption("My Video", "https://terabox.com/s/1x", "Part 2/3")
     assert cap.startswith("<b>🎞 Part 2/3</b>\n") and "Part 2/3" not in cap.split("\n", 1)[1]
     assert not terabox._caption("My Video", "https://terabox.com/s/1x").startswith("<b>🎞")
+
+
+def test_cancelled_or_empty_share_is_a_dead_link(monkeypatch):
+    import pytest
+    from ADAPTERS import terabox as tb
+    for errno in (-21, 2130):
+        with pytest.raises(tb.DeadLink):
+            tb._check_share({"errno": errno})
+    with pytest.raises(RuntimeError) as other:
+        tb._check_share({"errno": 9019})
+    assert not isinstance(other.value, tb.DeadLink)       # unknown errors still try the other resolvers
+    tb._check_share({"errno": 0})
+    calls = []
+    monkeypatch.setattr(tb, "_cookie_files", lambda: [])
+    monkeypatch.setattr(tb, "_native_resolve", lambda url, ck: (_ for _ in ()).throw(tb.DeadLink("gone")))
+    monkeypatch.setattr(tb, "_worker_resolve", lambda url: calls.append(url))
+    with pytest.raises(tb.DeadLink):
+        tb._resolve("https://1024terabox.com/s/1abc")
+    assert calls == []                                      # no fallback for a dead share

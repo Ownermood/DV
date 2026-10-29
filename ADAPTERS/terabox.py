@@ -63,7 +63,6 @@ TERABOX_HOSTS = {
     "bestclouddrive.com",
     "playduo.link",
 }
-API_ENDPOINT = os.getenv("TERABOX_API_ENDPOINT", "https://ytshorts.savetube.me/api/v1/terabox-downloader")
 ENABLED = os.getenv("TERABOX_ENABLED", "true").lower() in {"1", "true", "yes", "on"}
 MAX_BYTES = int(float(os.getenv("TERABOX_MAX_BYTES", str(1900 * 1024 * 1024))))
 CONNECT_TIMEOUT = float(os.getenv("TERABOX_CONNECT_TIMEOUT", "10"))
@@ -102,34 +101,11 @@ def _download_thumb(url: str | None, folder: Path) -> str | None:
         return None
 
 
-def _extract_direct_link(data: dict) -> tuple[str | None, str | None, str | None]:
-    items = data.get("response") or data.get("data") or []
-    if isinstance(items, dict):
-        items = [items]
-    if not isinstance(items, list) or not items:
-        return None, None, None
-    first = items[0] if isinstance(items[0], dict) else {}
-    resolutions = first.get("resolutions") or {}
-    if isinstance(resolutions, dict):
-        candidate = resolutions.get("HD Video") or resolutions.get("Fast Download") or next(iter(resolutions.values()), None)
-    else:
-        candidate = None
-    direct = first.get("download_url") or first.get("direct_link") or first.get("url") or candidate
-    thumb = first.get("thumbnail") or first.get("thumb") or first.get("image")
-    title = first.get("file_name") or first.get("name") or first.get("title") or "TeraBox video"
-    if isinstance(direct, dict):
-        direct = direct.get("url") or direct.get("link")
-    return (direct if isinstance(direct, str) else None,
-            thumb if isinstance(thumb, str) else None,
-            title if isinstance(title, str) else "TeraBox video")
-
-
 # ---------------- resolvers ----------------
 # 1) native: share page (jsToken, logid) -> /share/list. Without a login it gives name/size only;
 #    with the admin's TeraBox cookie (cookies/terabox.txt, "ndus") it also gives the dlink.
 # 2) token API (like the ntmterabox.me API): TERABOX_API_URL + TERABOX_API_TOKEN in .env,
 #    GET ?authkey=TOKEN&url=LINK -> {"ok": true, "files": [{"download_url", "filename", "size"}]}
-# 3) the old public endpoint (API_ENDPOINT).
 COOKIE_FILE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "cookies", "terabox.txt")
 UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) "
       "Chrome/131.0.0.0 Safari/537.36")
@@ -208,11 +184,10 @@ def _native_resolve(url: str, cookies: dict | None = None):
               "dplogid": logid, "page": "1", "num": "20", "order": "time", "desc": "1",
               "site_referer": page.url, "shorturl": surl, "root": "1"}
     data = sess.get(f"{base}/share/list", params=params, timeout=(CONNECT_TIMEOUT, READ_TIMEOUT)).json()
-    if data.get("errno") not in (0, None):
-        raise RuntimeError(f"TeraBox refused the share (errno {data.get('errno')})")
+    _check_share(data)
     files = [f for f in data.get("list") or [] if not int(f.get("isdir") or 0)]
     if not files:
-        raise RuntimeError("No file in this TeraBox share")
+        raise DeadLink("No file in this TeraBox share")
     f = max(files, key=lambda x: int(x.get("size") or 0))
     title, size = f.get("server_filename") or "TeraBox video", int(f.get("size") or 0)
     direct = f.get("dlink")
@@ -220,6 +195,26 @@ def _native_resolve(url: str, cookies: dict | None = None):
         raise NeedCookie(title, size)
     thumbs = f.get("thumbs") or {}
     return direct, thumbs.get("url3") or thumbs.get("url2"), title, size, sess.cookies.get_dict()
+
+
+DEAD_TEXT = ("📦 <b>This TeraBox link doesn't work any more.</b>\n<blockquote><b>The uploader cancelled it, it expired, "
+             "or the file was deleted. Ask for a new link.</b></blockquote>")
+
+
+class DeadLink(RuntimeError):
+    """The share itself is gone (cancelled, expired, emptied): nothing else can download it."""
+
+
+DEAD_ERRNOS = {-21: "cancelled by the uploader or expired", 2130: "empty: the file was deleted"}
+
+
+def _check_share(data) -> None:
+    errno = data.get("errno")
+    if errno in (0, None):
+        return
+    if errno in DEAD_ERRNOS:
+        raise DeadLink(f"TeraBox link {DEAD_ERRNOS[errno]} (errno {errno})")
+    raise RuntimeError(f"TeraBox refused the share (errno {errno})")
 
 
 def _token_api_resolve(url: str):
@@ -252,17 +247,6 @@ def _worker_resolve(url: str):
     return direct, data.get("thumbnail") or None, data.get("file_name") or "TeraBox video", int(data.get("size_bytes") or 0), {}
 
 
-def _api_resolve(url: str):
-    """Old public extraction endpoint."""
-    with requests.post(API_ENDPOINT, json={"url": url}, timeout=(CONNECT_TIMEOUT, READ_TIMEOUT)) as response:
-        response.raise_for_status()
-        payload = response.json()
-    direct, thumb, title = _extract_direct_link(payload)
-    if not direct or urlparse(direct).scheme not in {"http", "https"}:
-        raise RuntimeError("The extraction service returned no usable direct link")
-    return direct, thumb, title, 0, {}
-
-
 def _record(path, ok, reason=""):
     if not path:
         return
@@ -285,9 +269,11 @@ def _resolve(url: str):
         except NeedCookie as exc:
             need = exc
             _record(path, False, "TeraBox gave no download link")
+        except DeadLink:
+            raise   # the share is gone: no other resolver can help
         except Exception as exc:
             errors.append(f"native: {exc}")
-    for fn in (_worker_resolve, _token_api_resolve, _api_resolve):
+    for fn in (_worker_resolve, _token_api_resolve):
         try:
             return fn(url)
         except NeedCookie as exc:
@@ -606,11 +592,10 @@ def _meta(url, cookies):
     data = sess.get(f"{base}/share/list", params={**common, "dplogid": logid, "page": "1", "num": "20", "order": "time",
                                                   "desc": "1", "site_referer": page.url, "shorturl": surl, "root": "1"},
                     timeout=(CONNECT_TIMEOUT, READ_TIMEOUT)).json()
-    if data.get("errno") not in (0, None):
-        raise RuntimeError(f"TeraBox refused the share (errno {data.get('errno')})")
+    _check_share(data)
     files = [f for f in data.get("list") or [] if not int(f.get("isdir") or 0)]
     if not files:
-        raise RuntimeError("No file in this TeraBox share")
+        raise DeadLink("No file in this TeraBox share")
     f = max(files, key=lambda x: int(x.get("size") or 0))
     info = sess.get(f"{base}/api/shorturlinfo", params={**common, "shorturl": "1" + surl, "root": "1"},
                     timeout=(CONNECT_TIMEOUT, READ_TIMEOUT)).json()
@@ -632,6 +617,8 @@ def _meta_try(url):
     for path in _cookie_files() + [None]:
         try:
             return _meta(url, _load_cookies(path) if path else {})
+        except DeadLink:
+            raise   # same answer with every cookie
         except Exception as exc:
             last = exc
     raise last or RuntimeError("TeraBox link failed")
@@ -791,9 +778,8 @@ def handle_terabox(app, message) -> bool:
     except Exception as exc:
         print(f"[terabox] {url}: {exc}")
         meta = None
-        if "errno 2130" in str(exc) or "No file in this TeraBox share" in str(exc):
-            _show(app, status, "📦 <b>This TeraBox link is empty.</b>\n<blockquote><b>The file was deleted by the "
-                               "uploader or removed by TeraBox. Ask for a new link.</b></blockquote>")
+        if isinstance(exc, DeadLink):
+            _show(app, status, DEAD_TEXT)
             return True
     if meta is None:  # old resolvers (worker / token API) still get a chance
         _run_job(app, message, url, None, "o", status)
@@ -987,6 +973,9 @@ def _run_job_inner(app, message, url, meta, q, card) -> None:
         if cancel.is_set(uid):  # the Cancel button already replaced the card
             return
         print(f"[terabox] {url} ({q}): {exc}")
+        if isinstance(exc, DeadLink):   # the user's link, nothing for the owners to fix
+            _show(app, card, DEAD_TEXT)
+            return
         try:
             from HELPERS.alerts import download_failed
             download_failed(uid, url, f"TeraBox {q}: {exc}")
