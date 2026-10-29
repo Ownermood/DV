@@ -40,7 +40,7 @@ _DEAD_ERRORS = ("USER_IS_BLOCKED", "INPUT_USER_DEACTIVATED", "USER_DEACTIVATED",
 OWNERS = {int(a) for a in Config.ADMIN if int(a) > 0}   # from .env, never removable
 
 _input = {}          # admin_id -> pending action
-_drafts = {}         # admin_id -> {"chat", "id", "album"}: broadcast waiting for Send
+_drafts = {}         # admin_id -> {"chat", "id", "album"}: broadcast waiting for Send (also saved: survives a restart)
 _album_parts = {}    # media_group_id -> ts: later parts of an admin's broadcast album (swallowed)
 _bc_lock = threading.Lock()
 _bc_job = {"on": False, "stop": False}
@@ -633,6 +633,24 @@ def admin_media_input(client, message):
 
 
 # ---------------- broadcast ----------------
+def _put_draft(uid, draft) -> None:
+    _drafts[uid] = draft
+    try:
+        state_set(f"bc_draft:{uid}", draft)
+    except Exception as exc:
+        logger.warning(f"[broadcast] draft not saved: {exc}")
+
+
+def _take_draft(uid):
+    draft = _drafts.pop(uid, None)
+    try:
+        draft = draft or state_get(f"bc_draft:{uid}")
+        state_set(f"bc_draft:{uid}", None)
+    except Exception:
+        pass
+    return draft or None
+
+
 def _make_draft(client, uid, src):
     """Remember src (or its whole album) and ask Send / Send + Pin / Cancel."""
     gid = getattr(src, "media_group_id", None)
@@ -641,7 +659,7 @@ def _make_draft(client, uid, src):
         for k in [k for k, ts in _album_parts.items() if now - ts > 3600]:
             _album_parts.pop(k, None)
         _album_parts[gid] = now
-    _drafts[uid] = {"chat": src.chat.id, "id": src.id, "album": bool(gid)}
+    _put_draft(uid, {"chat": src.chat.id, "id": src.id, "album": bool(gid)})
     blocked = blocked_users()   # once, not once per user
     total = len([u for u in all_users() if u not in blocked])
     send(client, uid, lambda: (card("popcorn", small_caps("Broadcast preview"), [
@@ -705,23 +723,28 @@ def _copy(client, uid, draft):
 
 
 def _broadcast(client, admin_id, draft, pin):
-    try:
-        draft["msg"] = client.get_messages(draft["chat"], draft["id"])   # for its buttons
-    except Exception:
-        draft["msg"] = None
-    blocked = blocked_users()
-    users = [u for u in all_users() if u not in blocked]
-    total = len(users)
     stats = {"done": 0, "sent": 0, "failed": 0, "blocked": 0}
     started = time.time()
     rec = {"id": secrets.token_hex(4), "ts": int(started), "pin": bool(pin), "items": [], "sent": 0, "deleted": False,
            "refs": [f"{draft['chat']}:{draft['id']}"], "status": "running"}
     stop_kb = InlineKeyboardMarkup([[btn("warn", "Stop Broadcast", cb="ap|bcstop", style=RED)]])
-    prog = send(client, admin_id, lambda: (_bc_card(stats, total, started), stop_kb))
-    rec["refs"].append(f"{prog.chat.id}:{prog.id}")
-    _save_record(rec)
-    last = time.time()
+    prog, total, last = None, 0, time.time()
+    # everything inside try: a crash before the loop used to leave "already running" set until a restart
     try:
+        try:
+            draft["msg"] = client.get_messages(draft["chat"], draft["id"])   # for its buttons
+        except Exception:
+            draft["msg"] = None
+        blocked = blocked_users()
+        users = [u for u in all_users() if u not in blocked]
+        total = len(users)
+        prog = send(client, admin_id, lambda: (_bc_card(stats, total, started), stop_kb))
+        if prog is not None:
+            rec["refs"].append(f"{prog.chat.id}:{prog.id}")
+        try:
+            _save_record(rec)
+        except Exception as exc:
+            logger.warning(f"[broadcast] record not saved: {exc}")
         for uid in users:
             if _bc_job["stop"]:
                 break
@@ -756,25 +779,38 @@ def _broadcast(client, admin_id, draft, pin):
             if time.time() - last >= 3:   # live card every ~3 s; saved too, so a restart loses nothing
                 last = time.time()
                 rec["sent"] = stats["sent"]
-                _save_record(rec)
                 try:
-                    edit(client, prog, lambda: (_bc_card(stats, total, started), stop_kb))
+                    _save_record(rec)
+                    if prog is not None:
+                        edit(client, prog, lambda: (_bc_card(stats, total, started), stop_kb))
                 except Exception:
                     pass
+    except Exception as exc:
+        logger.error(f"[broadcast] stopped by an error: {exc}")
+        err = escape(str(exc)[:300])
+        try:
+            send(client, admin_id, lambda: (f"{em('warn')} <b>Broadcast stopped by an error.</b>\n"
+                                            f"<blockquote><code>{err}</code></blockquote>", None))
+        except Exception:
+            pass
     finally:
         stopped = _bc_job["stop"]
+        _bc_job["on"] = False   # first: nothing below can leave the flag stuck
         rec.update(sent=stats["sent"], status="done")
-        _save_record(rec)
-        _bc_job["on"] = False
+        try:
+            _save_record(rec)
+        except Exception as exc:
+            logger.warning(f"[broadcast] record not saved: {exc}")
         rows = [[btn("trash", "Delete Broadcast", cb=f"ap|dbq|{rec['id']}", style=RED)]] if rec["items"] else []
         try:
-            edit(client, prog, lambda: (_bc_card(stats, total, started, finished=True, stopped=stopped), _back_kb(rows)))
+            done_card = lambda: (_bc_card(stats, total, started, finished=True, stopped=stopped), _back_kb(rows))
+            edit(client, prog, done_card) if prog is not None else send(client, admin_id, done_card)
         except Exception:
             pass
 
 
 def _start_broadcast(cq_or_none, client, uid, pin) -> str:
-    draft = _drafts.pop(uid, None)
+    draft = _take_draft(uid)
     with _bc_lock:
         busy = _bc_job["on"]
         if draft and not busy:
@@ -782,7 +818,7 @@ def _start_broadcast(cq_or_none, client, uid, pin) -> str:
     if not draft:
         return "Draft expired. Start again."
     if busy:
-        _drafts[uid] = draft
+        _put_draft(uid, draft)
         return "A broadcast is already running."
     threading.Thread(target=_broadcast, args=(client, uid, draft, pin), daemon=True).start()
     return ""
