@@ -804,6 +804,14 @@ def bot_promoted(client, update):
         send(client, uid, lambda: (t(uid, "admin_ready"), None))
 
 
+@app.on_message(filters.group, group=-101)
+def remember_group(client, message):
+    """Any group update that reaches the bot (added, promoted, a command, a reply) saves the group for broadcasts.
+    No stop: the message goes on to the usual handlers. Saved once per process (no write per message)."""
+    from COMMANDS import groups_store
+    groups_store.remember(message.chat)
+
+
 @app.on_message(filters.me | filters.bot, group=-100)
 def ignore_own_messages(client, message):
     """The bot's own messages (e.g. echoed from another session) and other bots are never requests:

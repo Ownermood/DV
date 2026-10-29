@@ -122,3 +122,21 @@ def test_groups_store_remember_and_forget(monkeypatch):
     assert gs.all_groups() == [-1001]
     gs.forget(-1001)
     assert gs.all_groups() == []
+
+
+def test_bot_added_to_group_is_saved_without_any_command(monkeypatch):
+    from types import SimpleNamespace as NS
+    from pyrogram import enums
+    from COMMANDS import groups_store as gs, simple_ui as ui
+    state = {}
+    monkeypatch.setattr(gs, "state_get", lambda k, d=None: state.get(k, d))
+    monkeypatch.setattr(gs, "state_set", lambda k, v: state.__setitem__(k, v))
+    gs._known.clear()
+    ui.remember_group(None, NS(chat=NS(id=-1007, title="New GC")))          # the "bot added" service message
+    upd = NS(chat=NS(id=-1008, title="Promoted"), new_chat_member=NS(user=NS(is_self=True),
+             status=enums.ChatMemberStatus.MEMBER), old_chat_member=NS(status=enums.ChatMemberStatus.LEFT))
+    ui.bot_promoted(None, upd)                                               # my_chat_member: bot joined
+    assert gs.all_groups() == [-1008, -1007]
+    upd.new_chat_member.status = enums.ChatMemberStatus.BANNED             # bot removed
+    ui.bot_promoted(None, upd)
+    assert gs.all_groups() == [-1007]
