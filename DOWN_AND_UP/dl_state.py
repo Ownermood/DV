@@ -3,7 +3,6 @@
 (Moved out of the old "Always Ask" quality menu, which the preview card replaced.)
 """
 import hashlib
-import json
 import os
 
 from HELPERS.filesystem_hlp import create_directory
@@ -16,9 +15,6 @@ _USER_DOWNLOAD_DIRS = {}
 
 
 
-def set_user_download_dir(user_id, download_dir):
-    """Set download directory for user session"""
-    _USER_DOWNLOAD_DIRS[str(user_id)] = download_dir
 
 
 def get_user_download_dir(user_id):
@@ -116,76 +112,11 @@ def _subs_langs_cache_path(user_id, url: str) -> str:
     return os.path.join(user_dir, f"{_ASK_SUBS_LANGS_PREFIX}{h}.json")
 
 
-def save_subs_langs_cache(user_id: int, url: str, normal_langs, auto_langs) -> None:
-    try:
-        path = _subs_langs_cache_path(user_id, url)
-        data = {
-            "url": url,
-            "normal": list(normal_langs or []),
-            "auto": list(auto_langs or []),
-        }
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False)
-    except Exception:
-        pass
 
 
-def load_subs_langs_cache(user_id: int, url: str):
-    try:
-        path = _subs_langs_cache_path(user_id, url)
-        if os.path.exists(path):
-            with open(path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            return data.get("normal", []), data.get("auto", [])
-    except Exception:
-        return [], []
-    return [], []
 
 
-def delete_subs_langs_cache(user_id: int, url: str) -> None:
-    try:
-        path = _subs_langs_cache_path(user_id, url)
-        if os.path.exists(path):
-            os.remove(path)
-    except Exception:
-        pass
 
 
-def load_ask_info(user_id, url):
-    try:
-        # First try to find ask_formats.json in download directory
-        download_dir = get_user_download_dir(user_id)
-        if download_dir and os.path.exists(download_dir):
-            download_cache_file = os.path.join(download_dir, _ASK_INFO_CACHE_FILE)
-            if os.path.exists(download_cache_file):
-                with open(download_cache_file, "r", encoding="utf-8") as f:
-                    data = json.load(f)
-                logger.info(f"Using ask_formats.json from download directory: {download_cache_file}")
-                return data.get(url)
-        
-        # Fallback to user root directory
-        path = _ask_cache_path(user_id)
-        if os.path.exists(path):
-            with open(path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            logger.info(f"Using ask_formats.json from user directory: {path}")
-            return data.get(url)
-    except Exception as e:
-        logger.warning(f"Failed to load ask_formats.json: {e}")
-        return None
-    return None
 
 
-def get_link_mode(user_id):
-    """
-    Get the user's LINK mode state.
-    """
-    try:
-        user_dir = os.path.join("users", str(user_id))
-        link_mode_file = os.path.join(user_dir, "link_mode.txt")
-        if os.path.exists(link_mode_file):
-            with open(link_mode_file, 'r') as f:
-                return f.read().strip() == "enabled"
-        return False
-    except Exception:
-        return False

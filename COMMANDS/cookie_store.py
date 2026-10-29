@@ -251,11 +251,20 @@ def record(path, ok: bool, reason: str = "") -> None:
 
 
 def alert_owners(text: str) -> None:
+    """Owner alert: to the error-log group (LOG_EXCEPTION); the owners' DMs only if that group is unset or fails."""
     try:
         from HELPERS.app_instance import get_app
         from COMMANDS.admin_panel import OWNERS
         from pyrogram import enums
+        from CONFIG.config import Config
         app = get_app()
+        log_chat = int(getattr(Config, "LOG_EXCEPTION", 0) or 0)
+        if log_chat:  # alerts go to the error-log group, not to the owners' DMs
+            try:
+                app.send_message(log_chat, text, parse_mode=enums.ParseMode.HTML)
+                return
+            except Exception as exc:
+                logger.warning(f"[alerts] error-log chat {log_chat} failed, DM instead: {exc}")
         for uid in OWNERS:
             try:
                 app.send_message(uid, text, parse_mode=enums.ParseMode.HTML)

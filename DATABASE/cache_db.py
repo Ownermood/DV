@@ -24,7 +24,6 @@ from DATABASE.firebase_init import db
 # NOTE: To avoid circular imports during module load, import URL_PARSERS modules lazily inside functions.
 from HELPERS.qualifier import ceil_to_popular
 from DATABASE.firebase_init import db_child_by_path
-from DATABASE.download_firebase import download_firebase_dump
 
 # Get app instance
 app = get_app()
@@ -151,18 +150,6 @@ def get_next_reload_time(interval_hours: int) -> datetime:
     intervals_passed = int(seconds_since_midnight // interval_seconds)
     return midnight + timedelta(seconds=(intervals_passed + 1) * interval_seconds)
 
-def _download_and_reload_cache() -> bool:
-    """Download dump via REST and reload local JSON into memory."""
-    messages = safe_get_messages(None)
-    try:
-        ok = download_firebase_dump()
-        if not ok:
-            print(safe_get_messages().DB_FAILED_DOWNLOAD_DUMP_REST_MSG)
-            return False
-        return reload_firebase_cache()
-    except Exception as e:
-        print(safe_get_messages().DB_ERROR_DOWNLOAD_RELOAD_CACHE_MSG.format(error=e))
-        return False
 
 def auto_reload_firebase_cache():
     messages = safe_get_messages(None)

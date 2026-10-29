@@ -66,3 +66,15 @@ def test_user_side_errors_do_not_alert(monkeypatch):
     assert sent == []
     alerts.download_failed(1, "https://youtu.be/x", "<b>❌ Error Code: X</b>\n📝 Description: ERROR: Sign in to confirm you're not a bot")
     assert len(sent) == 1 and "<blockquote>Check" not in sent[0] and "not a bot" in sent[0]
+
+
+def test_alerts_go_to_the_error_log_group(monkeypatch):
+    from types import SimpleNamespace as NS
+    from COMMANDS import cookie_store
+    from HELPERS import app_instance
+    from CONFIG.config import Config
+    sent = []
+    monkeypatch.setattr(app_instance, "get_app", lambda: NS(send_message=lambda chat, text, **k: sent.append(chat)))
+    monkeypatch.setattr(Config, "LOG_EXCEPTION", -1004373672153, raising=False)
+    cookie_store.alert_owners("x")
+    assert sent == [-1004373672153]          # the group, not the owners' DMs
