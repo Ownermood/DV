@@ -411,18 +411,24 @@ def _youtube_live(path):
             pass
 
 
+last_results = {}   # service -> [(cookie number, "ok" / "dead" / "off", reason, expiry text)] of the last test
+
+
 def check_all(alert=True, services=None) -> list:
     """Test every ON cookie (of `services`, default all); alert about changes and expiry (1 day before)."""
     lines, alerts = [], []
     now = time.time()
     for service in services or SERVICES:
+        last_results[service] = []
         for n, s in enumerate(slots(service), 1):
             tag = f"{SERVICES[service][0]} Cookie-{n}"
             if not s["on"]:
                 lines.append(f"⚪ {tag} — OFF")
+                last_results[service].append((n, "off", "turned OFF", exp_text(s.get("exp"))))
                 continue
             ok, why = test_slot(service, s["id"])
             lines.append(f"{'✅' if ok else '❌'} {tag} — {why} · {exp_text(s.get('exp'))}")
+            last_results[service].append((n, "ok" if ok else "dead", why, exp_text(s.get("exp"))))
             with _lock:
                 data = _all()
                 cur = next((x for x in data.get(service, []) if x["id"] == s["id"]), None)

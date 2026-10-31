@@ -516,6 +516,28 @@ def _platform_btn(svc, text, cb):
     return btn(key, text, cb=cb, style=PLAIN)
 
 
+def _test_report():
+    """Test All result, one block per platform: '✅ 2 of 2 working', then each cookie on its own line."""
+    from COMMANDS.simple_ui import platform_icon
+    blocks, empty, rows = [], [], []
+    for svc, (label, _key, _cid, _need) in cs.SERVICES.items():
+        res = cs.last_results.get(svc) or []
+        if not res:
+            empty.append(label)
+            continue
+        good = sum(1 for r in res if r[1] == "ok")
+        mark = {"ok": "✅", "dead": "❌", "off": "⚪"}
+        head = f"{platform_icon(svc)} <b>{label}</b> — {good} of {len(res)} working"
+        body = "\n".join(f"{mark[st]} <b>Cookie-{n}</b>: {escape(why)} · {exp}" for n, st, why, exp in res)
+        blocks.append(f"{head}\n<blockquote>{body}</blockquote>")
+        rows.append(_platform_btn(svc, f"{label} · {good}/{len(res)}", f"ap|cks|{svc}"))
+    text = (f"{em('search')} <b>COOKIE TEST</b>\n\n" + ("\n\n".join(blocks) or "<i>No cookies added.</i>")
+            + (f"\n\n⚪ <i>No cookies: {', '.join(empty)}</i>" if empty and blocks else ""))
+    kb = [rows[i:i + 2] for i in range(0, len(rows), 2)]
+    kb.append([btn("search", "Test Again", cb="ap|ckchk", style=PLAIN)])
+    return text, _back_kb(kb, back="ap|ckm")
+
+
 def _ckm_view():
     rows, lines = [], []
     from COMMANDS.simple_ui import platform_icon
@@ -1142,9 +1164,8 @@ def admin_callbacks(client, cq):
             edit(client, msg, lambda: (f"{em('search')} <b>Testing all cookies…</b>", None))
 
             def run_all():
-                lines = cs.check_all(alert=False)
-                edit(client, msg, lambda: (card("search", "COOKIE TEST", lines or ["<i>No cookies added.</i>"]),
-                                           _back_kb(back="ap|ckm")))
+                cs.check_all(alert=False)
+                edit(client, msg, _test_report)
             threading.Thread(target=run_all, daemon=True).start()
         elif action == "bc":
             if _bc_job["on"]:

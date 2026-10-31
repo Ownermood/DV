@@ -176,3 +176,19 @@ def test_passed_test_sets_last_worked(store, monkeypatch):
     monkeypatch.setattr(cs, "test_slot", lambda svc, sid: (True, "working"))
     cs.check_all(alert=False, services=["instagram"])
     assert cs.slots("instagram")[0].get("last_ok")                 # no more "ok never" for a working cookie
+
+
+def test_test_report_grouped_by_platform(store, monkeypatch):
+    from types import SimpleNamespace as NS
+    from HELPERS import app_instance
+    app_instance.set_app(NS(on_message=lambda *a, **k: (lambda f: f), on_callback_query=lambda *a, **k: (lambda f: f)))
+    from COMMANDS import admin_panel as ap
+    monkeypatch.setattr(cs, "last_results", {
+        "youtube": [(1, "ok", "working", "till 01 Dec 2027"), (2, "ok", "working", "till 04 Dec 2027")],
+        "terabox": [(1, "dead", "TeraBox says logged out", "till 27 Oct 2027")]})
+    text, kb = ap._test_report()
+    assert "<b>YouTube</b> — 2 of 2 working" in text and "<b>TeraBox</b> — 0 of 1 working" in text
+    assert text.index("YouTube") < text.index("TeraBox") and "No cookies: Instagram" in text
+    assert "❌ <b>Cookie-1</b>: TeraBox says logged out" in text
+    labels = [b.text for r in kb.inline_keyboard for b in r]
+    assert "YouTube · 2/2" in labels and "TeraBox · 0/1" in labels and "Test Again" in labels
