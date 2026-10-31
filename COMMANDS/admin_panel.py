@@ -1116,6 +1116,8 @@ def admin_callbacks(client, cq):
 
                 def run(svc=arg, slot=sid):
                     ok, why = cs.test_slot(svc, slot)
+                    if ok:
+                        cs.record(cs._path(svc, slot), True)   # "last worked" = now
                     text, kb = _ckv_view(svc, slot)
                     edit(client, msg, lambda: (f"{em('ok' if ok else 'warn')} <b>Test: {escape(why)}</b>\n\n" + text, kb))
                 threading.Thread(target=run, daemon=True).start()

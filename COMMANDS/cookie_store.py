@@ -428,6 +428,8 @@ def check_all(alert=True, services=None) -> list:
                 cur = next((x for x in data.get(service, []) if x["id"] == s["id"]), None)
                 if cur is None:
                     continue
+                if ok:
+                    cur["last_ok"] = int(now)   # a passed live test counts as "worked"
                 if not ok and not cur.get("down"):
                     cur["down"] = True
                     alerts.append(f"❌ {tag} — {why}")

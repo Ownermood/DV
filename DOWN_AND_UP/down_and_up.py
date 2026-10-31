@@ -1089,6 +1089,12 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     if cookie_file_path and os.path.exists(cookie_file_path):
                         set_cookie_cache_result(user_id, url, True, cookie_file_path)
                         logger.info(f"Cached successful cookie result for {url}")
+                try:   # Cookie Manager: this cookie just worked ("last worked" in the admin list)
+                    from COMMANDS import cookie_store
+                    if ytdl_opts.get('cookiefile'):
+                        cookie_store.record(ytdl_opts['cookiefile'], True)
+                except Exception:
+                    pass
                 
                 # Remove protection file after successful download
                 from HELPERS.filesystem_hlp import remove_protection_file

@@ -168,3 +168,11 @@ def test_cookie_manager_uses_platform_logos_and_no_dm_text(store):
     ids = {b.text.split(" ·")[0]: getattr(b, "icon_custom_emoji_id", None) for r in kb.inline_keyboard for b in r}
     logos = [ids.get(name) for name in ("Instagram", "Pinterest", "Facebook", "Snapchat") if ids.get(name)]
     assert len(set(logos)) == len(logos)                                     # each platform its own logo
+
+
+def test_passed_test_sets_last_worked(store, monkeypatch):
+    cs.add("instagram", _cookie(value="a"))
+    assert not cs.slots("instagram")[0].get("last_ok")
+    monkeypatch.setattr(cs, "test_slot", lambda svc, sid: (True, "working"))
+    cs.check_all(alert=False, services=["instagram"])
+    assert cs.slots("instagram")[0].get("last_ok")                 # no more "ok never" for a working cookie
