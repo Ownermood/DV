@@ -513,3 +513,27 @@ def test_channel_join_update_verifies_at_once(monkeypatch):
     upd = NS(chat=NS(id=-100555), new_chat_member=NS(status=enums.ChatMemberStatus.MEMBER, user=NS(id=43)))
     ui.channel_joined(_Client(), upd)
     assert runs == ["https://pin.it/4abcd"] and "tk" not in ui._JOIN
+
+
+def test_who_left_the_channel_gets_the_join_card_not_the_menu(monkeypatch):
+    from types import SimpleNamespace as NS
+    from pyrogram import enums
+    from HELPERS import limitter
+    monkeypatch.setattr(limitter.Config, "SUBSCRIBE_CHANNEL", -100555, raising=False)
+    status = {"s": NS(status=enums.ChatMemberStatus.MEMBER)}
+    app = NS(get_chat_member=lambda chat, uid: status["s"])
+    assert limitter.is_member(app, 7)
+    status["s"] = NS(status=enums.ChatMemberStatus.LEFT)
+    assert not limitter.is_member(app, 7)                                        # left: blocked at once
+    status["s"] = NS(status=enums.ChatMemberStatus.RESTRICTED, is_member=False)
+    assert not limitter.is_member(app, 7)                                        # restricted and left
+    status["s"] = NS(status=enums.ChatMemberStatus.RESTRICTED, is_member=True)
+    assert limitter.is_member(app, 7)
+    cards, sent = [], []
+    monkeypatch.setattr(limitter, "is_member", lambda a, uid: False)
+    import COMMANDS.simple_ui as sui
+    monkeypatch.setattr(sui, "join_card", lambda c, m: cards.append(m.chat.id))
+    monkeypatch.setattr(ui, "send", lambda *a, **k: sent.append(a))
+    msg = NS(id=1, chat=NS(id=7), from_user=NS(id=7), text="https://pin.it/4abcd")
+    ui._show_link_menu(None, msg, "pinterest", "Pinterest")
+    assert cards == [7] and sent == []                                          # no preview menu for a leaver

@@ -41,9 +41,10 @@ def is_member(app, user_id) -> bool:
     if not getattr(Config, 'SUBSCRIBE_CHANNEL', 0):
         return True
     try:
-        status = app.get_chat_member(Config.SUBSCRIBE_CHANNEL, user_id).status
-        return status in (ChatMemberStatus.MEMBER, ChatMemberStatus.OWNER, ChatMemberStatus.ADMINISTRATOR,
-                          ChatMemberStatus.RESTRICTED)
+        member = app.get_chat_member(Config.SUBSCRIBE_CHANNEL, user_id)   # live every time: a leaver is caught at once
+        if member.status == ChatMemberStatus.RESTRICTED:   # restricted people who LEFT are still listed as restricted
+            return bool(getattr(member, "is_member", False))
+        return member.status in (ChatMemberStatus.MEMBER, ChatMemberStatus.OWNER, ChatMemberStatus.ADMINISTRATOR)
     except Exception as e:  # not a participant (or the bot can't see the channel)
         logger.info(LoggerMsg.LIMITTER_CHANNEL_CHECK_ERROR_LOG_MSG.format(user_id=user_id, error=e))
         return False

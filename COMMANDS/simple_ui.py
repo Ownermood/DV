@@ -446,6 +446,10 @@ def _show_link_menu(client, message, key, label) -> None:
                                    "<blockquote>Part of the video ID is missing. Copy the full link and send it again.</blockquote>",
                                    None), reply_to_message_id=message.id, **_topic(message))
         return
+    if not _is_admin(_owner_of(message)):   # left the channel? the join card comes first, not the menu
+        from HELPERS.limitter import is_user_in_channel
+        if not is_user_in_channel(client, getattr(message, "_dm_twin", None) or message):
+            return
     from HELPERS import cancel
     cancel.clear(uid)  # a new link: an old Cancel tap must not stop it
     from COMMANDS.user_prefs import quality as _default_quality
