@@ -226,7 +226,7 @@ def _home():
         [btn("chat", "Broadcast", cb="ap|bc", style=PLAIN), btn("trash", "Delete Broadcast", cb="ap|dbl", style=PLAIN)],
         [btn("crown", "Admins", cb="ap|admins", style=PLAIN), btn("folder", "Users", cb="ap|sec|users", style=PLAIN)],
         [btn("lips", "Cookie Manager", cb="ap|ckm", style=PLAIN), btn("stars", "Settings", cb="ap|sec|settings", style=PLAIN)],
-        [btn("exit", "Close", cb="ap|close", style=PLAIN)],
+        [btn("exit", "Close", cb="ap|close", style=RED)],
     ])
     return text, kb
 

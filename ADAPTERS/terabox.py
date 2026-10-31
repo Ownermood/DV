@@ -913,7 +913,7 @@ def _menu_kb(token, meta):
     size = meta["size"]
     size_txt = _human(size) if size else ""
     rows.append([btn("folder", "Original file" + (f" · {size_txt}" if size_txt else ""), cb=f"tb|{token}|o", style=plain)])
-    rows.append([btn("trash", "Close", cb=f"tb|{token}|x", style=plain)])
+    rows.append([btn("trash", "Close", cb=f"tb|{token}|x", style=ButtonStyle.DANGER)])   # Close is red everywhere
     return InlineKeyboardMarkup(rows)
 
 

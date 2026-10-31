@@ -146,3 +146,21 @@ def test_all_button(monkeypatch):
     pl._JOBS["tk"] = big
     tap("pl|tk|all")
     assert len(pl.chosen_urls(big)) == 50                                  # parts 1–50
+
+
+def test_parts_three_per_row_and_red_close():
+    from pyrogram import enums
+    rows = pl._card(_job(43))[1].inline_keyboard
+    part_rows = [r for r in rows if all("–" in b.text for b in r)]
+    assert [len(r) for r in part_rows] == [3, 2]                          # 1–10 11–20 21–30 / 31–40 41–43
+    assert rows[-1][1].text == "Close" and rows[-1][1].style == enums.ButtonStyle.DANGER
+
+
+def test_every_close_button_is_red():
+    import re
+    from pathlib import Path
+    root = Path(__file__).resolve().parent.parent
+    for f in ("COMMANDS/simple_ui.py", "COMMANDS/playlist.py", "COMMANDS/admin_panel.py", "ADAPTERS/terabox.py"):
+        for line in (root / f).read_text().splitlines():
+            if re.search(r'btn\("(trash|exit)", (t\(uid, "close"\)|"Close")', line):
+                assert "RED" in line or "DANGER" in line, f"{f}: {line.strip()}"

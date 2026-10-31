@@ -27,7 +27,7 @@ app = get_app()
 PLAIN = enums.ButtonStyle.DEFAULT
 QUALITIES = (("b", "Best"), ("1080", "1080p"), ("720", "720p"), ("480", "480p"), ("360", "360p"), ("a", "MP3"))
 BATCH = 10            # the playlist is offered in parts of 10 videos: 1–10, 11–20 …
-PAGE_BATCHES = 12     # parts per card page (3 rows of 4)
+PAGE_BATCHES = 12     # parts per card page (4 rows of 3)
 READ_MAX = 500        # videos read from a playlist
 _JOBS = {}            # token -> {"msg", "title", "urls", "sel" (chosen parts), "page", "qs" (chosen qualities), "ts"}
 _STOP = set()         # chats whose running playlist must stop
@@ -110,7 +110,7 @@ def _card(job):
     for k in range(page * PAGE_BATCHES, min(len(batches), (page + 1) * PAGE_BATCHES)):
         a, b = batches[k]
         row.append(pick(k in job["sel"], "down", f"{a + 1}–{b}", f"pl|{tok}|b|{k}"))
-        if len(row) == 4:
+        if len(row) == 3:   # 3 per row: "111–120" never gets cut
             rows.append(row)
             row = []
     if row:
