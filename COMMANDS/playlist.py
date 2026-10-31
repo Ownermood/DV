@@ -18,12 +18,14 @@ from pyrogram import filters
 from pyrogram.types import InlineKeyboardMarkup
 
 from CONFIG.limits import LimitsConfig
-from COMMANDS.ui_kit import btn, em, send, edit, BLUE, GREEN, RED
+from pyrogram import enums
+from COMMANDS.ui_kit import btn, em, send, edit, GREEN, RED
 from HELPERS.app_instance import get_app
 from HELPERS.logger import logger
 
 app = get_app()
-QUALITIES = (("b", "Best"), ("1080", "1080p"), ("720", "720p"), ("480", "480p"), ("a", "MP3"))
+PLAIN = enums.ButtonStyle.DEFAULT
+QUALITIES = (("b", "Best"), ("1080", "1080p"), ("720", "720p"), ("480", "480p"), ("360", "360p"), ("a", "MP3"))
 COUNTS = (10, 25)
 _JOBS = {}            # token -> {"msg", "title", "urls", "count", "q", "ts"}
 _STOP = set()         # chats whose running playlist must stop
@@ -74,12 +76,12 @@ def _card(job):
             f"{em('down')} <b>How many and which quality?</b>")
     tok = job["token"]
     counts = [c for c in COUNTS if c < n] + [n]
-    rows = [[btn("ok" if job["count"] == c else "down", f"{'All ' if c == n else 'First '}{c}",
-                 cb=f"pl|{tok}|c|{c}", style=GREEN if job["count"] == c else BLUE) for c in counts]]
-    rows.append([btn("ok" if job["q"] == k else ("music" if k == "a" else "play"), label, cb=f"pl|{tok}|q|{k}",
-                     style=GREEN if job["q"] == k else BLUE) for k, label in QUALITIES[:3]])
-    rows.append([btn("ok" if job["q"] == k else ("music" if k == "a" else "play"), label, cb=f"pl|{tok}|q|{k}",
-                     style=GREEN if job["q"] == k else BLUE) for k, label in QUALITIES[3:]])
+
+    def pick(selected, icon, label, cb):   # chosen = ✔ icon, every option button plain (colour only on Start / Close)
+        return btn("ok" if selected else icon, label, cb=cb, style=PLAIN)
+    rows = [[pick(job["count"] == c, "down", f"{'All ' if c == n else 'First '}{c}", f"pl|{tok}|c|{c}") for c in counts]]
+    qs = [pick(job["q"] == k, "music" if k == "a" else "play", label, f"pl|{tok}|q|{k}") for k, label in QUALITIES]
+    rows += [qs[:3], qs[3:]]   # 3 + 3, side by side
     rows.append([btn("bolt", f"Start · {job['count']} videos", cb=f"pl|{tok}|go", style=GREEN),
                  btn("trash", "Close", cb=f"pl|{tok}|x", style=RED)])
     return text, InlineKeyboardMarkup(rows)

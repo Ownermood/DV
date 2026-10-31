@@ -50,3 +50,12 @@ def test_videos_run_one_by_one_and_stop(monkeypatch):
     pl._run(None, job, NS())
     assert ran == [(f"https://youtu.be/v{i}", "720") for i in range(3)]   # stopped after video 3
     assert 7 not in pl._STOP                                              # next playlist starts clean
+
+
+def test_card_colours_only_on_start_and_close():
+    from pyrogram import enums
+    rows = pl._card(_job(13))[1].inline_keyboard
+    assert [len(r) for r in rows] == [2, 3, 3, 2]                     # counts / 3 qualities / 3 qualities / Start+Close
+    start, close = rows[-1]
+    assert start.style == enums.ButtonStyle.SUCCESS and close.style == enums.ButtonStyle.DANGER
+    assert all(b.style == enums.ButtonStyle.DEFAULT for r in rows[:-1] for b in r)
