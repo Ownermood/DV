@@ -89,3 +89,14 @@ def test_download_card_names_the_video(monkeypatch):
     msg = NS(chat=NS(id=5), from_user=NS(id=5, first_name="Ann", last_name=None, username=None), text="x")
     lg.log_download(msg, "Marumo <Rea>", "TeraBox · Original · 2.10 GB", "https://www.1024tera.com/s/1abc")
     assert "Downloading" in sent[0] and "Marumo &lt;Rea&gt;" in sent[0] and "Original · 2.10 GB" in sent[0]
+
+
+def test_region_locked_video_is_explained_and_not_alerted(monkeypatch):
+    from HELPERS import alerts, logger as lg
+    err = "ERROR: [youtube] -dWrQDiQErc: The uploader has not made this video available in your country"
+    dm = []
+    monkeypatch.setattr(alerts, "_owners_dm", dm.append)
+    alerts.download_failed(1, "https://youtu.be/-dWrQDiQErc", err)
+    assert dm == []                                                  # nothing for the owners to fix
+    text = lg.friendly_error(err)
+    assert "blocked in the bot's region" in text and "some countries" in text

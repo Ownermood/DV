@@ -197,6 +197,9 @@ _FRIENDLY = (
      "Only public posts can be downloaded."),
     (("looks truncated", "incomplete youtube id", "invalid url", "is not a valid url"), "warn",
      "This link is incomplete or broken.", "Copy the full link and send it again."),
+    (("available in your country", "not available in your country", "geo restriction", "blocked in your country"),
+     "globe", "This video is blocked in the bot's region.",
+     "The uploader allows it only in some countries, so it can't be downloaded here."),
     (("not available", "unavailable", "removed", "deleted", "404", "does not exist", "no video"), "ban",
      "This post is unavailable.", "It may be deleted, region-locked or the link is wrong."),
     (("too large", "file size", "exceeds", "limit"), None, None, None),  # keep the original size-limit text

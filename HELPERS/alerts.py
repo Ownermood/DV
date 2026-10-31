@@ -33,7 +33,8 @@ def _owners_dm(text: str) -> None:
 USER_SIDE = ("looks truncated", "incomplete youtube id", "invalid url", "unsupported url", "is not a valid url",
              "private video", "video unavailable", "this video is unavailable", "has been removed", "not available",
              "does not exist", "404", "too large", "file size", "exceeds", "members-only", "age-restricted",
-             "no video formats", "no video in this post", "premieres in", "live event will begin")
+             "no video formats", "no video in this post", "premieres in", "live event will begin",
+             "available in your country", "geo restriction", "blocked in your country")   # region-locked by the uploader
 
 
 def _real_error(error: str) -> str:
