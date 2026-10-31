@@ -290,3 +290,14 @@ def test_broken_ts_falls_back_to_byte_parts(monkeypatch, tmp_path):
     assert len(parts) == 3 and all(p.endswith(".mp4") for p in parts)   # fake 2 KB part replaced, all playable mp4
     assert all(tb.Path(p).stat().st_size <= limit for p in parts)
     assert sum(tb._duration(p) for p in parts) > 55                     # the whole video is in the parts
+
+
+def test_sent_files_go_to_log_channel(monkeypatch):
+    from types import SimpleNamespace as NS
+    from ADAPTERS import terabox as tb
+    from HELPERS import logger as lg
+    fw = []
+    monkeypatch.setattr(lg, "get_log_channel", lambda kind="general", **k: -100777 if kind == "video" else 0)
+    app = NS(forward_messages=lambda to, frm, ids: fw.append((to, frm, ids)))
+    tb._to_log_channel(app, 55, [NS(id=1), NS(id=2)])
+    assert fw == [(-100777, 55, [1, 2])]

@@ -624,6 +624,18 @@ def _split_ts_bytes(src: Path, limit: int) -> list:
     return paths
 
 
+def _to_log_channel(app, chat_id, sent) -> None:
+    """The sent file(s) also go to the download-log channel, under the 'Downloading' card."""
+    try:
+        from HELPERS.logger import get_log_channel
+        log = get_log_channel("video")
+        ids = [m.id for m in sent or [] if getattr(m, "id", None)]
+        if log and ids:
+            app.forward_messages(log, chat_id, ids)
+    except Exception as exc:
+        print(f"[terabox] log channel forward failed: {exc}", flush=True)
+
+
 def _send_file(app, message, filepath: Path, title: str, url: str, thumb_path, on_progress=None, cover=None):
     """Send the file; videos over the Telegram limit go out in parts. on_progress(done, total) during upload."""
     chat, rid = message.chat.id, message.id
@@ -1093,6 +1105,7 @@ def _run_job_inner(app, message, url, meta, q, card) -> None:
                 return
             if not own_thumb:
                 _cache_put(key, sent, title)
+            _to_log_channel(app, message.chat.id, sent)
         app.delete_messages(card.chat.id, card.id)  # the file itself is the success signal (card may be in a group)
     except Exception as exc:
         if cancel.is_set(uid):  # the Cancel button already replaced the card
