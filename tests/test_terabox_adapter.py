@@ -176,3 +176,19 @@ def test_stream_progress_gives_exact_percent(monkeypatch, tmp_path):
     tb._hls_download("\n".join(f"https://s/{i}" for i in range(4)), tmp_path / "o.mp4", 10 ** 9,
                      lambda done, guess, frac: seen.append(frac))
     assert seen == [0.25, 0.5, 0.75, 1.0]       # % follows segments, not the size guess
+
+
+def test_big_video_parts_cover_the_whole_video(tmp_path):
+    import shutil, subprocess
+    import pytest
+    from ADAPTERS import terabox as tb
+    if not shutil.which("ffmpeg"):
+        pytest.skip("ffmpeg not installed")
+    src = tmp_path / "in.ts"
+    subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "testsrc=size=320x180:rate=25",
+                    "-t", "60", "-c:v", "libx264", "-preset", "ultrafast", "-b:v", "1M", "-g", "25", "-f", "mpegts",
+                    str(src)], check=True)
+    parts = tb._split_by_size(src, int(src.stat().st_size / 2.5))
+    total = sum(tb._duration(p) for p in parts)
+    assert len(parts) == 3 and abs(total - 60) < 2      # parts follow each other to the end
+    assert all(tb.Path(p).stat().st_size <= src.stat().st_size / 2.5 * 1.02 for p in parts)

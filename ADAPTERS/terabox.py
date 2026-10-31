@@ -542,6 +542,30 @@ def _send_cached(app, message, url, entry) -> bool:
         return False
 
 
+def _split_by_size(src: Path, limit: int) -> list:
+    """Cut a too-big video into parts of at most `limit` bytes, each starting where the last one ended.
+    Needs no total duration: TeraBox .ts recordings often report a wrong one (a 2h38m video read as ~15 min,
+    so time-based parts covered only the start)."""
+    import subprocess
+    paths, start = [], 0.0
+    for n in range(1, 30):
+        out = src.parent / f"part{n}.mp4"
+        subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-fflags", "+genpts", "-i", str(src), "-ss", f"{start:.3f}",
+                        "-map", "0:v:0", "-map", "0:a?", "-c", "copy", "-fs", str(limit),
+                        "-avoid_negative_ts", "make_zero", "-movflags", "+faststart", str(out)],
+                       check=False, timeout=3600)
+        size = out.stat().st_size if out.exists() else 0
+        dur = _duration(str(out)) if size else 0
+        if size < 1024 or dur <= 1:
+            out.unlink(missing_ok=True)
+            break
+        paths.append(str(out))
+        if size < limit * 0.9:   # this part reached the end of the video
+            break
+        start += dur
+    return paths
+
+
 def _send_file(app, message, filepath: Path, title: str, url: str, thumb_path, on_progress=None, cover=None):
     """Send the file; videos over the Telegram limit go out in parts. on_progress(done, total) during upload."""
     chat, rid = message.chat.id, message.id
@@ -556,9 +580,7 @@ def _send_file(app, message, filepath: Path, title: str, url: str, thumb_path, o
                                   reply_to_message_id=rid, **kw)]
     if not is_video:
         raise RuntimeError(f"too large: {size / 1024 ** 3:.2f} GB file (only videos can be sent in parts)")
-    from DOWN_AND_UP.ffmpeg import split_video_2
-    parts = split_video_2(str(filepath.parent), "part", str(filepath), size, PART_BYTES, _duration(str(filepath)), chat)
-    paths = [p for p in (parts or {}).get("path", []) if os.path.exists(p) and os.path.getsize(p) > 0]
+    paths = _split_by_size(filepath, int(PART_BYTES * 0.97))
     if not paths:
         raise RuntimeError("could not split the video")
     return [app.send_video(chat, p, caption=_caption(title, url, f"Part {n}/{len(paths)}"), thumb=thumb_path, cover=cover,
