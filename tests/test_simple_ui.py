@@ -469,3 +469,15 @@ def test_own_and_bot_messages_are_ignored():
     assert run(own) and run(echoed) and not run(person)
     with pytest.raises(StopPropagation):
         ui.ignore_own_messages(None, NS(stop_propagation=lambda: (_ for _ in ()).throw(StopPropagation())))
+
+
+def test_safe_delete_of_gone_message_does_not_crash(monkeypatch):
+    from HELPERS import safe_messeger as sm
+    from CONFIG.messages import safe_get_messages
+    gone = safe_get_messages(None).HELPER_MESSAGE_ID_INVALID_MSG
+
+    class App:
+        def delete_messages(self, **k):
+            raise RuntimeError(gone)
+    monkeypatch.setattr(sm, "get_app_safe", lambda: App())
+    assert sm.safe_delete_messages(chat_id=5, message_ids=[1]) is None     # was NameError: user_id
