@@ -340,5 +340,5 @@ def test_parts_are_sent_with_duration_size_and_small_thumb(tmp_path):
 def test_caption_drops_the_file_extension():
     from ADAPTERS import terabox as tb
     cap = tb._caption("Marumo Rea - SMOK 041.ts", "https://t/s/1x", "Part 1/2")
-    assert "SMOK 041</b>" in cap and ".ts" not in cap
+    assert "Marumo Rea - SMOK 041\n" in cap and ".ts" not in cap
     assert "Notes v1.2" in tb._caption("Notes v1.2", "https://t/s/1x")   # not an extension: kept
