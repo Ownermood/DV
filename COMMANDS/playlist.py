@@ -135,7 +135,8 @@ def show(client, message, url) -> None:
     """The playlist card (reads the list first: ~2 s)."""
     from COMMANDS.simple_ui import t
     chat = message.chat.id
-    wait = send(client, chat, lambda: (t(chat, "loading"), None), reply_to_message_id=message.id)
+    from COMMANDS.simple_ui import _topic
+    wait = send(client, chat, lambda: (t(chat, "loading"), None), reply_to_message_id=message.id, **_topic(message))
     try:
         data = _read(url)
     except Exception as exc:
@@ -156,6 +157,19 @@ def show(client, message, url) -> None:
             _JOBS.pop(k, None)
         _JOBS[token] = job
     edit(client, wait, lambda: _card(job))
+    if chat < 0 and wait is not None:   # groups: an unused card goes after 30 s (with the link message), like every menu
+        def expire():
+            with _lock:
+                if _JOBS.pop(token, None) is None:
+                    return   # started (or closed) in time
+            try:
+                client.delete_messages(chat, [wait.id, message.id])
+            except Exception:
+                pass
+        from COMMANDS.simple_ui import GROUP_MENU_TTL
+        timer = threading.Timer(GROUP_MENU_TTL, expire)
+        timer.daemon = True
+        timer.start()
 
 
 def stop(chat_id) -> None:

@@ -164,3 +164,31 @@ def test_every_close_button_is_red():
         for line in (root / f).read_text().splitlines():
             if re.search(r'btn\("(trash|exit)", (t\(uid, "close"\)|"Close")', line):
                 assert "RED" in line or "DANGER" in line, f"{f}: {line.strip()}"
+
+
+def test_unused_group_playlist_card_goes(monkeypatch):
+    deleted = []
+    monkeypatch.setattr(ui, "GROUP_MENU_TTL", 0.05)
+    monkeypatch.setattr(pl, "_read", lambda url: {"title": "Mix", "uploader": "", "total": 3, "urls": ["a", "b", "c"]})
+    monkeypatch.setattr(pl, "send", lambda *a, **k: NS(id=50))
+    monkeypatch.setattr(pl, "edit", lambda *a, **k: None)
+    client = NS(delete_messages=lambda chat, ids: deleted.append((chat, ids)))
+    msg = NS(id=9, chat=NS(id=-100), from_user=NS(id=7), message_thread_id=None, is_topic_message=False)
+    pl.show(client, msg, "https://www.youtube.com/playlist?list=PLx")
+    time.sleep(0.3)
+    assert deleted == [(-100, [50, 9])]                               # card + link message, like other group menus
+
+
+def test_close_only_by_the_asker_in_groups(monkeypatch):
+    answers, deleted = [], []
+    monkeypatch.setattr(ui, "_is_admin", lambda uid: False)
+
+    def tap(who):
+        msg = NS(chat=NS(id=-100), reply_to_message=NS(from_user=NS(id=7)), delete=lambda: deleted.append(who))
+        cq = NS(data="ui|close", from_user=NS(id=who, first_name="x"), message=msg,
+                answer=lambda *a, **k: answers.append(a[0] if a else ""), stop_propagation=lambda: None)
+        ui.ui_callbacks(None, cq)
+    tap(8)
+    assert deleted == [] and "Only the person" in answers[0]            # someone else: refused
+    tap(7)
+    assert deleted == [7]                                              # the asker: closed

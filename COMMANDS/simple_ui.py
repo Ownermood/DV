@@ -1226,7 +1226,11 @@ def ui_callbacks(client, cq):
         elif action == "home":
             edit(client, msg, lambda: (welcome_text(cq.from_user.first_name or "", uid), _start_markup(uid)))
         elif action == "close":
-            msg.delete()
+            asker = getattr(getattr(getattr(msg, "reply_to_message", None), "from_user", None), "id", None)
+            if msg.chat.id < 0 and asker and asker != uid and not _is_admin(uid):
+                cq.answer("Only the person who sent the link can close this menu.", show_alert=True)
+            else:
+                msg.delete()
         elif action == "g" and len(parts) == 4:
             token, choice = parts[2], parts[3]
             with _pending_lock:
