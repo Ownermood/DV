@@ -595,7 +595,7 @@ def _split_ts_bytes(src: Path, limit: int) -> list:
     paths = []
     with src.open("rb") as f:
         for n in range(1, 30):
-            raw = src.parent / f"part{n}.ts"
+            raw = src.parent / f"{src.stem[:80]} - Part {n}.ts"   # the name people see on a .ts piece
             left = step
             with raw.open("wb") as w:
                 while left:
