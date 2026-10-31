@@ -261,7 +261,7 @@ T = {
         "add_group": "Add to Group",
         "join_needed": ("{crown} <b>One quick step!</b>\n"
                         "<blockquote>Join {channel} to use me. It's free and takes a second.</blockquote>\n"
-                        "{ok} Then tap <b>I've Joined</b> and your download starts."),
+                        "{ok} Just join: I notice it and your download starts by itself."),
         "dm_start": ("{wave} {name}, start me in DM first!\n"
                      "<blockquote>Tap <b>Start Bot</b>, then pick the quality here.</blockquote>"),
         "dm_link": ("{down} <b>Your link from {group}</b>\n<blockquote>{url}</blockquote>\n"

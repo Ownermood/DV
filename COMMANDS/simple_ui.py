@@ -989,13 +989,70 @@ def join_card(client, message) -> None:
         now = time.time()
         for k in [k for k, v in _JOIN.items() if now - v[2] > _DM_WAIT_TTL]:
             _JOIN.pop(k, None)
-        _JOIN[token] = (message, extract_url(getattr(message, "text", "") or ""), now)
+        _JOIN[token] = (message, extract_url(getattr(message, "text", "") or ""), now, None)
     rows = [[btn("plus", "Join Channel", url=url, style=BLUE)]] if url else []
     rows.append([btn("ok", "I've Joined", cb=f"ui|fj|{token}", style=GREEN)])
-    send(client, uid, lambda: (t(uid, "join_needed", channel=channel), InlineKeyboardMarkup(rows)))
+    card_msg = send(client, uid, lambda: (t(uid, "join_needed", channel=channel), InlineKeyboardMarkup(rows)))
+    with _pending_lock:
+        if token in _JOIN:
+            _JOIN[token] = _JOIN[token][:3] + (getattr(card_msg, "id", None),)
+    threading.Thread(target=_watch_join, args=(client, token, _owner_of(message)), daemon=True).start()
 
 
-_JOIN = {}                      # token -> (message, url, since)
+_JOIN = {}                      # token -> (message, url, since, join card id)
+JOIN_WATCH = 5 * 60             # auto-verify: check the channel for this long after the card
+JOIN_POLL = 5
+
+
+def _join_done(client, token) -> bool:
+    """The person joined: the card goes and their link starts by itself (no tap needed)."""
+    with _pending_lock:
+        item = _JOIN.pop(token, None)
+    if not item:
+        return False
+    message, url, _, card_id = item
+    if card_id:
+        try:
+            client.delete_messages(message.chat.id, card_id)
+        except Exception:
+            pass
+    if url:
+        message.text = url
+        _run_link(client, message, url)
+    return True
+
+
+def _watch_join(client, token, person) -> None:
+    """Auto-verify: watch the channel membership for a few minutes after the join card."""
+    from HELPERS.limitter import is_member
+    end = time.time() + JOIN_WATCH
+    while time.time() < end:
+        time.sleep(JOIN_POLL)
+        with _pending_lock:
+            if token not in _JOIN:
+                return   # tapped I've Joined, or the channel update already did it
+        try:
+            if is_member(client, person):
+                _join_done(client, token)
+                return
+        except Exception as exc:
+            logger.info(f"[join] check {person}: {exc}")
+
+
+@app.on_chat_member_updated(filters.channel)
+def channel_joined(client, update):
+    """Instant auto-verify when the bot is an admin of the force-join channel (Telegram tells it about joins)."""
+    if int(getattr(update.chat, "id", 0)) != int(getattr(Config, "SUBSCRIBE_CHANNEL", 0) or 0):
+        return
+    new = getattr(update, "new_chat_member", None)
+    if not new or new.status not in (enums.ChatMemberStatus.MEMBER, enums.ChatMemberStatus.ADMINISTRATOR,
+                                     enums.ChatMemberStatus.OWNER, enums.ChatMemberStatus.RESTRICTED):
+        return
+    person = getattr(getattr(new, "user", None), "id", None)
+    with _pending_lock:
+        tokens = [k for k, v in _JOIN.items() if _owner_of(v[0]) == person]
+    for k in tokens:
+        _join_done(client, k)
 
 
 @app.on_message(filters.group & filters.new_chat_members, group=-1)
@@ -1136,13 +1193,8 @@ def ui_callbacks(client, cq):
             elif not is_member(client, uid):
                 cq.answer("You haven't joined yet. Join the channel, then tap again.", show_alert=True)
             else:
-                with _pending_lock:
-                    _JOIN.pop(parts[2], None)
                 cq.answer("Thanks for joining!")
-                msg.delete()
-                if item[1]:
-                    item[0].text = item[1]
-                    _run_link(client, item[0], item[1])
+                _join_done(client, parts[2])
         elif action == "home":
             edit(client, msg, lambda: (welcome_text(cq.from_user.first_name or "", uid), _start_markup(uid)))
         elif action == "close":

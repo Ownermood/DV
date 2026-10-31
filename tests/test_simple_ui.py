@@ -481,3 +481,35 @@ def test_safe_delete_of_gone_message_does_not_crash(monkeypatch):
             raise RuntimeError(gone)
     monkeypatch.setattr(sm, "get_app_safe", lambda: App())
     assert sm.safe_delete_messages(chat_id=5, message_ids=[1]) is None     # was NameError: user_id
+
+
+def test_join_is_verified_without_a_tap(monkeypatch):
+    import time
+    from types import SimpleNamespace as NS
+    from HELPERS import limitter
+    runs, joined = [], {"yes": False}
+    monkeypatch.setattr(ui, "_run_link", lambda c, m, u: runs.append(u))
+    monkeypatch.setattr(ui, "JOIN_POLL", 0.05)
+    monkeypatch.setattr(limitter, "is_member", lambda c, uid: joined["yes"])
+    c = _Client()
+    msg = NS(id=3, chat=NS(id=42), from_user=NS(id=42), text="https://youtu.be/dQw4w9WgXcQ")
+    ui.join_card(c, msg)
+    time.sleep(0.15)
+    assert runs == []                                    # not joined yet: waits
+    joined["yes"] = True
+    time.sleep(0.2)
+    assert runs == ["https://youtu.be/dQw4w9WgXcQ"]      # joined: the link starts by itself
+    assert c.deleted and c.deleted[0][0] == 42           # and the join card is gone
+
+
+def test_channel_join_update_verifies_at_once(monkeypatch):
+    from types import SimpleNamespace as NS
+    from pyrogram import enums
+    runs = []
+    monkeypatch.setattr(ui, "_run_link", lambda c, m, u: runs.append(u))
+    monkeypatch.setattr(ui.Config, "SUBSCRIBE_CHANNEL", -100555, raising=False)
+    msg = NS(id=3, chat=NS(id=43), from_user=NS(id=43), text="x")
+    ui._JOIN["tk"] = (msg, "https://pin.it/4abcd", __import__("time").time(), None)
+    upd = NS(chat=NS(id=-100555), new_chat_member=NS(status=enums.ChatMemberStatus.MEMBER, user=NS(id=43)))
+    ui.channel_joined(_Client(), upd)
+    assert runs == ["https://pin.it/4abcd"] and "tk" not in ui._JOIN
