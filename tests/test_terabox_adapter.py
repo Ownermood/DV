@@ -155,3 +155,24 @@ def test_cancelled_or_empty_share_is_a_dead_link(monkeypatch):
     with pytest.raises(tb.DeadLink):
         tb._resolve("https://1024terabox.com/s/1abc")
     assert calls == []                                      # no fallback for a dead share
+
+
+def test_stream_progress_gives_exact_percent(monkeypatch, tmp_path):
+    from ADAPTERS import terabox as tb
+    sizes = [5000, 100, 100, 100]               # a big first segment made the old size guess 4x too high
+
+    class Sess:
+        headers, cookies = {}, {}
+
+        def mount(self, *a):
+            pass
+
+        def get(self, u, timeout=None):
+            return type("R", (), {"content": b"x" * sizes[int(u.rsplit("/", 1)[1])]})()
+    monkeypatch.setattr(tb.requests, "Session", Sess)
+    monkeypatch.setattr(tb, "PARTS", 1)
+    monkeypatch.setattr("subprocess.run", lambda *a, **k: (tb.Path(a[0][-1]).write_bytes(b"v")))
+    seen = []
+    tb._hls_download("\n".join(f"https://s/{i}" for i in range(4)), tmp_path / "o.mp4", 10 ** 9,
+                     lambda done, guess, frac: seen.append(frac))
+    assert seen == [0.25, 0.5, 0.75, 1.0]       # % follows segments, not the size guess

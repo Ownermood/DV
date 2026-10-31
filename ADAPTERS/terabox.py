@@ -315,7 +315,8 @@ def _hls_download(playlist: str, out: Path, limit, progress, cookies=None, refer
                     cur, k = done[0], n_done[0]
                 if cur > limit:
                     raise RuntimeError(f"too large (limit {limit / 1024 ** 3:.0f} GB)")
-                progress(cur, int(cur * len(segs) / k))  # total estimated from the segments so far
+                # % from segments done (exact); the size is only a guess from the segments so far
+                progress(cur, int(cur * len(segs) / k), k / len(segs))
                 return
             except RuntimeError:
                 raise
@@ -932,16 +933,20 @@ def _run_job_inner(app, message, url, meta, q, card) -> None:
             thumb_path = own_thumb or _download_thumb(thumb_url, folder)
             state = {"last": 0.0, "start": time.monotonic()}
 
-            def progress(total, length):
+            def progress(total, length, frac=None):
                 cancel.check(uid)  # ❌ Cancel tapped: the download threads stop
                 now = time.monotonic()
                 if now - state["last"] < 4:  # every 4 s: MB done / total and speed
                     return
                 state["last"] = now
-                length = length or size or 0
-                pct = total * 100 / length if length else 0
                 speed = total / max(now - state["start"], 0.1) / 1024 ** 2
-                of = f" / {length / 1024 ** 2:.0f} MB" if length else " MB"
+                if frac is not None:  # stream copy: real size unknown until the end
+                    pct = frac * 100
+                    of = f" / ~{length / 1024 ** 2:.0f} MB" if frac >= 0.2 and length else " MB"
+                else:
+                    length = length or size or 0
+                    pct = total * 100 / length if length else 0
+                    of = f" / {length / 1024 ** 2:.0f} MB" if length else " MB"
                 text = (base + "\n\n" if base else "") + progress_card(
                     "download", pct, detail=f"{total / 1024 ** 2:.0f}{of} · {speed:.1f} MB/s")
                 edit_later(lambda: cancel.is_set(uid) or _show(app, card, text, cancel.markup(uid)), card.chat.id, card.id)
