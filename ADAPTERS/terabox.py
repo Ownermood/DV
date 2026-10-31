@@ -502,8 +502,8 @@ def _share_key(url):
     """Share code (+ '#720' etc. for a streaming copy), same for every mirror domain."""
     m = re.search(r"(?:/s/|surl=)1?([\w-]+)", url or "")
     q = (url or "").partition("#")[2]
-    # v3: files sent before the split fixes were cut wrong (a few minutes, or one 75 MB piece): never reuse them
-    return ("v3:" + m.group(1) + (f"#{q}" if q else "")) if m else None
+    # v4: files sent before the split fixes were cut wrong (a few minutes, one 75 MB piece, raw .ts): never reuse them
+    return ("v4:" + m.group(1) + (f"#{q}" if q else "")) if m else None
 
 
 def _cache_get(url):
@@ -609,9 +609,20 @@ def _split_ts_bytes(src: Path, limit: int) -> list:
                 raw.unlink()
                 break
             mp4 = raw.with_suffix(".mp4")
-            subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-fflags", "+genpts+igndts+discardcorrupt",
-                            "-err_detect", "ignore_err", "-i", str(raw), "-map", "0:v:0", "-map", "0:a?", "-c", "copy",
-                            "-movflags", "+faststart", str(mp4)], capture_output=True, timeout=3600)
+            for bsf in (["-bsf:a", "aac_adtstoasc"], []):   # the AAC filter fails on other audio: then without it
+                # a piece starts mid-stream: read far enough to reach a keyframe with the video size (else
+                # "dimensions not set / Could not write header")
+                r = subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-fflags", "+genpts+igndts+discardcorrupt",
+                                    "-err_detect", "ignore_err", "-analyzeduration", "100M", "-probesize", "100M",
+                                    "-i", str(raw), "-map", "0:v:0", "-map", "0:a?", "-c", "copy",
+                                    *bsf, "-avoid_negative_ts", "make_zero",
+                                    "-max_muxing_queue_size", "9999", "-movflags", "+faststart", str(mp4)],
+                                   capture_output=True, text=True, timeout=3600)
+                if mp4.exists() and mp4.stat().st_size > 1024:
+                    break
+            print(f"[terabox] remux piece {n}: {raw.stat().st_size / 1024 ** 2:.0f} MB .ts -> "
+                  f"{(mp4.stat().st_size if mp4.exists() else 0) / 1024 ** 2:.0f} MB mp4, "
+                  f"{_duration(str(mp4)) if mp4.exists() else 0:.0f}s; {r.stderr.strip()[-300:]}", flush=True)
             # mp4 is ~5-15 % smaller than the same .ts (no packet overhead); much less = it lost video
             if mp4.exists() and mp4.stat().st_size >= size * 0.75 and _duration(str(mp4)) > 1:
                 raw.unlink()
@@ -1105,6 +1116,9 @@ def _run_job_inner(app, message, url, meta, q, card) -> None:
                 return
             got = sum(getattr(m.video or m.document, "file_size", 0) or 0 for m in sent if m and (m.video or m.document))
             whole = got >= filepath.stat().st_size * 0.8 if filepath.exists() else True
+            if any(getattr(m, "document", None) and str(getattr(m.document, "file_name", "")).endswith(".ts")
+                   for m in sent if m):
+                whole = False   # a raw .ts piece (not playable in Telegram): make it fresh next time
             if not whole:   # the parts lost much of the file: never serve them again from the cache
                 print(f"[terabox] sent {got / 1024 ** 2:.0f} of {filepath.stat().st_size / 1024 ** 2:.0f} MB: not cached", flush=True)
             if not own_thumb and whole:

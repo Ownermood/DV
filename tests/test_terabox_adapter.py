@@ -105,7 +105,7 @@ def test_cache_roundtrip(monkeypatch):
     monkeypatch.setattr(kit, "state_get", lambda k, d=None: store.get(k, d))
     monkeypatch.setattr(kit, "state_set", lambda k, v: store.__setitem__(k, v))
     url = "https://terasharelink.com/s/18KnaRqYo1qA8Smga-tgQUQ"
-    assert tb._share_key(url) == "v3:8KnaRqYo1qA8Smga-tgQUQ"
+    assert tb._share_key(url) == "v4:8KnaRqYo1qA8Smga-tgQUQ"
     vid = types.SimpleNamespace(video=types.SimpleNamespace(file_id="F1"), document=None)
     tb._cache_put(url, [vid], "Movie.mkv")
     assert tb._cache_get("https://www.1024terabox.com/s/18KnaRqYo1qA8Smga-tgQUQ") == {"t": "Movie.mkv", "f": [("F1", "v")]}
@@ -301,3 +301,18 @@ def test_sent_files_go_to_log_channel(monkeypatch):
     app = NS(forward_messages=lambda to, frm, ids: fw.append((to, frm, ids)))
     tb._to_log_channel(app, 55, [NS(id=1), NS(id=2)])
     assert fw == [(-100777, 55, [1, 2])]
+
+
+def test_ts_byte_pieces_become_playable_mp4(tmp_path):
+    import shutil, subprocess
+    import pytest
+    from ADAPTERS import terabox as tb
+    if not shutil.which("ffmpeg"):
+        pytest.skip("ffmpeg not installed")
+    src = tmp_path / "Movie.ts"   # mp2 audio (no AAC filter) and pieces that start mid-stream
+    subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "testsrc=size=320x180:rate=25",
+                    "-f", "lavfi", "-i", "sine", "-t", "60", "-c:v", "libx264", "-preset", "ultrafast", "-g", "25",
+                    "-c:a", "mp2", "-f", "mpegts", str(src)], check=True)
+    parts = tb._split_ts_bytes(src, int(src.stat().st_size / 2.5))
+    assert [tb.Path(p).name for p in parts] == ["Movie - Part 1.mp4", "Movie - Part 2.mp4", "Movie - Part 3.mp4"]
+    assert sum(tb._duration(p) for p in parts) > 55
