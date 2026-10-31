@@ -81,6 +81,17 @@ def chosen_urls(job) -> list:
     return [u for k in sorted(job["sel"]) if k < len(b) for u in job["urls"][b[k][0]:b[k][1]]]
 
 
+def _all_parts(job) -> list:
+    """'All': every part, or as many from the start as fit in one run (max_count videos)."""
+    out, n = [], 0
+    for k, (a, b) in enumerate(_batches(job)):
+        if n + (b - a) > max_count():
+            break
+        out.append(k)
+        n += b - a
+    return out
+
+
 def _card(job):
     batches, chosen = _batches(job), chosen_urls(job)
     pages = max(1, -(-len(batches) // PAGE_BATCHES))
@@ -104,6 +115,9 @@ def _card(job):
             row = []
     if row:
         rows.append(row)
+    every = _all_parts(job)
+    all_label = f"All {len(job['urls'])}" if len(every) == len(batches) else f"First {max_count()}"
+    rows.append([pick(job["sel"] and sorted(job["sel"]) == every, "down", all_label, f"pl|{tok}|all")])
     if pages > 1:
         rows.append([btn("back", "Prev", cb=f"pl|{tok}|p|{(page - 1) % pages}", style=PLAIN),
                      btn("memo", f"{page + 1}/{pages}", cb=f"pl|{tok}|p|{page}", style=PLAIN),
@@ -249,6 +263,10 @@ def playlist_buttons(client, cq):
                     cq.answer(f"Max {max_count()} videos at once. Untick a part first.", show_alert=True)
                     raise RuntimeError("over the limit")
                 job["sel"].append(k)
+            edit(client, cq.message, lambda: _card(job))
+        elif action == "all":   # tap: every part (up to the limit) green; tap again: none
+            every = _all_parts(job)
+            job["sel"] = [] if sorted(job["sel"]) == every else list(every)
             edit(client, cq.message, lambda: _card(job))
         elif action == "show":   # "Choose Parts" on the done card
             edit(client, cq.message, lambda: _card(job))

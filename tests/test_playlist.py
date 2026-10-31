@@ -42,7 +42,7 @@ def test_parts_of_ten_and_pages():
 def test_card_colours_only_on_start_and_close():
     from pyrogram import enums
     rows = pl._card(_job(13))[1].inline_keyboard                         # as the card opens: only the quality is chosen
-    assert [len(r) for r in rows] == [2, 3, 3, 2]
+    assert [len(r) for r in rows] == [2, 1, 3, 3, 2]                  # parts / All / qualities / qualities / Start+Close
     start, close = rows[-1]
     assert start.style == enums.ButtonStyle.SUCCESS and close.style == enums.ButtonStyle.DANGER
     chosen = [b for r in rows[:-1] for b in r if b.style == enums.ButtonStyle.SUCCESS]
@@ -126,3 +126,23 @@ def test_playlist_videos_skip_the_per_minute_limit(monkeypatch):
     monkeypatch.setattr(ui, "_run_choice", lambda c, m, q: marks.append(getattr(m, "_playlist", False)))
     pl._run(None, _job(12, sel=[0, 1]), NS(delete=lambda: None))
     assert marks == [True] * 12                                            # url_distractor skips check_rate_limit
+
+
+def test_all_button(monkeypatch):
+    monkeypatch.setattr(pl, "edit", lambda *a, **k: None)
+    monkeypatch.setattr(pl, "max_count", lambda: 50)
+    labels = [b.text for r in pl._card(_job(13))[1].inline_keyboard for b in r]
+    assert "All 13" in labels
+    assert "First 50" in [b.text for r in pl._card(_job(182))[1].inline_keyboard for b in r]   # big list: one run max
+    job = _job(13)
+    pl._JOBS["tk"] = job
+    tap = lambda d: pl.playlist_buttons(None, NS(data=d, from_user=NS(id=7), message=NS(delete=lambda: None),
+                                                 answer=lambda *a, **k: None, stop_propagation=lambda: None))
+    tap("pl|tk|all")
+    assert job["sel"] == [0, 1] and len(pl.chosen_urls(job)) == 13          # all 13 chosen, green
+    tap("pl|tk|all")
+    assert job["sel"] == []                                                # tap again: none
+    big = _job(182)
+    pl._JOBS["tk"] = big
+    tap("pl|tk|all")
+    assert len(pl.chosen_urls(big)) == 50                                  # parts 1–50
