@@ -10,7 +10,6 @@ from pyrogram import enums, filters
 
 from CONFIG.config import Config
 from CONFIG.logger_msg import LoggerMsg, get_logger_msg
-from CONFIG.messages import safe_get_messages
 from COMMANDS.image_cmd import image_command
 from DATABASE.firebase_init import is_user_blocked
 from HELPERS.app_instance import get_app
@@ -61,10 +60,9 @@ def url_distractor(app, message):
             from HELPERS.rate_limiter import check_rate_limit
             allowed, rate_limit_msg = check_rate_limit(user_id, is_admin)
             if not allowed:
-                messages = safe_get_messages(user_id)
                 safe_send_message(
                     user_id,
-                    rate_limit_msg or messages.RATE_LIMIT_EXCEEDED_MSG if hasattr(messages, 'RATE_LIMIT_EXCEEDED_MSG') else "Rate limit exceeded. Please wait.",
+                    rate_limit_msg or "Rate limit exceeded. Please wait.",   # the real limit message first
                     message=message
                 )
                 return

@@ -9,7 +9,6 @@ class Messages(object):
     # Messages and errors
     #######################################################
     CREDITS_MSG = ""  # no upstream branding
-    TO_USE_MSG = "<i>To use this bot you need to subscribe to {required_channel} Telegram channel.</i>\nAfter you join the channel, <b>resend your video link again and bot will download it for you</b> ❤️\n\n<blockquote>P.S. Downloading 🔞NSFW content and files from ☁️Cloud Storage is paid! 1⭐️ = $0.02</blockquote>\n<blockquote>P.P.S. ‼️ Do not leave the channel - you will be banned from using the bot ⛔️</blockquote>"
 
     ERROR1 = "Did not found a url link. Please enter a url with <b>https://</b> or <b>http://</b>"
 
@@ -123,12 +122,10 @@ Use:
     ERROR_NO_DISK_SPACE_MSG = "❌ Not enough disk space to download videos."
     ERROR_FILE_SIZE_LIMIT_MSG = "❌ The file size exceeds the {limit} GB limit. Please select a smaller file within the allowed size."
 
-    ERROR_GETTING_LINK_MSG = "❌ <b>Error getting link:</b>\n{error}"
 
     # Telegram Rate Limit Messages
     
     # Subtitles Messages
-    SUBTITLES_FAILED_MSG = "⚠️ Failed to download subtitles"
 
     # Video Processing Messages
 
@@ -152,7 +149,6 @@ Use:
     PLAYLIST_CACHE_SENT_MSG = "✅ Sent from cache: {cached}/{total} files."
     
     # Failed Stream Messages
-    FAILED_STREAM_LINKS_MSG = "❌ Failed to get stream links"
 
     # new messages
     # Browser Cookie Messages
@@ -164,67 +160,19 @@ Use:
     BTN_CLOSE = "🔚Close"
     
     # Args command messages
-    ARGS_MENU_DESCRIPTION_MSG = "• ✅/❌ <b>Boolean</b> - True/False switches\n• 📋 <b>Select</b> - Choose from options\n• 🔢 <b>Numeric</b> - Number input\n• 📝🔧 <b>Text</b> - Text/JSON input</blockquote>\n\nThese settings will be applied to all your downloads."
     
     # Localized parameter names for display
-    ARGS_CONFIG_TITLE_MSG = "<b>⚙️ yt-dlp Arguments Configuration</b>\n\n<blockquote>📋 <b>Groups:</b>\n{groups_msg}"
     
     # Additional missing messages
 
     # Args command messages (continued)
-    ARGS_TEXT_TOO_LONG_MSG = "❌ Text too long. Maximum 500 characters."
-    ARGS_ERROR_PROCESSING_MSG = "❌ Error processing input. Please try again."
-    ARGS_BOOL_INPUT_MSG = "❌ Please enter 'True' or 'False' for Send As File option."
-    ARGS_INVALID_NUMBER_INPUT_MSG = "❌ Please provide a valid number."
     
     # Tags command messages
     
     # Subtitles command messages
-    SUBS_DISABLED_MSG = "✅ Subtitles disabled and Always Ask mode turned off."
-    SUBS_ALWAYS_ASK_ENABLED_MSG = "✅ SUBS Always Ask enabled."
-    SUBS_LANGUAGE_SET_MSG = "✅ Subtitle language set to: {flag} {name}"
-    SUBS_WARNING_MSG = (
-        "<blockquote>❗️WARNING: due to high CPU impact this function is very slow (near real-time) and limited to:\n"
-        "- 720p max quality\n"
-        "- 1.5 hour max duration\n"
-        "- 500mb max video size</blockquote>\n\n"
-    )
-    SUBS_QUICK_COMMANDS_MSG = (
-        "<b>Quick commands:</b>\n"
-        "• <code>/subs off</code> - disable subtitles\n"
-        "• <code>/subs on</code> - enable Always Ask mode\n"
-        "• <code>/subs ru</code> - set language\n"
-        "• <code>/subs ru auto</code> - set language with AUTO/TRANS"
-    )
-    SUBS_DISABLED_STATUS_MSG = "🚫 Subtitles are disabled"
-    SUBS_SELECTED_LANGUAGE_MSG = "{flag} Selected language: {name}{auto_text}"
     SUBS_SENT_MSG = "💬 Subtitles SRT-file sent to user."
     
     # Split command messages
-    SPLIT_SIZE_SET_MSG = "✅ Split part size set to: {size}"
-    SPLIT_INVALID_SIZE_MSG = (
-        "❌ **Invalid size!**\n\n"
-        "**Valid range:** 100MB to 2GB\n\n"
-        "**Valid formats:**\n"
-        "• `100mb` to `2000mb` (megabytes)\n"
-        "• `0.1gb` to `2gb` (gigabytes)\n\n"
-        "**Examples:**\n"
-        "• `/split 100mb` - 100 megabytes\n"
-        "• `/split 500mb` - 500 megabytes\n"
-        "• `/split 1.5gb` - 1.5 gigabytes\n"
-        "• `/split 2gb` - 2 gigabytes\n"
-        "• `/split 2000mb` - 2000 megabytes (2GB)\n\n"
-        "**Presets:**\n"
-        "• `/split 250mb`, `/split 500mb`, `/split 1gb`, `/split 1.5gb`, `/split 2gb`"
-    )
-    SPLIT_MENU_TITLE_MSG = (
-        "🎬 **Choose max part size for video splitting:**\n\n"
-        "**Range:** 100MB to 2GB\n\n"
-        "**Quick commands:**\n"
-        "• `/split 100mb` - `/split 2000mb`\n"
-        "• `/split 0.1gb` - `/split 2gb`\n\n"
-        "**Examples:** `/split 300mb`, `/split 1.2gb`, `/split 1500mb`"
-    )
     
     # Settings command messages
     
@@ -253,8 +201,6 @@ Use:
     NSFW_BLUR_SETTINGS_TITLE_MSG = "🔞 <b>NSFW Blur Settings</b>\n\nNSFW content is <b>{status}</b>.\n\nChoose whether to blur NSFW content:"
     
     # MediaInfo command messages
-    MEDIAINFO_ENABLED_MSG = "✅ MediaInfo {status}."
-    MEDIAINFO_MENU_TITLE_MSG = "Enable or disable sending MediaInfo for downloaded files?"
     
     # List command messages
     
@@ -335,87 +281,8 @@ Use:
     IMG_SELECT_DOWNLOAD_RANGE_MSG = "Select download range:"
     
     # Args command parameter descriptions
-    ARGS_IMPERSONATE_DESC_MSG = "Browser impersonation"
-    ARGS_REFERER_DESC_MSG = "Referer header"
-    ARGS_USER_AGENT_DESC_MSG = "User-Agent header"
-    ARGS_GEO_BYPASS_DESC_MSG = "Bypass geographic restrictions"
-    ARGS_CHECK_CERTIFICATE_DESC_MSG = "Check SSL certificate"
-    ARGS_LIVE_FROM_START_DESC_MSG = "Download live streams from start"
-    ARGS_NO_LIVE_FROM_START_DESC_MSG = "Do not download live streams from start"
-    ARGS_HLS_USE_MPEGTS_DESC_MSG = "Use MPEG-TS container for HLS videos"
-    ARGS_NO_PLAYLIST_DESC_MSG = "Download only single video, not playlist"
-    ARGS_NO_PART_DESC_MSG = "Do not use .part files"
-    ARGS_NO_CONTINUE_DESC_MSG = "Do not resume partial downloads"
-    ARGS_AUDIO_FORMAT_DESC_MSG = "Audio format for extraction"
-    ARGS_EMBED_METADATA_DESC_MSG = "Embed metadata in video file"
-    ARGS_EMBED_THUMBNAIL_DESC_MSG = "Embed thumbnail in video file"
-    ARGS_WRITE_THUMBNAIL_DESC_MSG = "Write thumbnail to file"
-    ARGS_CONCURRENT_FRAGMENTS_DESC_MSG = "Number of concurrent fragments to download"
-    ARGS_FORCE_IPV4_DESC_MSG = "Force IPv4 connections"
-    ARGS_FORCE_IPV6_DESC_MSG = "Force IPv6 connections"
-    ARGS_XFF_DESC_MSG = "X-Forwarded-For header strategy"
-    ARGS_HTTP_CHUNK_SIZE_DESC_MSG = "HTTP chunk size (bytes)"
-    ARGS_SLEEP_SUBTITLES_DESC_MSG = "Sleep before subtitle download (seconds)"
-    ARGS_LEGACY_SERVER_CONNECT_DESC_MSG = "Allow legacy server connections"
-    ARGS_NO_CHECK_CERTIFICATES_DESC_MSG = "Suppress HTTPS certificate validation"
-    ARGS_USERNAME_DESC_MSG = "Account username"
-    ARGS_PASSWORD_DESC_MSG = "Account password"
-    ARGS_TWOFACTOR_DESC_MSG = "Two-factor authentication code"
-    ARGS_IGNORE_ERRORS_DESC_MSG = "Ignore download errors and continue"
-    ARGS_MIN_FILESIZE_DESC_MSG = "Minimum file size (MB)"
-    ARGS_MAX_FILESIZE_DESC_MSG = "Maximum file size (MB)"
-    ARGS_PLAYLIST_ITEMS_DESC_MSG = "Playlist items to download (e.g., 1,3,5 or 1-5)"
-    ARGS_DATE_DESC_MSG = "Download videos uploaded on this date (YYYYMMDD)"
-    ARGS_DATEBEFORE_DESC_MSG = "Download videos uploaded before this date (YYYYMMDD)"
-    ARGS_DATEAFTER_DESC_MSG = "Download videos uploaded after this date (YYYYMMDD)"
-    ARGS_HTTP_HEADERS_DESC_MSG = "Custom HTTP headers (JSON)"
-    ARGS_SLEEP_INTERVAL_DESC_MSG = "Sleep interval between requests (seconds)"
-    ARGS_MAX_SLEEP_INTERVAL_DESC_MSG = "Maximum sleep interval (seconds)"
-    ARGS_RETRIES_DESC_MSG = "Number of retries"
-    ARGS_VIDEO_FORMAT_DESC_MSG = "Video container format"
-    ARGS_MERGE_OUTPUT_FORMAT_DESC_MSG = "Output container format for merging"
-    ARGS_SEND_AS_FILE_DESC_MSG = "Send all media as document instead of media"
     
     # Args command short descriptions
-    ARGS_IMPERSONATE_SHORT_MSG = "Impersonate"
-    ARGS_REFERER_SHORT_MSG = "Referer"
-    ARGS_GEO_BYPASS_SHORT_MSG = "Geo Bypass"
-    ARGS_CHECK_CERTIFICATE_SHORT_MSG = "Check Cert"
-    ARGS_LIVE_FROM_START_SHORT_MSG = "Live Start"
-    ARGS_NO_LIVE_FROM_START_SHORT_MSG = "No Live Start"
-    ARGS_USER_AGENT_SHORT_MSG = "User Agent"
-    ARGS_HLS_USE_MPEGTS_SHORT_MSG = "HLS MPEG-TS"
-    ARGS_NO_PLAYLIST_SHORT_MSG = "No Playlist"
-    ARGS_NO_PART_SHORT_MSG = "No Part"
-    ARGS_NO_CONTINUE_SHORT_MSG = "No Continue"
-    ARGS_AUDIO_FORMAT_SHORT_MSG = "Audio Format"
-    ARGS_EMBED_METADATA_SHORT_MSG = "Embed Meta"
-    ARGS_EMBED_THUMBNAIL_SHORT_MSG = "Embed Thumb"
-    ARGS_WRITE_THUMBNAIL_SHORT_MSG = "Write Thumb"
-    ARGS_CONCURRENT_FRAGMENTS_SHORT_MSG = "Concurrent"
-    ARGS_FORCE_IPV4_SHORT_MSG = "Force IPv4"
-    ARGS_FORCE_IPV6_SHORT_MSG = "Force IPv6"
-    ARGS_XFF_SHORT_MSG = "XFF Header"
-    ARGS_HTTP_CHUNK_SIZE_SHORT_MSG = "Chunk Size"
-    ARGS_SLEEP_SUBTITLES_SHORT_MSG = "Sleep Subs"
-    ARGS_LEGACY_SERVER_CONNECT_SHORT_MSG = "Legacy Connect"
-    ARGS_NO_CHECK_CERTIFICATES_SHORT_MSG = "No Check Cert"
-    ARGS_USERNAME_SHORT_MSG = "Username"
-    ARGS_PASSWORD_SHORT_MSG = "Password"
-    ARGS_TWOFACTOR_SHORT_MSG = "2FA"
-    ARGS_IGNORE_ERRORS_SHORT_MSG = "Ignore Errors"
-    ARGS_MIN_FILESIZE_SHORT_MSG = "Min Size"
-    ARGS_MAX_FILESIZE_SHORT_MSG = "Max Size"
-    ARGS_PLAYLIST_ITEMS_SHORT_MSG = "Playlist Items"
-    ARGS_DATE_SHORT_MSG = "Date"
-    ARGS_DATEBEFORE_SHORT_MSG = "Date Before"
-    ARGS_DATEAFTER_SHORT_MSG = "Date After"
-    ARGS_HTTP_HEADERS_SHORT_MSG = "HTTP Headers"
-    ARGS_SLEEP_INTERVAL_SHORT_MSG = "Sleep Interval"
-    ARGS_MAX_SLEEP_INTERVAL_SHORT_MSG = "Max Sleep"
-    ARGS_VIDEO_FORMAT_SHORT_MSG = "Video Format"
-    ARGS_MERGE_OUTPUT_FORMAT_SHORT_MSG = "Merge Format"
-    ARGS_SEND_AS_FILE_SHORT_MSG = "Send As File"
     
     # Additional cookies command messages
     COOKIES_FILE_EXISTS_MSG = "✅ Cookie file exists and has correct format"
@@ -432,8 +299,6 @@ Use:
     # Additional keyboard command messages
     
     # Additional subtitles command messages
-    SUBS_LANGUAGE_SET_MSG = "✅ Subtitle language set to: {flag} {name}"
-    SUBS_LANGUAGE_AUTO_SET_MSG = "✅ Subtitle language set to: {flag} {name} with AUTO/TRANS enabled."
     
     # Additional admin command messages
     ADMIN_RELOADING_CACHE_MSG = "🔄 Reloading Firebase cache into memory..."
@@ -450,10 +315,8 @@ Use:
     # Additional split command messages
     
     # Additional error messages
-    MEDIAINFO_ERROR_SENDING_MSG = "❌ Error sending MediaInfo: {error}"
     
     # Additional document caption messages
-    MEDIAINFO_DOCUMENT_CAPTION_MSG = "<blockquote>📊 MediaInfo</blockquote>"
     
     # Additional cookies command messages (missing ones)
     DOWNLOAD_FROM_URL_BUTTON_MSG = "📥 Download from Remote URL"
@@ -483,42 +346,22 @@ Use:
     OTHER_TAG_ERROR_MSG = "❌ Tag #{wrong} contains forbidden characters. Only letters, digits and _ are allowed.\nPlease use: {example}"
     
     # Additional subtitles command messages
-    SUBS_INVALID_ARGUMENT_MSG = "❌ **Invalid argument!**\n\n"
     
     # Additional subtitles command messages (more)
-    SUBS_EXAMPLE_AUTO_MSG = "Example: `/subs en auto`"
     
     # Additional subtitles command messages (more more)
-    SUBS_SELECTED_LANGUAGE_MSG = "{flag} Selected language: {name}{auto_text}"
     
     # Additional subtitles menu messages
-    SUBS_DISABLED_STATUS_MSG = "🚫 Subtitles are disabled"
-    SUBS_SETTINGS_MENU_MSG = "<b>💬 Subtitle settings</b>\n\n{status_text}\n\nSelect subtitle language:\n\n"
-    SUBS_SETTINGS_ADDITIONAL_MSG = "• <code>/subs off</code> - disable subtitles\n"
     
     # Additional link command messages (more)
     
     # Additional subtitles limitation messages
-    SUBS_LIMITATIONS_MSG = "- 720p max quality\n- 1.5 hour max duration\n- 500mb max video size</blockquote>\n\n"
     
     # Additional subtitles warning and command messages
-    SUBS_WARNING_MSG = "<blockquote>❗️WARNING: due to high CPU impact this function is very slow (near real-time) and limited to:\n"
-    SUBS_QUICK_COMMANDS_MSG = "<b>Quick commands:</b>\n"
     
     # Additional subtitles command description messages
-    SUBS_DISABLE_COMMAND_MSG = "• `/subs off` - disable subtitles\n"
-    SUBS_ENABLE_ASK_MODE_MSG = "• `/subs on` - enable Always Ask mode\n"
-    SUBS_SET_LANGUAGE_MSG = "• `/subs ru` - set language\n"
-    SUBS_SET_LANGUAGE_AUTO_MSG = "• `/subs ru auto` - set language with AUTO/TRANS enabled\n\n"
-    SUBS_SET_LANGUAGE_CODE_MSG = "• <code>/subs on</code> - enable Always Ask mode\n"
-    SUBS_AUTO_SUBS_TEXT = " (auto-subs)"
     
     # Subtitles log messages
-    SUBS_DISABLED_LOG_MSG = "SUBS disabled via command: {arg}"
-    SUBS_ALWAYS_ASK_ENABLED_LOG_MSG = "SUBS Always Ask enabled via command: {arg}"
-    SUBS_LANGUAGE_SET_LOG_MSG = "SUBS language set via command: {arg}"
-    SUBS_LANGUAGE_AUTO_SET_LOG_MSG = "SUBS language + auto mode set via command: {arg} auto"
-    SUBS_MENU_OPENED_LOG_MSG = "User opened /subs menu."
     
     # Cookies log messages
     COOKIES_BROWSER_REQUESTED_LOG_MSG = "User requested cookies from browser."
@@ -550,12 +393,8 @@ Use:
     # Keyboard log messages
     
     # MediaInfo log messages
-    MEDIAINFO_SET_COMMAND_LOG_MSG = "MediaInfo set via command: {arg}"
-    MEDIAINFO_MENU_OPENED_LOG_MSG = "User opened /mediainfo menu."
     
     # Split log messages
-    SPLIT_SIZE_SET_ARGUMENT_LOG_MSG = "Split size set to {size} bytes via argument."
-    SPLIT_MENU_OPENED_LOG_MSG = "User opened /split menu."
     
     # Proxy log messages
     PROXY_SET_COMMAND_LOG_MSG = "Proxy set via command: {arg}"
@@ -565,7 +404,6 @@ Use:
     AUDIO_HELP_SHOWN_LOG_MSG = "Showed /audio help"
     
     # Down and Up log messages
-    SUBTITLES_NEXT_BUTTON_MSG = "Next ➡️"
     SENDER_VIDEO_DURATION_MSG = "Video duration:"
     SENDER_UPLOADING_FILE_MSG = "📤 Uploading file..."
     SENDER_UPLOADING_VIDEO_MSG = "📤 Uploading Video..."
@@ -577,7 +415,6 @@ Use:
     DOWN_UP_ID_MSG = "ID"
     DOWN_UP_DOWNLOADED_VIDEO_MSG = "☑️ Downloaded video."
     DOWN_UP_PROCESSING_UPLOAD_MSG = "📤 Processing for upload..."
-    DOWN_UP_SPLITTED_PART_UPLOADED_MSG = "📤 Splitted part {part} file uploaded"
     DOWN_UP_UPLOAD_COMPLETE_MSG = "✅ Upload complete"
     DOWN_UP_FILES_UPLOADED_MSG = "files uploaded"
     
@@ -591,10 +428,6 @@ Use:
     ALWAYS_ASK_DOWNLOADING_FORMAT_USING_MSG = "📥 Downloading using format:"
     ALWAYS_ASK_DOWNLOADING_AUDIO_FORMAT_USING_MSG = "📥 Downloading audio using format:"
     ALWAYS_ASK_DOWNLOADING_DATABASE_MSG = "📥 Downloading database dump..."
-    DIRECT_LINK_EXTRACTED_DOWN_UP_LOG_MSG = "Direct link extracted via down_and_up_with_format for user {user_id} from {url}"
-    DIRECT_LINK_FAILED_DOWN_UP_LOG_MSG = "Failed to extract direct link via down_and_up_with_format for user {user_id} from {url}: {error}"
-    DIRECT_LINK_EXTRACTED_DOWN_AUDIO_LOG_MSG = "Direct link extracted via down_and_audio for user {user_id} from {url}"
-    DIRECT_LINK_FAILED_DOWN_AUDIO_LOG_MSG = "Failed to extract direct link via down_and_audio for user {user_id} from {url}: {error}"
     
     # Audio processing messages
     AUDIO_SENT_FROM_CACHE_MSG = "✅ Audio sent from cache."
@@ -635,17 +468,9 @@ Use:
     AV1_NOT_AVAILABLE_FORMAT_SELECT_MSG = "Please select a different format using `/format` command."
     
     # Direct Link Messages
-    DIRECT_LINK_OBTAINED_MSG = "🔗 <b>Direct link obtained</b>\n\n"
-    TITLE_FIELD_MSG = "📹 <b>Title:</b> {title}\n"
-    DURATION_FIELD_MSG = "⏱ <b>Duration:</b> {duration} sec\n"
-    FORMAT_FIELD_MSG = "🎛 <b>Format:</b> <code>{format_spec}</code>\n\n"
-    VIDEO_STREAM_FIELD_MSG = "🎬 <b>Video stream:</b>\n<blockquote expandable><a href=\"{video_url}\">{video_url}</a></blockquote>\n\n"
-    AUDIO_STREAM_FIELD_MSG = "🎵 <b>Audio stream:</b>\n<blockquote expandable><a href=\"{audio_url}\">{audio_url}</a></blockquote>\n\n"
     
     # Processing Error Messages
     FILE_PROCESSING_ERROR_INVALID_CHARS_MSG = "❌ **File Processing Error**\n\nThe video was downloaded but couldn't be processed due to invalid characters in the filename.\n\n"
-    FILE_PROCESSING_ERROR_INVALID_ARG_MSG = "❌ **File Processing Error**\n\nThe video was downloaded but couldn't be processed due to an invalid argument error.\n\n"
-    FORMAT_NOT_AVAILABLE_MSG = "❌ **Format Not Available**\n\nThe requested video format is not available for this video.\n\n"
     FORMAT_ID_NOT_FOUND_MSG = "❌ Format ID {format_id} not found for this video.\n\nAvailable format IDs: {available_ids}\n"
     AV1_FORMAT_NOT_AVAILABLE_MSG = "❌ **AV1 format is not available for this video.**\n\n**Available formats:**\n{formats_text}\n\n"
     
@@ -673,26 +498,14 @@ Use:
     SKIPPING_UNSUPPORTED_FILE_TYPE_MSG = "Skipping unsupported file type in playlist at index {index}"
     FFMPEG_NOT_FOUND_MSG = "❌ FFmpeg not found. Please install FFmpeg."
     CONVERSION_TO_MP4_FAILED_MSG = "❌ Conversion to MP4 failed: {error}"
-    EMBEDDING_SUBTITLES_WARNING_MSG = "⚠️ Embedding subtitles may take a long time (up to 1 min per 1 min of video)!\n🔥 Starting to burn subtitles..."
-    SUBTITLES_CANNOT_EMBED_LIMITS_MSG = "ℹ️ Subtitles cannot be embedded due to limits (quality/duration/size)"
-    SUBTITLES_NOT_AVAILABLE_LANGUAGE_MSG = "ℹ️ Subtitles are not available for the selected language"
     ERROR_SENDING_VIDEO_MSG = "❌ Error sending video: {error}"
     PLAYLIST_VIDEOS_SENT_MSG = "✅ Playlist videos sent: {sent}/{total} files."
-    DOWNLOAD_CANCELLED_TIMEOUT_MSG = "⏰ Download cancelled due to timeout (2 hours)"
-    FAILED_DOWNLOAD_VIDEO_MSG = "❌ Failed to download video: {error}"
     
     # Args command error messages
-    ARGS_JSON_MUST_BE_OBJECT_MSG = "❌ JSON must be an object (dictionary)."
-    ARGS_INVALID_JSON_FORMAT_MSG = "❌ Invalid JSON format. Please provide valid JSON."
-    ARGS_VALUE_MUST_BE_BETWEEN_MSG = "❌ Value must be between {min_val} and {max_val}."
-    ARGS_PARAM_SET_TO_MSG = "✅ {description} set to: <code>{value}</code>"
     
     # Args command button texts
-    ARGS_CLOSE_BUTTON_MSG = "🔚 Close"
     
     # Args command status texts
-    ARGS_STATUS_TRUE_MSG = "✅"
-    ARGS_STATUS_FALSE_MSG = "❌"
     
     # Boolean values for import/export (all possible variations)
     
@@ -703,8 +516,6 @@ Use:
     DOWN_UP_NO_VIDEOS_PLAYLIST_MSG = "❌ No videos found in playlist at index {index}."
     DOWN_UP_VIDEO_CONVERSION_FAILED_INVALID_MSG = "❌ **Video Conversion Failed**\n\nThe video couldn't be converted to MP4 due to an invalid argument error.\n\n"
     DOWN_UP_VIDEO_CONVERSION_FAILED_MSG = "❌ **Video Conversion Failed**\n\nThe video couldn't be converted to MP4.\n\n"
-    DOWN_UP_FAILED_STREAM_LINKS_MSG = "❌ Failed to get stream links"
-    DOWN_UP_ERROR_GETTING_LINK_MSG = "❌ <b>Error getting link:</b>\n{error_msg}"
     DOWN_UP_NO_CONTENT_FOUND_MSG = "❌ No content found at index {index}"
 
     # Always Ask Menu error messages
@@ -724,18 +535,10 @@ Use:
     PROXY_CLOSE_BUTTON_MSG = "🔚Close"
     
     # MediaInfo command button texts
-    MEDIAINFO_ON_BUTTON_MSG = "✅ ON"
-    MEDIAINFO_OFF_BUTTON_MSG = "❌ OFF"
-    MEDIAINFO_CLOSE_BUTTON_MSG = "🔚Close"
     
     # Format command button texts
     
     # Subtitles command button texts
-    SUBS_LANGUAGE_CHECKMARK_MSG = "✅ "
-    SUBS_AUTO_EMOJI_MSG = "✅"
-    SUBS_AUTO_EMOJI_INACTIVE_MSG = "☑️"
-    SUBS_ALWAYS_ASK_EMOJI_MSG = "✅"
-    SUBS_ALWAYS_ASK_EMOJI_INACTIVE_MSG = "☑️"
     
     # NSFW command button texts
     NSFW_ON_NO_BLUR_MSG = "✅ ON (No Blur)"
@@ -761,18 +564,8 @@ Use:
     # Keyboard command additional messages
     
     # Link command additional messages
-    LINK_USING_WORKING_YOUTUBE_COOKIES_MSG = "Using working YouTube cookies for link extraction for user {user_id}"
-    LINK_NO_WORKING_YOUTUBE_COOKIES_MSG = "No working YouTube cookies available for link extraction for user {user_id}"
-    LINK_USING_EXISTING_YOUTUBE_COOKIES_MSG = "Using existing YouTube cookies for link extraction for user {user_id}"
-    LINK_NO_YOUTUBE_COOKIES_FOUND_MSG = "No YouTube cookies found for link extraction for user {user_id}"
-    LINK_COPIED_GLOBAL_COOKIE_FILE_MSG = "Copied global cookie file to user {user_id} folder for link extraction"
     
     # MediaInfo command additional messages
-    MEDIAINFO_USER_REQUESTED_MSG = "[MEDIAINFO] User {user_id} requested mediainfo command"
-    MEDIAINFO_USER_IS_ADMIN_MSG = "[MEDIAINFO] User {user_id} is admin: {is_admin}"
-    MEDIAINFO_USER_IS_IN_CHANNEL_MSG = "[MEDIAINFO] User {user_id} is in channel: {is_in_channel}"
-    MEDIAINFO_ACCESS_DENIED_MSG = "[MEDIAINFO] User {user_id} access denied - not admin and not in channel"
-    MEDIAINFO_ACCESS_GRANTED_MSG = "[MEDIAINFO] User {user_id} access granted"
     
     # URL Parser error messages
     
@@ -788,8 +581,6 @@ Use:
     DB_DATABASE_URL_NOT_SET_MSG = "❌ FIREBASE_CONF.databaseURL is not set"
     DB_API_KEY_NOT_SET_MSG = "❌ FIREBASE_CONF.apiKey is not set for getting idToken"
     DB_ERROR_DOWNLOADING_DUMP_MSG = "❌ Error downloading Firebase dump: {error}"
-    DB_FAILED_DOWNLOAD_DUMP_REST_MSG = "❌ Failed to download Firebase dump via REST"
-    DB_ERROR_DOWNLOAD_RELOAD_CACHE_MSG = "❌ Error in _download_and_reload_cache: {error}"
     DB_ERROR_RUNNING_AUTO_RELOAD_MSG = "❌ Error running auto reload_cache (attempt {attempt}/{max_retries}): {error}"
     DB_ALL_RETRY_ATTEMPTS_FAILED_MSG = "❌ All retry attempts failed"
     DB_STARTING_FIREBASE_DUMP_MSG = "🔄 Starting Firebase dump download at {datetime}"
@@ -820,7 +611,6 @@ Use:
     # Restore from backup messages
     
     # Image command messages
-    IMG_INSTAGRAM_AUTH_ERROR_MSG = "❌ <b>{error_type}</b>\n\n<b>URL:</b> <code>{url}</code>\n\n<b>Details:</b> {error_details}\n\nDownload stopped due to critical error.\n\n💡 <b>Tip:</b> If you're getting 401 Unauthorized error, try using <code>/cookie instagram</code> command or send your own cookies to authenticate with Instagram."
     
     # Porn filter messages
     
@@ -835,7 +625,6 @@ Use:
     URL_PARSER_USER_ENTERED_INVALID_MSG = "<b>User entered like this:</b> {input}\n{error_msg}"
     
     # Channel subscription messages
-    CHANNEL_JOIN_BUTTON_MSG = "Join Channel"
     
     # Handler registry messages
     
@@ -908,13 +697,8 @@ Use:
     GALLERY_DL_FALLBACK_METADATA_MSG = "Fallback metadata from --get-urls: total={total}"
     GALLERY_DL_ALL_STRATEGIES_FAILED_MSG = "All strategies failed to obtain metadata"
     GALLERY_DL_FAILED_EXTRACT_IMAGE_INFO_MSG = "Failed to extract image info: {error}"
-    GALLERY_DL_JOB_MODULE_NOT_FOUND_MSG = "gallery_dl.job module not found (broken install?)"
-    GALLERY_DL_DOWNLOAD_JOB_NOT_AVAILABLE_MSG = "gallery_dl.job.DownloadJob not available in this build"
-    GALLERY_DL_SEARCHING_DOWNLOADED_FILES_MSG = "Searching for downloaded files in gallery-dl directory"
-    GALLERY_DL_TRYING_FIND_FILES_BY_NAMES_MSG = "Trying to find files by names from extractor"
     
     # Sender messages
-    SENDER_ERROR_READING_USER_ARGS_MSG = "Error reading user args for {user_id}: {error}"
     SENDER_FFPROBE_BYPASS_ERROR_MSG = "[FFPROBE BYPASS] Error while processing video{video_path}: {error}"
     SENDER_USER_SEND_AS_FILE_ENABLED_MSG = "User {user_id} has send_as_file enabled, sending as document"
     SENDER_SEND_VIDEO_TIMED_OUT_MSG = "send_video timed out repeatedly; falling back to send_document"
@@ -1024,6 +808,7 @@ Use:
     GALLERY_DL_ACCOUNT_NOT_FOUND_MSG = "Account Not Found"
     GALLERY_DL_ACCOUNT_UNAVAILABLE_MSG = "Account Unavailable"
     GALLERY_DL_RATE_LIMIT_EXCEEDED_MSG = "Rate Limit Exceeded"
+    GALLERY_DL_INSTAGRAM_AUTH_ERROR_MSG = "Authentication Error"   # was used but never defined
     GALLERY_DL_NETWORK_ERROR_MSG = "Network Error"
     GALLERY_DL_CONTENT_UNAVAILABLE_MSG = "Content Unavailable"
     GALLERY_DL_GEOGRAPHIC_RESTRICTIONS_MSG = "Geographic Restrictions"
@@ -1034,7 +819,6 @@ Use:
     # Download started message (used in both audio and video downloads)
     
     # Split command constants
-    SPLIT_CLOSE_BUTTON_MSG = "🔚Close"
     
     # Always ask menu constants
     
@@ -1051,11 +835,6 @@ Use:
     # Cookie cache messages
     
     # Subtitles Command Messages
-    SUBS_PREV_BUTTON_MSG = "⬅️ Prev"
-    SUBS_OFF_BUTTON_MSG = "🚫 OFF"
-    SUBS_SET_LANGUAGE_MSG = "• <code>/subs ru</code> - set language"
-    SUBS_SET_LANGUAGE_AUTO_MSG = "• <code>/subs ru auto</code> - set language with AUTO/TRANS"
-    SUBS_VALID_OPTIONS_MSG = "Valid options:"
     
     # Settings Command Messages
     
@@ -1074,13 +853,6 @@ Use:
     COOKIES_YOUR_OWN_BUTTON_MSG = "📝 Your Own"
     
     # Args Command Messages
-    ARGS_RESET_ALL_BUTTON_MSG = "🔄 Reset All"
-    ARGS_VIEW_CURRENT_BUTTON_MSG = "📋 View Current"
-    ARGS_FAILED_RECOGNIZE_MSG = "❌ Failed to recognize settings in message. Make sure you sent a correct settings template."
-    ARGS_SUCCESSFULLY_IMPORTED_MSG = "✅ Settings successfully imported!\n\nApplied parameters: {applied_count}\n\n"
-    ARGS_KEY_SETTINGS_MSG = "Key settings:\n"
-    ARGS_ERROR_SAVING_MSG = "❌ Error saving imported settings."
-    ARGS_ERROR_IMPORTING_MSG = "❌ An error occurred while importing settings."
 
     # Cookie command menu messages
     COOKIE_MENU_TITLE_MSG = "🍪 <b>Download Cookie Files</b>"
@@ -1092,8 +864,6 @@ Use:
     COOKIE_MENU_TIP_VERIFY_MSG = "Then verify with <code>/check_cookie</code> (tests on RickRoll)."
 
     # Subs command button messages
-    SUBS_ALWAYS_ASK_BUTTON_MSG = "Always Ask"
-    SUBS_AUTO_TRANS_BUTTON_MSG = "AUTO/TRANS"
 
     # Always Ask menu button messages
 

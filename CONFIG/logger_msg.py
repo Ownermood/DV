@@ -39,7 +39,6 @@ class LoggerMsg(object):
 
     # Cache and sends
     PLAYLIST_VIDEOS_SENT_FROM_CACHE = "Playlist videos sent from cache (quality={quality}) to user {user_id}"
-    VIDEO_SENT_FROM_CACHE = "Video sent from cache (quality={quality}) to user {user_id}"
     PLAYLIST_AUDIO_SENT_FROM_CACHE = "Playlist audio sent from cache (quality={quality}) to user {user_id}"
     AUDIO_SENT_FROM_CACHE = "Audio sent from cache (quality={quality}) to user {user_id}"
 
@@ -259,10 +258,6 @@ class LoggerMsg(object):
     DB_NORMALIZED_PLAYLIST_URLS_LOG_MSG = "Normalized playlist URLs: {urls}"
     
     # Limitter helper logs
-    LIMITTER_CHANNEL_CHECK_MEMBERSHIP_LOG_MSG = "[CHANNEL_CHECK] Checking membership for user {user_id} in channel {channel}"
-    LIMITTER_CHANNEL_CHECK_STATUS_LOG_MSG = "[CHANNEL_CHECK] User {user_id} status: {status}"
-    LIMITTER_CHANNEL_CHECK_IS_MEMBER_LOG_MSG = "[CHANNEL_CHECK] User {user_id} is member of channel"
-    LIMITTER_CHANNEL_CHECK_NOT_MEMBER_LOG_MSG = "[CHANNEL_CHECK] User {user_id} is not member of channel"
     LIMITTER_CHANNEL_CHECK_ERROR_LOG_MSG = "Error checking channel membership for user {user_id}: {error}"
     LIMITTER_SUBTITLE_LIMITS_CHECK_PASSED_LOG_MSG = "Subtitle limits check passed: duration={duration}s, size={size} bytes, quality={width}x{height}"
     LIMITTER_SUBTITLE_LIMITS_CHECK_ERROR_LOG_MSG = "Error checking subtitle limits: {error}"
@@ -286,10 +281,6 @@ class LoggerMsg(object):
     FILESYSTEM_FILES_BEFORE_CLEANUP_LOG_MSG = "Files in {user_dir} before cleanup: {files}"
     FILESYSTEM_ERROR_LISTING_FILES_LOG_MSG = "Error listing files in {user_dir}: {error}"
     FILESYSTEM_REMOVED_TEMP_FILE_LOG_MSG = "Removed temp file: {filename}"
-    FILESYSTEM_CLEANING_SUBTITLE_FILES_LOG_MSG = "Cleaning up subtitle files for user {user_id}"
-    FILESYSTEM_REMOVED_SUBTITLE_FILE_LOG_MSG = "Removed subtitle file: {filename}"
-    FILESYSTEM_FAILED_REMOVE_SUBTITLE_FILE_LOG_MSG = "Failed to remove subtitle file {filename}: {error}"
-    FILESYSTEM_ERROR_CLEANING_SUBTITLE_FILES_LOG_MSG = "Error cleaning subtitle files for user {user_id}: {error}"
     FILESYSTEM_ERROR_CHECKING_DISK_SPACE_LOG_MSG = "Error checking disk space: {error}"
     FILESYSTEM_DIRECTORY_NOT_EXISTS_LOG_MSG = "Directory {directory} does not exist, nothing to remove"
     FILESYSTEM_REMOVED_FILE_LOG_MSG = "Removed file: {file_path}"
@@ -306,10 +297,6 @@ class LoggerMsg(object):
     FILESYSTEM_ERROR_CHECKING_PARALLEL_PERMISSION_LOG_MSG = "Error checking parallel download permission: {error}"
     
     # Args command logs
-    ARGS_ERROR_READING_USER_ARGS_LOG_MSG = "Error reading user args for {user_id}: {error}"
-    ARGS_ERROR_SAVING_USER_ARGS_LOG_MSG = "Error saving user args for {user_id}: {error}"
-    ARGS_ERROR_HANDLING_TEXT_INPUT_LOG_MSG = "Error handling args text input: {error}"
-    ARGS_CRITICAL_ERROR_LOG_MSG = "args_text_handler critical error: {error}"
     
     # Cookies command logs
     COOKIES_ERROR_PROCESSING_SOURCE_LOG_MSG = "Error processing cookie source {idx} for user {user_id}: {error}"
@@ -317,7 +304,6 @@ class LoggerMsg(object):
     # Format command logs
     
     # Always ask menu logs
-    ALWAYS_ASK_ERROR_READING_USER_ARGS_LOG_MSG = "Error reading user args for {user_id}: {error}"
     
     # Down and up logs
     DOWN_UP_SKIPPING_CACHE_SEND_AS_FILE_LOG_MSG = "[VIDEO CACHE] Skipping cache save for user {user_id} with send_as_file enabled: url={url}, quality={quality}"
@@ -378,33 +364,6 @@ class LoggerMsg(object):
     # Always Ask Menu Log Messages
     
     # Subtitles Command Log Messages
-    SUBS_429_TOO_MANY_REQUESTS_LOG_MSG = "429 Too Many Requests (attempt {attempt+1}/{MAX_RETRIES})"
-    SUBS_FINAL_ATTEMPT_FAILED_429_LOG_MSG = "Final attempt failed due to 429"
-    SUBS_DOWNLOAD_ERROR_LOG_MSG = "DownloadError: {e}"
-    SUBS_UNEXPECTED_ERROR_LOG_MSG = "Unexpected error (attempt {attempt+1}/{MAX_RETRIES}): {e}"
-    SUBS_VALID_SUBTITLES_LOG_MSG = "Valid subtitles ({subs_lang}), size={os.path.getsize(dst)}"
-    SUBS_DOWNLOADED_TRACK_INVALID_LOG_MSG = "Downloaded track invalid after clean/convert"
-    SUBS_COULD_NOT_DOWNLOAD_LOG_MSG = "Could not download/too small -> None"
-    SUBS_NO_TRACK_URL_FOUND_LOG_MSG = "No track URL found in info for selected language"
-    SUBS_NO_SUBTITLES_AVAILABLE_LOG_MSG = "No subtitles available for {subs_lang}"
-    SUBS_LANGUAGE_NOT_FOUND_LOG_MSG = "Language {subs_lang} not found in {available_langs}"
-    SUBS_TIMEDTEXT_429_LOG_MSG = "timedtext 429 ({url_tt}), sleep a bit"
-    SUBS_TIMEDTEXT_HTTP_ERROR_LOG_MSG = "timedtext HTTP {r.status_code} ({url_tt})"
-    SUBS_FORCE_FIX_ARABIC_ENCODING_LOG_MSG = "force_fix_arabic_encoding: {srt_path} re-encoded from {best_enc} -> utf-8"
-    SUBS_FORCE_FIX_ARABIC_ENCODING_ERROR_LOG_MSG = "force_fix_arabic_encoding error {srt_path}: {e}"
-    SUBS_429_TOO_MANY_REQUESTS_SLEEP_LOG_MSG = "429 Too Many Requests (attempt {attempt+1}/{MAX_RETRIES}) sleep {delay:.1f}s"
-    SUBS_DOWNLOAD_ERROR_GETTING_SUBTITLES_LOG_MSG = "DownloadError while getting subtitles: {e}"
-    SUBS_UNEXPECTED_ERROR_GETTING_SUBTITLES_LOG_MSG = "Unexpected error getting subtitles: {e}"
-    SUBS_PLAYER_CLIENT_NO_CAPTIONS_LOG_MSG = "player_client={client or 'default'} has no captions, trying next..."
-    SUBS_YOUTUBE_PLAYER_CLIENT_RETURNED_CAPTIONS_LOG_MSG = "youtube player_client={used_client} returned captions"
-    SUBS_FILE_SUCCESSFULLY_ENCODED_UTF8_LOG_MSG = "File {srt_path} successfully encoded to UTF-8 (original encoding: {successful_encoding})"
-    SUBS_BEST_ENCODING_FOUND_LOG_MSG = "The best encoding has been found: {encoding}"
-    SUBS_REPLACEMENT_CHARACTERS_FOUND_LOG_MSG = "Replacement characters found in text, encoding {successful_encoding} may be incorrect"
-    SUBS_SUCCESSFULLY_DECODED_LOG_MSG = "Successfully decoded with encoding: {encoding}"
-    SUBS_FAILED_TO_DECODE_LOG_MSG = "Failed to decode with {encoding}: {e}"
-    SUBS_LANG_MATCH_AUTO_TRANSLATED_LOG_MSG = "lang_match: auto-translated match found: {lang} for {user_lang}"
-    SUBS_LANG_MATCH_DUPLICATE_LOG_MSG = "lang_match: duplicate match found: {lang} for {user_lang}"
-    SUBS_LANG_MATCH_USER_LANG_LOG_MSG = "lang_match: user_lang='{user_lang}', available_langs={available_langs}"
     
     # NSFW Command Log Messages
     NSFW_USER_REQUESTED_COMMAND_LOG_MSG = "[NSFW] User {user_id} requested nsfw command"
@@ -414,15 +373,11 @@ class LoggerMsg(object):
     # List Command Log Messages
     
     # Link Command Log Messages
-    LINK_FAILED_COPY_GLOBAL_COOKIE_LOG_MSG = "Failed to copy global cookie file for user {user_id}: {e}"
     
     # Emoji Command Log Messages
     
     # File Operations Log Messages
     URL_EXTRACTOR_GALLERY_DL_FALLBACK_LOG_MSG = "Gallery-dl fallback executed: {fallback_text}"
-    LINK_USING_DOMAIN_SPECIFIC_PROXY_LOG_MSG = "Using domain-specific proxy for link extraction: {proxy_url}"
-    LINK_FAILED_BUILD_PROXY_URL_LOG_MSG = "Failed to build proxy URL for domain-specific proxy"
-    LINK_USER_PROXY_DISABLED_LOG_MSG = "User proxy disabled and domain doesn't require proxy - using direct connection for {url}"
     
     # Image Command Log Messages
     IMG_PAID_SEND_PAID_MEDIA_ALBUM_FAILED_LOG_MSG = "[IMG PAID] FAILED: send_paid_media album failed with error: {e}"
@@ -431,11 +386,6 @@ class LoggerMsg(object):
     IMG_TAIL_ALBUM_CAPTION_NORMALIZATION_SKIPPED_LOG_MSG = "[IMG] Tail album caption normalization skipped: { _e }"
     
     # Args Command Log Messages
-    ARGS_ATTEMPTING_IMPORT_SETTINGS_LOG_MSG = "Attempting to import settings from user {message.chat.id}"
-    ARGS_PARSED_SETTINGS_LOG_MSG = "Parsed {len(parsed_args)} settings from message: {list(parsed_args.keys())}"
-    ARGS_SETTING_REFERER_LOG_MSG = "Setting Referer for all services: {value}"
-    ARGS_USER_SELECTED_MERGE_OUTPUT_FORMAT_LOG_MSG = "User {user_id} selected merge_output_format={value}"
-    ARGS_FINAL_YTDLP_OPTIONS_LOG_MSG = "User {user_id} - Final yt-dlp options for {operation}:\n{opts_str}"
 
 
 def get_logger_msg():

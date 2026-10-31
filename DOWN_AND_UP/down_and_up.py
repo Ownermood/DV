@@ -4,7 +4,6 @@ import shutil as _shutil_mod  # module-level alias: functions below import shuti
 # Download_and_up function
 # ########################################
 
-from HELPERS.logger import send_to_all  # Imported at the very top to guarantee visibility
 import itertools
 import os
 import threading
@@ -14,7 +13,7 @@ import traceback
 import yt_dlp
 import re
 from HELPERS.app_instance import get_app
-from HELPERS.logger import logger, send_to_logger, send_to_user, send_to_all, send_error_to_user, get_log_channel, log_error_to_channel
+from HELPERS.logger import logger, send_to_logger, send_to_user, send_error_to_user, get_log_channel, log_error_to_channel
 from CONFIG.logger_msg import LoggerMsg
 from CONFIG.messages import safe_get_messages
 from HELPERS.limitter import TimeFormatter, humanbytes, check_file_size_limit
@@ -38,7 +37,6 @@ from URL_PARSERS.playlist_utils import is_playlist_with_range
 from URL_PARSERS.normalizer import get_clean_playlist_url
 from DATABASE.cache_db import get_cached_playlist_videos, save_to_video_cache
 from HELPERS.qualifier import get_quality_by_min_side
-from HELPERS.logger import send_to_all  # Imported at the very end to guarantee visibility
 from HELPERS.safe_messeger import safe_forward_messages  # Duplicate import to avoid visibility issues
 from pyrogram import enums
 from pyrogram.types import ReplyParameters

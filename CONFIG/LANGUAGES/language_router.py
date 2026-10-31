@@ -6,7 +6,7 @@ Handles dynamic loading of messages based on user's selected language
 import os
 import sys
 import ast
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 
 # Add the parent directory to the path to import CONFIG
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
