@@ -47,10 +47,13 @@ def _in_chat(app, chat_id, user_id) -> bool:
     try:
         member = app.get_chat_member(chat_id, user_id)   # live every time: a leaver is caught at once
         if member.status == ChatMemberStatus.RESTRICTED:   # restricted people who LEFT are still listed as restricted
-            return bool(getattr(member, "is_member", False))
-        return member.status in (ChatMemberStatus.MEMBER, ChatMemberStatus.OWNER, ChatMemberStatus.ADMINISTRATOR)
+            ok = bool(getattr(member, "is_member", False))
+        else:
+            ok = member.status in (ChatMemberStatus.MEMBER, ChatMemberStatus.OWNER, ChatMemberStatus.ADMINISTRATOR)
+        logger.info(f"[force-join] user {user_id} in {chat_id}: {member.status} -> {'ok' if ok else 'NOT a member'}")
+        return ok
     except Exception as e:  # not a participant (or the bot can't see the chat: make it an admin there)
-        logger.info(LoggerMsg.LIMITTER_CHANNEL_CHECK_ERROR_LOG_MSG.format(user_id=user_id, error=e))
+        logger.info(f"[force-join] user {user_id} in {chat_id}: {type(e).__name__} {str(e)[:120]} -> NOT a member")
         return False
 
 
@@ -68,10 +71,13 @@ def is_user_in_channel(app, message):
     """Force-join check; a clean join card (Join Channel / I've Joined) when the person isn't in the channel."""
     try:
         if int(getattr(message.chat, 'id', 0)) in getattr(Config, 'ALLOWED_GROUP', []):
+            logger.info(f"[force-join] chat {message.chat.id} is in ALLOWED_GROUP: no check")
             return True
     except Exception:
         pass
     member_id = getattr(getattr(message, "from_user", None), "id", None) or message.chat.id  # the person (groups)
+    if not force_chats():
+        logger.info("[force-join] no FORCE_JOIN / SUBSCRIBE_CHANNEL set: no check")
     if is_member(app, member_id):
         return True
     from COMMANDS.simple_ui import join_card

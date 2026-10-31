@@ -446,7 +446,9 @@ def _show_link_menu(client, message, key, label) -> None:
                                    "<blockquote>Part of the video ID is missing. Copy the full link and send it again.</blockquote>",
                                    None), reply_to_message_id=message.id, **_topic(message))
         return
-    if not _is_admin(_owner_of(message)):   # left the channel? the join card comes first, not the menu
+    if _is_admin(_owner_of(message)):
+        logger.info(f"[force-join] {_owner_of(message)} is a bot admin: no check")
+    else:   # left the channel? the join card comes first, not the menu
         from HELPERS.limitter import is_user_in_channel
         if not is_user_in_channel(client, getattr(message, "_dm_twin", None) or message):
             return
