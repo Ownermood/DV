@@ -54,12 +54,14 @@ def test_videos_run_one_by_one_and_stop(monkeypatch):
 
 def test_card_colours_only_on_start_and_close():
     from pyrogram import enums
-    rows = pl._card(_job(13))[1].inline_keyboard
+    job = _job(13)
+    job["count"] = 0                                                    # as the card opens: only the quality is chosen
+    rows = pl._card(job)[1].inline_keyboard
     assert [len(r) for r in rows] == [2, 3, 3, 2]                     # counts / 3 qualities / 3 qualities / Start+Close
     start, close = rows[-1]
     assert start.style == enums.ButtonStyle.SUCCESS and close.style == enums.ButtonStyle.DANGER
     chosen = [b for r in rows[:-1] for b in r if b.style == enums.ButtonStyle.SUCCESS]
-    assert len(chosen) == 2                                             # All 13 + Best are green, the rest plain
+    assert [b.text for b in chosen] == ["Best"]                         # nothing else preselected
     assert all(b.style in (enums.ButtonStyle.DEFAULT, enums.ButtonStyle.SUCCESS) for r in rows[:-1] for b in r)
 
 
@@ -73,3 +75,24 @@ def test_several_qualities_each_video_in_each(monkeypatch):
     pl._run(None, job, NS())
     assert ran == [("https://youtu.be/v0", "720"), ("https://youtu.be/v0", "a"),
                    ("https://youtu.be/v1", "720"), ("https://youtu.be/v1", "a")]
+
+
+def test_tap_selects_tap_again_unselects(monkeypatch):
+    monkeypatch.setattr(pl, "edit", lambda *a, **k: None)
+    job = _job(13)
+    job["count"] = 0
+    pl._JOBS["tk"] = job
+    answers = []
+
+    def tap(data):
+        cq = NS(data=data, from_user=NS(id=7), message=NS(delete=lambda: None),
+                answer=lambda *a, **k: answers.append(a[0] if a else ""), stop_propagation=lambda: None)
+        pl.playlist_buttons(None, cq)
+    tap("pl|tk|go")
+    assert "how many" in answers[-1]                                    # nothing chosen: Start explains
+    tap("pl|tk|c|10"); assert job["count"] == 10
+    tap("pl|tk|c|10"); assert job["count"] == 0                         # tap again: plain again
+    tap("pl|tk|q|720"); assert job["qs"] == ["b", "720"]
+    tap("pl|tk|q|b"); tap("pl|tk|q|720"); assert job["qs"] == []        # every quality can be unchosen
+    tap("pl|tk|c|13"); tap("pl|tk|go")
+    assert "quality" in answers[-1] and "tk" in pl._JOBS                 # still waiting for a quality

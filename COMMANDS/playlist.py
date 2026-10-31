@@ -83,7 +83,8 @@ def _card(job):
     qs = [pick(k in job["qs"], "music" if k == "a" else "play", label, f"pl|{tok}|q|{k}") for k, label in QUALITIES]
     rows += [qs[:3], qs[3:]]   # 3 + 3, side by side
     times = f" × {len(job['qs'])}" if len(job["qs"]) > 1 else ""   # several qualities: every video in each
-    rows.append([btn("bolt", f"Start · {job['count']} videos{times}", cb=f"pl|{tok}|go", style=GREEN),
+    what = f" · {job['count']} videos{times}" if job["count"] else ""
+    rows.append([btn("bolt", f"Start{what}", cb=f"pl|{tok}|go", style=GREEN),
                  btn("trash", "Close", cb=f"pl|{tok}|x", style=RED)])
     return text, InlineKeyboardMarkup(rows)
 
@@ -107,7 +108,7 @@ def show(client, message, url) -> None:
     except Exception:
         q = "b"
     token = secrets.token_hex(4)
-    job = {"token": token, "msg": message, "count": len(data["urls"]), "qs": [q], "ts": time.time(), **data}
+    job = {"token": token, "msg": message, "count": 0, "qs": [q], "ts": time.time(), **data}   # only the quality is preset
     with _lock:
         for k in [k for k, v in _JOBS.items() if time.time() - v["ts"] > TTL]:
             _JOBS.pop(k, None)
@@ -179,18 +180,23 @@ def playlist_buttons(client, cq):
             cq.stop_propagation()
     try:
         if action == "c" and len(parts) == 4 and parts[3].isdigit():
-            job["count"] = max(1, min(int(parts[3]), len(job["urls"])))
+            c = max(1, min(int(parts[3]), len(job["urls"])))
+            job["count"] = 0 if job["count"] == c else c   # tap again: back to not chosen
             edit(client, cq.message, lambda: _card(job))
         elif action == "q" and len(parts) == 4 and parts[3] in dict(QUALITIES):
-            k = parts[3]   # multi-select: tap toggles; at least one stays
-            if k in job["qs"] and len(job["qs"]) > 1:
+            k = parts[3]   # multi-select: tap = green, tap again = plain
+            if k in job["qs"]:
                 job["qs"].remove(k)
-            elif k not in job["qs"]:
+            else:
                 job["qs"].append(k)
             edit(client, cq.message, lambda: _card(job))
         elif action == "go":
             if token not in _JOBS:
                 raise RuntimeError("already started")
+            if not job["count"] or not job["qs"]:
+                cq.answer("Choose how many videos first." if not job["count"] else "Choose at least one quality.",
+                          show_alert=True)
+                raise RuntimeError("nothing chosen")
             with _lock:
                 _JOBS.pop(token, None)   # one run per card
                 _JOBS[f"run-{token}"] = job
