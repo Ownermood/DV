@@ -139,3 +139,32 @@ def test_cookie_manager_platforms_two_per_row(store):
     rows = ap._ckm_view()[1].inline_keyboard
     platform_rows = [r for r in rows if any((b.callback_data or "").startswith("ap|cks|") for b in r)]
     assert [len(r) for r in platform_rows] == [2, 2, 2]          # 6 platforms in 3 rows of two
+
+
+def test_terabox_live_check(monkeypatch):
+    import requests
+    from types import SimpleNamespace as NS
+    state = {"errno": -6, "code": 302}
+
+    def get(url, **k):
+        if "getinfo" in url:
+            return NS(json=lambda: {"errno": state["errno"]})
+        return NS(status_code=state["code"])
+    monkeypatch.setattr(requests, "get", get)
+    assert cs._terabox_live({"ndus": ("x", 0)})[0] is False                  # both say logged out
+    state.update(errno=0, code=200)
+    assert cs._terabox_live({"ndus": ("x", 0)}) == (True, "working")
+    state.update(errno=-6, code=200)
+    assert cs._terabox_live({"ndus": ("x", 0)})[0] is True                   # one signal only: keep the cookie
+
+
+def test_cookie_manager_uses_platform_logos_and_no_dm_text(store):
+    from types import SimpleNamespace as NS
+    from HELPERS import app_instance
+    app_instance.set_app(NS(on_message=lambda *a, **k: (lambda f: f), on_callback_query=lambda *a, **k: (lambda f: f)))
+    from COMMANDS import admin_panel as ap
+    text, kb = ap._ckm_view()
+    assert "DM" not in text and "Error Log group" in text
+    ids = {b.text.split(" ·")[0]: getattr(b, "icon_custom_emoji_id", None) for r in kb.inline_keyboard for b in r}
+    logos = [ids.get(name) for name in ("Instagram", "Pinterest", "Facebook", "Snapchat") if ids.get(name)]
+    assert len(set(logos)) == len(logos)                                     # each platform its own logo

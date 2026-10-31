@@ -319,7 +319,7 @@ def exp_text(ts) -> str:
 
 # ---------------- checks ----------------
 def test_slot(service, slot_id):
-    """(ok, reason). YouTube is tested live; others: login cookie present and not expired."""
+    """(ok, reason). YouTube, TeraBox and Instagram are tested live; others: login cookie present and not expired."""
     p = _path(service, slot_id)
     try:
         with open(p, "r", encoding="utf-8", errors="ignore") as f:
@@ -333,9 +333,31 @@ def test_slot(service, slot_id):
         return False, "expired"
     if service == "youtube":
         return _youtube_live(p)
+    if service == "terabox":
+        return _terabox_live(cookies)
     if service in _LOGIN_PAGES:
         return _web_live(service, cookies)
     return True, "login cookie present"
+
+
+def _terabox_live(cookies):
+    """Real check: TeraBox's own user API answers errno 0 for a logged-in cookie, -6 when logged out;
+    the /main page redirects (302) a logged-out visitor."""
+    import requests
+    ck = {k: v[0] for k, v in cookies.items()}
+    ua = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) "
+                        "Chrome/131.0.0.0 Safari/537.36"}
+    try:
+        info = requests.get("https://www.1024tera.com/api/user/getinfo", cookies=ck, headers=ua, timeout=20,
+                            params={"app_id": "250528", "web": "1", "channel": "dubox", "clienttype": "0"}).json()
+        page = requests.get("https://www.1024tera.com/main", cookies=ck, headers=ua, timeout=20, allow_redirects=False)
+    except Exception as exc:
+        return True, f"login cookie present (live check failed: {str(exc)[:40]})"
+    if info.get("errno") == 0 or page.status_code == 200:
+        return True, "working"
+    if info.get("errno") == -6 and page.status_code in (301, 302, 303, 307):   # both must agree: never drop a good one
+        return False, "TeraBox says logged out (export a fresh cookie)"
+    return True, f"login cookie present (live check: errno {info.get('errno')}, HTTP {page.status_code})"
 
 
 # A logged-in page: a dead cookie gets redirected away

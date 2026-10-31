@@ -20,7 +20,7 @@ from html import escape
 
 from pyrogram import filters
 from pyrogram.errors import FloodWait
-from pyrogram.types import InlineKeyboardMarkup, BotCommand, BotCommandScopeChat
+from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, BotCommand, BotCommandScopeChat
 
 from CONFIG.config import Config
 from COMMANDS import activity
@@ -507,23 +507,34 @@ def _ck_status(s) -> str:
     return "not working" if s.get("down") else "working"
 
 
+def _platform_btn(svc, text, cb):
+    """Button with the platform's own premium logo (YouTube, Instagram … not one shared icon)."""
+    from COMMANDS.ui_kit import premium_on
+    label, key, cid, _ = cs.SERVICES[svc]
+    if cid and premium_on():
+        return InlineKeyboardButton(text, callback_data=cb, icon_custom_emoji_id=cid, style=PLAIN)
+    return btn(key, text, cb=cb, style=PLAIN)
+
+
 def _ckm_view():
     rows, lines = [], []
-    for svc, (label, key, _cid, _need) in cs.SERVICES.items():
+    from COMMANDS.simple_ui import platform_icon
+    for svc, (label, key, cid, _need) in cs.SERVICES.items():
         sl = cs.slots(svc)
         live = sum(1 for s in sl if cs.usable(s))
-        lines.append(row(key, label, f"{live} working / {len(sl)} added"))
-        b = btn(key, f"{label} · {live}/{len(sl)}", cb=f"ap|cks|{svc}", style=PLAIN)
+        lines.append(f"{platform_icon(svc)} <b>{label}:</b> {live} working / {len(sl)} added")   # real platform logo
+        b = _platform_btn(svc, f"{label} · {live}/{len(sl)}", f"ap|cks|{svc}")
         if rows and len(rows[-1]) < 2:   # two platforms side by side
             rows[-1].append(b)
         else:
             rows.append([b])
     rows.append([btn("search", "Test All Now", cb="ap|ckchk", style=PLAIN)])
     text = card("lips", "COOKIE MANAGER", lines,
-                [f"{em('refresh')} Rotation: downloads take turns over every working cookie; a failing one falls through to the next.",
-                 f"{em('warn')} 5 failures in a row → that cookie is skipped and you get a DM.",
-                 f"{em('laptop')} Every {cs.CHECK_EVERY_HOURS}h the bot checks all cookies and DMs you before one expires."],
-                footer=f"{em('down')} <b>Tap a platform:</b>  the number shows working / added cookies")
+                [f"{em('bolt')} Rotation: downloads take turns over every working cookie; a failing one falls through to the next.",
+                 f"{em('warn')} 5 failures in a row → that cookie is skipped and the Error Log group gets an alert.",
+                 f"{em('laptop')} Every {cs.CHECK_EVERY_HOURS}h every cookie is tested; the Error Log group hears about dead ones "
+                 "and about any that expire within a day."],
+                footer=f"{em('down')} <b>Tap a platform</b> (working / added)")
     return text, _back_kb(rows)
 
 
@@ -570,7 +581,7 @@ def _cks_view(svc, page=0):
         rows.append([btn("search", f"Test All {label}", cb=f"ap|ckst|{svc}", style=PLAIN)]
                     + ([btn("trash", f"Remove {dead + expired} Dead", cb=f"ap|ckrd|{svc}", style=RED)] if dead + expired else []))
     text = card(key, f"{label.upper()} COOKIES", lines,
-                [f"{em('refresh')} Rotation: each download starts at the NEXT cookie, then tries the others.",
+                [f"{em('bolt')} Rotation: each download starts at the NEXT cookie, then tries the others.",
                  f"{em('memo')} Logged-in cookies.txt (login cookie: <code>{' / '.join(need) or 'any'}</code>). Send many files at once.",
                  f"{em('lips')} Use spare accounts, not your main one."])
     return text, _back_kb(rows, back="ap|ckm")
