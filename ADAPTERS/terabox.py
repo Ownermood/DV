@@ -70,6 +70,18 @@ READ_TIMEOUT = float(os.getenv("TERABOX_READ_TIMEOUT", "30"))
 # file data: TeraBox's download servers (kul-ddata…) can pause for many seconds; a stall is retried, not fatal
 DATA_TIMEOUT = (CONNECT_TIMEOUT, max(READ_TIMEOUT, 60.0))
 DATA_TRIES = 6
+META_TIMEOUT = (CONNECT_TIMEOUT, max(READ_TIMEOUT, 25.0))   # share page / share list: TeraBox can be slow
+
+
+def _get(sess, url, tries=3, **kw):
+    """GET with the patient timeout and a few retries (one slow answer used to fail the whole job)."""
+    for attempt in range(tries):
+        try:
+            return sess.get(url, timeout=META_TIMEOUT, **kw)
+        except requests.RequestException:
+            if attempt == tries - 1:
+                raise
+            time.sleep(2 * (attempt + 1))
 
 
 def is_terabox_url(url: str) -> bool:
@@ -169,7 +181,7 @@ def _native_resolve(url: str, cookies: dict | None = None):
     sess = requests.Session()
     sess.headers.update({"User-Agent": UA, "Accept-Language": "en-US,en;q=0.9"})
     sess.cookies.update(cookies)
-    page = sess.get(url, timeout=(CONNECT_TIMEOUT, READ_TIMEOUT), allow_redirects=True)
+    page = _get(sess, url, allow_redirects=True)
     page.raise_for_status()
     html = page.text
     js_token = _between(html, "fn%28%22", "%22%29") or _between(html, '"jsToken":"', '"')
@@ -186,7 +198,7 @@ def _native_resolve(url: str, cookies: dict | None = None):
     params = {"app_id": "250528", "web": "1", "channel": "dubox", "clienttype": "0", "jsToken": js_token,
               "dplogid": logid, "page": "1", "num": "20", "order": "time", "desc": "1",
               "site_referer": page.url, "shorturl": surl, "root": "1"}
-    data = sess.get(f"{base}/share/list", params=params, timeout=(CONNECT_TIMEOUT, READ_TIMEOUT)).json()
+    data = _get(sess, f"{base}/share/list", params=params).json()
     _check_share(data)
     files = [f for f in data.get("list") or [] if not int(f.get("isdir") or 0)]
     if not files:
@@ -276,7 +288,7 @@ def _resolve(url: str):
             raise   # the share is gone: no other resolver can help
         except Exception as exc:
             errors.append(f"native: {exc}")
-    for fn in (_worker_resolve, _token_api_resolve):
+    for fn in [f for f, on in ((_worker_resolve, WORKER_URL), (_token_api_resolve, TOKEN_API_URL)) if on]:
         try:
             return fn(url)
         except NeedCookie as exc:
@@ -721,7 +733,7 @@ def _meta(url, cookies):
     sess = requests.Session()
     sess.headers.update({"User-Agent": UA, "Accept-Language": "en-US,en;q=0.9"})
     sess.cookies.update(cookies)
-    page = sess.get(url, timeout=(CONNECT_TIMEOUT, READ_TIMEOUT), allow_redirects=True)
+    page = _get(sess, url, allow_redirects=True)
     page.raise_for_status()
     js_token = _between(page.text, "fn%28%22", "%22%29") or _between(page.text, '"jsToken":"', '"')
     logid = _between(page.text, "dp-logid=", "&") or ""
@@ -810,10 +822,26 @@ def _own_copy_now(meta):
                      and Path(f.get("server_filename", "")).stem.startswith(Path(meta["title"]).stem[:40])), None)
         if mine:
             path = mine["path"]
+            meta["own_fsid"] = mine.get("fs_id")
             break
     if not path:
         raise RuntimeError("copied file not found in own account")
     return path
+
+
+def _own_dlink(meta):
+    """Original file when the share gives no download link: copy it into the cookie's own account and take
+    that copy's link (filemetas). Same tuple as _resolve()."""
+    _own_copy(meta)
+    if not meta.get("own_fsid"):
+        raise RuntimeError("own copy has no file id")
+    r = _get(meta["sess"], f"{meta['base']}/api/filemetas", params={
+        **meta["common"], "fsids": json.dumps([int(meta["own_fsid"])]), "dlink": "1", "bdstoken": meta.get("bdstoken", "")})
+    info = r.json()
+    item = ((info.get("info") or info.get("list") or [{}])[0]) or {}
+    if not item.get("dlink"):
+        raise NeedCookie(meta["title"], meta["size"])
+    return item["dlink"], meta.get("thumb"), meta["title"], int(meta["size"] or 0), meta["sess"].cookies.get_dict()
 
 
 def _own_delete(meta) -> None:
@@ -1099,7 +1127,13 @@ def _run_job_inner(app, message, url, meta, q, card) -> None:
             title, thumb_url, size, direct_url, dl_cookies = meta["title"], meta["thumb"], 0, None, None
         else:
             t0 = time.monotonic()
-            direct_url, thumb_url, title, size, dl_cookies = _resolve(url)
+            try:
+                direct_url, thumb_url, title, size, dl_cookies = _resolve(url)
+            except NeedCookie:
+                if not (meta and meta.get("logged_in")):
+                    raise
+                print("[terabox] share gave no download link: own-account copy", flush=True)
+                direct_url, thumb_url, title, size, dl_cookies = _own_dlink(meta)
             print(f"[terabox] original link resolved in {time.monotonic() - t0:.1f}s", flush=True)
             if size and size > limit:
                 raise RuntimeError(f"too large: {size / 1024 ** 3:.2f} GB (limit {limit / 1024 ** 3:.0f} GB)")

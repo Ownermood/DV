@@ -342,3 +342,45 @@ def test_caption_drops_the_file_extension():
     cap = tb._caption("Marumo Rea - SMOK 041.ts", "https://t/s/1x", "Part 1/2")
     assert "Marumo Rea - SMOK 041\n" in cap and ".ts" not in cap
     assert "Notes v1.2" in tb._caption("Notes v1.2", "https://t/s/1x")   # not an extension: kept
+
+
+def test_slow_share_page_is_retried(monkeypatch):
+    import requests
+    from ADAPTERS import terabox as tb
+    calls = []
+
+    class S:
+        def get(self, url, **k):
+            calls.append(k["timeout"])
+            if len(calls) < 2:
+                raise requests.exceptions.ReadTimeout("Read timed out. (read timeout=10.0)")
+            return "page"
+    monkeypatch.setattr(tb.time, "sleep", lambda s: None)
+    assert tb._get(S(), "https://1024terabox.com/s/1x") == "page"
+    assert len(calls) == 2 and calls[0][1] >= 25                      # patient, and one slow answer is retried
+
+
+def test_unset_fallback_resolvers_not_in_the_error(monkeypatch):
+    import pytest
+    from ADAPTERS import terabox as tb
+    monkeypatch.setattr(tb, "_cookie_files", lambda: [])
+    monkeypatch.setattr(tb, "_native_resolve", lambda url, ck: (_ for _ in ()).throw(RuntimeError("slow")))
+    monkeypatch.setattr(tb, "WORKER_URL", "")
+    monkeypatch.setattr(tb, "TOKEN_API_URL", "")
+    with pytest.raises(RuntimeError) as e:
+        tb._resolve("https://1024terabox.com/s/1x")
+    assert "not set" not in str(e.value) and "slow" in str(e.value)
+
+
+def test_own_copy_gives_the_original_link(monkeypatch):
+    from types import SimpleNamespace as NS
+    from ADAPTERS import terabox as tb
+
+    def own_copy(meta):
+        meta["own_fsid"] = 77
+        return "/dvbot/movie.mp4"
+    monkeypatch.setattr(tb, "_own_copy", own_copy)
+    monkeypatch.setattr(tb, "_get", lambda sess, url, **k: NS(json=lambda: {"errno": 0, "info": [{"dlink": "https://d/own"}]}))
+    meta = {"sess": NS(cookies=NS(get_dict=lambda: {"ndus": "x"})), "base": "https://www.1024tera.com", "common": {},
+            "title": "Movie.mp4", "size": 123, "thumb": None, "bdstoken": "b"}
+    assert tb._own_dlink(meta) == ("https://d/own", None, "Movie.mp4", 123, {"ndus": "x"})
