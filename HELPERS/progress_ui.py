@@ -11,7 +11,6 @@ normalize_status() turns the old multi-line status texts ("Total Progress",
 """
 from __future__ import annotations
 
-import itertools
 import re
 import threading
 import time
@@ -57,20 +56,10 @@ def bar_blocks(blocks: int, width: int = WIDTH) -> str:
     return FILLED * blocks + EMPTY * (width - blocks)
 
 
-_tick = itertools.count()
-
-
-def _blink() -> bool:
-    """Alternates on every card build, so the card changes even when the % does not."""
-    return next(_tick) % 2 == 0
-
-
 def bar(percent: float, width: int = WIDTH, moving: bool = False) -> str:
     full = step(percent) * width // 100
     text = bar_blocks(full, width)
-    if moving and full < width and _blink():  # the next block blinks ▱ -> ▰ -> ▱
-        text = FILLED * (full + 1) + EMPTY * (width - full - 1)
-    return text
+    return text   # no blinking block: the bar only ever grows
 
 
 def progress_card(kind: str, percent: float, process: str = "", detail: str = "") -> str:
@@ -142,9 +131,31 @@ def edit_later(fn, chat_id, message_id, force=False) -> bool:
     return True
 
 
+_BODY_RE = re.compile(r"([▰▱]{%d}) (\d{1,3})%%" % WIDTH)
+_best = {}   # (chat, message, title) -> highest % shown on that card
+
+
+def forward_only(chat_id, message_id, text: str) -> str:
+    """Never show a lower % than before on the same card and stage (video then audio stream, a retry):
+    the bar only moves forward. A new stage (Downloading -> Uploading) starts again from its own 0."""
+    m = _BODY_RE.search(text or "")
+    title = next((t for _, t in _KINDS.values() if f"<b>{t}</b>" in (text or "")), None)
+    if not m or not title:
+        return text
+    key, pct = (chat_id, message_id, title), int(m.group(2))
+    best = _best.get(key, 0)
+    if pct >= best:
+        _best[key] = pct
+        if len(_best) > 5000:
+            _best.clear()
+        return text
+    return text[:m.start()] + f"{bar(best)} {best}%" + text[m.end():]
+
+
 def edit_card(edit_fn, chat_id, message_id, text: str, force=False):
     """Edit with HTML; if Telegram rejects premium emoji, retry with plain emoji.
     Downloading / uploading cards get the ❌ Cancel button. Runs in the background."""
+    text = forward_only(chat_id, message_id, text)
     kw = {"parse_mode": enums.ParseMode.HTML}
     if any(f"<b>{_KINDS[k][1]}</b>" in text for k in ("download", "upload")):
         try:

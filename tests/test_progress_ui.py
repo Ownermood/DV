@@ -50,9 +50,18 @@ def test_edit_card_retries_without_premium(monkeypatch):
     assert len(calls) == 2 and "<emoji" not in calls[1]
 
 
-def test_moving_bar_changes_each_update():
-    a, b = ui.bar(40, moving=True), ui.bar(40, moving=True)
-    assert {a, b} == {"▰▰▱▱▱", "▰▰▰▱▱"}
+def test_bar_never_blinks():
+    assert ui.bar(40, moving=True) == ui.bar(40, moving=True) == "▰▰▱▱▱"
+
+
+def test_bar_only_moves_forward_per_card_and_stage():
+    ui._best.clear()
+    d = lambda p: ui.forward_only(1, 9, ui.progress_card("download", p))
+    assert "60%" in d(60)
+    assert "60%" in d(5) and "▰▰▰▱▱" in d(5)          # audio stream restarts at 5 %: card stays at 60 %
+    assert "80%" in d(80)
+    assert "10%" in ui.forward_only(1, 9, ui.progress_card("upload", 10))   # new stage starts from 0
+    assert "3%" in ui.forward_only(1, 10, ui.progress_card("download", 3))  # another card is separate
     assert ui.bar(100, moving=True) == "▰▰▰▰▰"
 
 
