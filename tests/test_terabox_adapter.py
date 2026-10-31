@@ -236,3 +236,29 @@ def test_slow_server_resumes_instead_of_failing(monkeypatch, tmp_path):
     assert out.read_bytes() == data                          # complete and correct after the stall
     half = len(data) // 2
     assert (half + 1024 * 1024, len(data) - 1) in calls["ranges"]   # resumed where it stopped
+
+
+def test_menu_shows_only_real_qualities_with_sizes(monkeypatch):
+    from ADAPTERS import terabox as tb
+    meta = {"video": True, "height": 1080, "available": {"720"}, "est": {"720": 300 * 1024 ** 2},
+            "size": 2106720480}
+    labels = [b.text for row in tb._menu_kb("t", meta).inline_keyboard for b in row]
+    assert any("720p" in l and "300 MB" in l for l in labels)
+    assert not any("480p" in l or "1080p" in l for l in labels)          # not given for this link: not shown
+    assert any("Original" in l and "1.96 GB" in l for l in labels)
+    meta["available"] = set()
+    rows = tb._menu_kb("t", meta).inline_keyboard
+    assert all(rows) and len(rows) == 2                                  # only Original + Close, no empty row
+
+
+def test_stream_size_from_segments(monkeypatch):
+    from ADAPTERS import terabox as tb
+
+    class S:
+        headers = {}
+
+        def head(self, u, **k):
+            return type("R", (), {"ok": True, "headers": {"Content-Length": "1000"}})()
+    monkeypatch.setattr(tb.requests, "Session", S)
+    pl = "#EXTM3U\n" + "\n".join(f"#EXTINF:6,\nhttps://s/{i}.ts" for i in range(30))
+    assert tb._stream_size({"base": "https://x"}, pl) == 30000

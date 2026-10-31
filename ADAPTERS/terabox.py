@@ -750,6 +750,30 @@ def _share_playlist(meta, q):
     return text
 
 
+def _stream_size(meta, playlist) -> int:
+    """Size of a streaming copy, from the real sizes of a few of its segments (TeraBox gives no total)."""
+    segs = [l.strip() for l in playlist.splitlines() if l.strip().startswith("http")]
+    if not segs:
+        return 0
+    picks = sorted({0, len(segs) // 3, 2 * len(segs) // 3, len(segs) - 1})
+    sess = requests.Session()
+    sess.headers.update({"User-Agent": UA, "Referer": meta.get("base", "https://www.1024tera.com") + "/"})
+    sizes = []
+    for i in picks:
+        try:
+            r = sess.head(segs[i], timeout=(CONNECT_TIMEOUT, 15), allow_redirects=True)
+            n = int(r.headers.get("Content-Length") or 0)
+            if r.ok and n:
+                sizes.append(n)
+        except Exception:
+            continue
+    return int(sum(sizes) / len(sizes) * len(segs)) if sizes else 0
+
+
+def _human(n) -> str:
+    return f"{n / 1024 ** 3:.2f} GB" if n >= 1024 ** 3 else f"{n / 1024 ** 2:.0f} MB"
+
+
 def _menu_kb(token, meta):
     from pyrogram.types import InlineKeyboardMarkup
     from COMMANDS.ui_kit import btn
@@ -761,10 +785,18 @@ def _menu_kb(token, meta):
         qs = [q for q in QUALITIES if int(q) <= max(top, 480)] or ["480"]
         if meta.get("available") is not None:  # only the copies TeraBox really gives this account
             qs = [q for q in qs if q in meta["available"]]
-        rows.append([btn("bolt" if q == "480" else "play", f"{q}p" + (" ⚡" if q == "480" else ""),
-                         cb=f"tb|{token}|{q}", style=plain) for q in qs])
+        est = meta.get("est") or {}
+        row = []
+        for q in qs:   # only what TeraBox really gives, each with its size
+            row.append(btn("bolt" if q == "480" else "play", f"{q}p" + (f" · ~{_human(est[q])}" if q in est else ""),
+                           cb=f"tb|{token}|{q}", style=plain))
+            if len(row) == 2:
+                rows.append(row)
+                row = []
+        if row:
+            rows.append(row)
     size = meta["size"]
-    size_txt = (f"{size / 1024 ** 3:.2f} GB" if size >= 1024 ** 3 else f"{size / 1024 ** 2:.0f} MB") if size else ""
+    size_txt = _human(size) if size else ""
     rows.append([btn("folder", "Original file" + (f" · {size_txt}" if size_txt else ""), cb=f"tb|{token}|o", style=plain)])
     rows.append([btn("trash", "Close", cb=f"tb|{token}|x", style=plain)])
     return InlineKeyboardMarkup(rows)
@@ -818,12 +850,13 @@ def handle_terabox(app, message) -> bool:
 
         def ok(q):
             try:
-                _playlist(meta, q)
-                return q
+                return q, _stream_size(meta, _playlist(meta, q))
             except Exception:
                 return None
         with concurrent.futures.ThreadPoolExecutor(len(QUALITIES)) as pool:
-            meta["available"] = {q for q in pool.map(ok, QUALITIES) if q}
+            found = [r for r in pool.map(ok, QUALITIES) if r]
+        meta["available"] = {q for q, _ in found}
+        meta["est"] = {q: n for q, n in found if n}
     token = secrets.token_hex(4)
     with tempfile.TemporaryDirectory(prefix="tera-thumb-") as d:
         thumb = _download_thumb(meta["thumb"], Path(d))
