@@ -67,6 +67,9 @@ ENABLED = os.getenv("TERABOX_ENABLED", "true").lower() in {"1", "true", "yes", "
 MAX_BYTES = int(float(os.getenv("TERABOX_MAX_BYTES", str(1900 * 1024 * 1024))))
 CONNECT_TIMEOUT = float(os.getenv("TERABOX_CONNECT_TIMEOUT", "10"))
 READ_TIMEOUT = float(os.getenv("TERABOX_READ_TIMEOUT", "30"))
+# file data: TeraBox's download servers (kul-ddata…) can pause for many seconds; a stall is retried, not fatal
+DATA_TIMEOUT = (CONNECT_TIMEOUT, max(READ_TIMEOUT, 60.0))
+DATA_TRIES = 6
 
 
 def is_terabox_url(url: str) -> bool:
@@ -307,7 +310,7 @@ def _hls_download(playlist: str, out: Path, limit, progress, cookies=None, refer
     def get(i, u):
         for attempt in range(4):
             try:
-                data = sess.get(u, timeout=(CONNECT_TIMEOUT, READ_TIMEOUT)).content
+                data = sess.get(u, timeout=DATA_TIMEOUT).content
                 (folder / f"{i:06d}.ts").write_bytes(data)
                 with lock:
                     done[0] += len(data)
@@ -372,8 +375,14 @@ def _fast_download(url, filepath: Path, cookies, size, limit, progress) -> None:
     adapter = requests.adapters.HTTPAdapter(pool_connections=PARTS, pool_maxsize=PARTS)
     sess.mount("https://", adapter)
     sess.mount("http://", adapter)
-    probe = sess.get(url, headers={"Range": "bytes=0-0"}, stream=True, allow_redirects=True,
-                     timeout=(CONNECT_TIMEOUT, READ_TIMEOUT))
+    for attempt in range(3):
+        try:
+            probe = sess.get(url, headers={"Range": "bytes=0-0"}, stream=True, allow_redirects=True, timeout=DATA_TIMEOUT)
+            break
+        except requests.RequestException:
+            if attempt == 2:
+                raise
+            time.sleep(3 * (attempt + 1))
     final, code = probe.url, probe.status_code
     rng = probe.headers.get("Content-Range", "")
     probe.close()
@@ -396,7 +405,7 @@ def _fast_download(url, filepath: Path, cookies, size, limit, progress) -> None:
     print(f"[terabox] download: HTTP {code}, size {length or size or 0}, "
           f"{'parallel' if length and length >= 2 * MIN_PART else 'single stream'}", flush=True)
     if not length or length < 2 * MIN_PART:  # no range support / small file: one stream
-        with sess.get(final, stream=True, timeout=(CONNECT_TIMEOUT, READ_TIMEOUT)) as r:
+        with sess.get(final, stream=True, timeout=DATA_TIMEOUT) as r:
             r.raise_for_status()
             total_len = int(r.headers.get("Content-Length") or size or 0)
             if total_len and total_len > limit:
@@ -414,15 +423,14 @@ def _fast_download(url, filepath: Path, cookies, size, limit, progress) -> None:
         f.truncate(length)
 
     def part(a, b):
-        for attempt in range(4):
-            pos = a
+        pos = a   # bytes before pos are on disk: a retry continues from there
+        for attempt in range(DATA_TRIES):
             try:
-                with sess.get(final, headers={"Range": f"bytes={a}-{b}"}, stream=True,
-                              timeout=(CONNECT_TIMEOUT, READ_TIMEOUT)) as r:
+                with sess.get(final, headers={"Range": f"bytes={pos}-{b}"}, stream=True, timeout=DATA_TIMEOUT) as r:
                     if r.status_code != 206:
                         raise RuntimeError(f"range not served (HTTP {r.status_code})")
                     with filepath.open("r+b") as f:
-                        f.seek(a)
+                        f.seek(pos)
                         for chunk in r.iter_content(256 * 1024):
                             if chunk:
                                 f.write(chunk)
@@ -434,9 +442,7 @@ def _fast_download(url, filepath: Path, cookies, size, limit, progress) -> None:
             except Exception as exc:
                 if type(exc).__name__ == "Cancelled":  # ❌ Cancel: no retries
                     raise
-                with lock:
-                    done[0] -= pos - a  # this part restarts from its beginning
-                if attempt == 3:
+                if attempt == DATA_TRIES - 1:
                     raise
                 time.sleep(2 * (attempt + 1))
     with concurrent.futures.ThreadPoolExecutor(n) as pool:

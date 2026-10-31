@@ -192,3 +192,47 @@ def test_big_video_parts_cover_the_whole_video(tmp_path):
     total = sum(tb._duration(p) for p in parts)
     assert len(parts) == 3 and abs(total - 60) < 2      # parts follow each other to the end
     assert all(tb.Path(p).stat().st_size <= src.stat().st_size / 2.5 * 1.02 for p in parts)
+
+
+def test_slow_server_resumes_instead_of_failing(monkeypatch, tmp_path):
+    import requests
+    from ADAPTERS import terabox as tb
+    data = bytes(range(256)) * 40000            # ~10 MB, 2 parts
+    calls = {"stalled": False, "ranges": []}
+
+    class R:
+        def __init__(self, a, b):
+            self.status_code, self.headers, self.url = 206, {"Content-Range": f"bytes {a}-{b}/{len(data)}"}, "https://x"
+            self.a, self.b = a, b
+
+        def iter_content(self, n):
+            if self.a > 0 and not calls["stalled"]:          # second part: 1 MB, then the server stalls
+                yield data[self.a:self.a + 1024 * 1024]
+                calls["stalled"] = True
+                raise requests.exceptions.ReadTimeout("Read timed out. (read timeout=10.0)")
+            yield data[self.a:self.b + 1]
+
+        def close(self):
+            pass
+        __enter__ = lambda self: self
+        __exit__ = lambda self, *a: None
+
+    class Sess:
+        headers, cookies = {}, {}
+
+        def mount(self, *a):
+            pass
+
+        def get(self, u, headers=None, **k):
+            a, b = headers["Range"][6:].split("-")
+            a, b = int(a), int(b or len(data) - 1)
+            calls["ranges"].append((a, b))
+            return R(a, b)
+    monkeypatch.setattr(tb.requests, "Session", Sess)
+    monkeypatch.setattr(tb, "PARTS", 2)
+    monkeypatch.setattr(tb.time, "sleep", lambda s: None)
+    out = tmp_path / "f.bin"
+    tb._fast_download("https://x", out, {}, len(data), 10 ** 9, lambda *a: None)
+    assert out.read_bytes() == data                          # complete and correct after the stall
+    half = len(data) // 2
+    assert (half + 1024 * 1024, len(data) - 1) in calls["ranges"]   # resumed where it stopped
