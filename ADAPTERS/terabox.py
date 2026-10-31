@@ -352,6 +352,42 @@ def _duration(path: str) -> float:
         return 0.0
 
 
+def _video_meta(path: str) -> dict:
+    """duration / width / height for send_video: without them Telegram shows 0:00 and can't seek."""
+    import json
+    import subprocess
+    try:
+        out = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries",
+                              "stream=width,height:format=duration", "-of", "json", path],
+                             capture_output=True, text=True, timeout=60)
+        data = json.loads(out.stdout or "{}")
+        st = (data.get("streams") or [{}])[0]
+        meta = {"duration": int(float((data.get("format") or {}).get("duration") or 0)),
+                "width": int(st.get("width") or 0), "height": int(st.get("height") or 0)}
+        return {k: v for k, v in meta.items() if v > 0}
+    except Exception:
+        return {}
+
+
+def _safe_thumb(path, video=None):
+    """Telegram ignores a thumb over 320 px / 200 KB (black preview): shrink it, or take a frame of the video."""
+    import subprocess
+    out = Path(str(video or path) + ".thumb.jpg")
+    try:
+        if path and os.path.exists(path):
+            from PIL import Image
+            with Image.open(path) as im:
+                im = im.convert("RGB")
+                im.thumbnail((320, 320))
+                im.save(out, "JPEG", quality=85)
+        elif video:
+            subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-ss", "10", "-i", str(video), "-frames:v", "1",
+                            "-vf", "scale=320:-2", str(out)], capture_output=True, timeout=60)
+        return str(out) if out.exists() and out.stat().st_size else None
+    except Exception:
+        return None
+
+
 def _caption(title: str, url: str, part: str = "") -> str:
     from html import escape
     from HELPERS.caption import build_quoted_caption
@@ -502,8 +538,8 @@ def _share_key(url):
     """Share code (+ '#720' etc. for a streaming copy), same for every mirror domain."""
     m = re.search(r"(?:/s/|surl=)1?([\w-]+)", url or "")
     q = (url or "").partition("#")[2]
-    # v4: files sent before the split fixes were cut wrong (a few minutes, one 75 MB piece, raw .ts): never reuse them
-    return ("v4:" + m.group(1) + (f"#{q}" if q else "")) if m else None
+    # v5: files sent before the split fixes were cut wrong or without duration (0:00): never reuse them
+    return ("v5:" + m.group(1) + (f"#{q}" if q else "")) if m else None
 
 
 def _cache_get(url):
@@ -655,7 +691,8 @@ def _send_file(app, message, filepath: Path, title: str, url: str, thumb_path, o
     kw = {"progress": on_progress} if on_progress else {}
     if size <= PART_BYTES:
         if is_video:
-            return [app.send_video(chat, str(filepath), caption=_caption(title, url), thumb=thumb_path, cover=cover,
+            return [app.send_video(chat, str(filepath), caption=_caption(title, url), cover=cover,
+                                   thumb=_safe_thumb(thumb_path, filepath), **_video_meta(str(filepath)),
                                    reply_to_message_id=rid, supports_streaming=True, **kw)]
         return [app.send_document(chat, str(filepath), caption=_caption(title, url), thumb=thumb_path,
                                   reply_to_message_id=rid, **kw)]
@@ -664,7 +701,8 @@ def _send_file(app, message, filepath: Path, title: str, url: str, thumb_path, o
     paths = _split_by_size(filepath, int(PART_BYTES * 0.97))
     if not paths:
         raise RuntimeError("could not split the video")
-    return [app.send_video(chat, p, caption=_caption(title, url, f"Part {n}/{len(paths)}"), thumb=thumb_path, cover=cover,
+    return [app.send_video(chat, p, caption=_caption(title, url, f"Part {n}/{len(paths)}"), cover=cover,
+                           thumb=_safe_thumb(thumb_path, p), **_video_meta(p),
                            reply_to_message_id=rid, supports_streaming=True, **kw) for n, p in enumerate(paths, 1)]
 
 

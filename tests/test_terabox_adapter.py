@@ -105,7 +105,7 @@ def test_cache_roundtrip(monkeypatch):
     monkeypatch.setattr(kit, "state_get", lambda k, d=None: store.get(k, d))
     monkeypatch.setattr(kit, "state_set", lambda k, v: store.__setitem__(k, v))
     url = "https://terasharelink.com/s/18KnaRqYo1qA8Smga-tgQUQ"
-    assert tb._share_key(url) == "v4:8KnaRqYo1qA8Smga-tgQUQ"
+    assert tb._share_key(url) == "v5:8KnaRqYo1qA8Smga-tgQUQ"
     vid = types.SimpleNamespace(video=types.SimpleNamespace(file_id="F1"), document=None)
     tb._cache_put(url, [vid], "Movie.mkv")
     assert tb._cache_get("https://www.1024terabox.com/s/18KnaRqYo1qA8Smga-tgQUQ") == {"t": "Movie.mkv", "f": [("F1", "v")]}
@@ -316,3 +316,22 @@ def test_ts_byte_pieces_become_playable_mp4(tmp_path):
     parts = tb._split_ts_bytes(src, int(src.stat().st_size / 2.5))
     assert [tb.Path(p).name for p in parts] == ["Movie - Part 1.mp4", "Movie - Part 2.mp4", "Movie - Part 3.mp4"]
     assert sum(tb._duration(p) for p in parts) > 55
+
+
+def test_parts_are_sent_with_duration_size_and_small_thumb(tmp_path):
+    import shutil, subprocess
+    import pytest
+    from ADAPTERS import terabox as tb
+    if not shutil.which("ffmpeg"):
+        pytest.skip("ffmpeg not installed")
+    v = tmp_path / "v.mp4"
+    subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "testsrc=size=640x360:rate=25",
+                    "-t", "12", "-c:v", "libx264", "-preset", "ultrafast", str(v)], check=True)
+    assert tb._video_meta(str(v)) == {"duration": 12, "width": 640, "height": 360}
+    from PIL import Image
+    big = tmp_path / "big.jpg"
+    Image.new("RGB", (1280, 720), "red").save(big)
+    t = tb._safe_thumb(str(big), v)
+    with Image.open(t) as im:
+        assert max(im.size) <= 320
+    assert tb._safe_thumb(None, v)                                   # no TeraBox thumb: a frame of the video
