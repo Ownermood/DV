@@ -24,7 +24,7 @@ def store(tmp_path, monkeypatch):
 def test_add_validate_and_limit(store):
     ok, msg, n = cs.add("instagram", _cookie(value="a"))
     assert ok and n == 1
-    assert "already added as Cookie-1" in cs.add("instagram", _cookie(value="a"))[1]
+    assert "same login as Cookie-1, not added" in cs.add("instagram", _cookie(value="a"))[1]
     assert "No login cookie" in cs.add("instagram", _cookie(name="csrftoken"))[1]
     assert "expired" in cs.add("instagram", _cookie(value="old", exp=int(time.time()) - 10))[1]
     assert "has no Instagram cookies" in cs.add("instagram", "hello")[1]

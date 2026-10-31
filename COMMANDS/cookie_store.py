@@ -154,7 +154,9 @@ def _add(service, content, data, replace_id=None):
     lst = data.setdefault(service, [])
     dup = next((n for n, s in enumerate(lst, 1) if s.get("fp") == fp and s["id"] != replace_id), None)
     if dup:
-        return False, f"Same cookie is already added as Cookie-{dup}. Log in with another account for a new one.", None
+        return False, (f"Duplicate: same login as Cookie-{dup}, not added. Accounts logged in in the same browser "
+                       f"share one login. For a new cookie: new Incognito window → log in to only ONE other account "
+                       f"→ export → close the window."), None
     if replace_id is None and len(lst) >= MAX_SLOTS:
         return False, f"Max {MAX_SLOTS} cookies for {SERVICES[service][0]}. Delete one first.", None
     slot_id = replace_id or secrets.token_hex(4)
