@@ -1935,6 +1935,10 @@ def get_service_name_from_url(url: str) -> str | None:
         return 'vk'
     elif 'facebook.com' in url_lower or 'fb.watch' in url_lower or 'fb.com/' in url_lower:
         return 'facebook'
+    elif 'snapchat.com' in url_lower:
+        return 'snapchat'
+    elif 'pinterest.' in url_lower or 'pin.it' in url_lower:
+        return 'pinterest'
     
     return None
 

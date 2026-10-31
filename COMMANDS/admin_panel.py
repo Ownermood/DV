@@ -193,8 +193,9 @@ def _joined(users: dict) -> list:
 
 def _running_downloads():
     try:
-        from HELPERS.download_status import active_downloads
-        return len(active_downloads)
+        from HELPERS.download_status import active_downloads, active_downloads_lock
+        with active_downloads_lock:   # finished downloads stay in the dict as False
+            return sum(1 for on in active_downloads.values() if on)
     except Exception:
         return "—"
 

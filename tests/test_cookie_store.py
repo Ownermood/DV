@@ -74,3 +74,23 @@ def test_only_site_drops_other_sites():
     assert "SAPISID" in yt and "sessionKey" not in yt and "_octo" not in yt and "ndus" not in yt
     tb = cs.only_site("terabox", raw)
     assert "ndus" in tb and "SAPISID" not in tb
+
+
+def test_snapchat_and_pinterest_cookies(store):
+    pin = ("# Netscape HTTP Cookie File\n.pinterest.com\tTRUE\t/\tTRUE\t4102444800\t_pinterest_sess\tabc\n"
+           ".google.com\tTRUE\t/\tTRUE\t4102444800\tSID\tx\n")
+    ok, msg = cs.add("pinterest", pin)[:2]
+    assert ok, msg
+    snap = "# Netscape HTTP Cookie File\n.snapchat.com\tTRUE\t/\tTRUE\t4102444800\t__Host-sc-a-session\tq\n"
+    ok, msg = cs.add("snapchat", snap)[:2]
+    assert ok, msg
+    ok, msg = cs.add("snapchat", snap)[:2]
+    assert not ok and "Cookie-1" in msg                   # duplicate still detected without a known login cookie
+    assert cs.add("snapchat", "# Netscape HTTP Cookie File\n.google.com\tTRUE\t/\tTRUE\t4102444800\tSID\tx\n")[0] is False
+
+
+def test_running_now_counts_only_active(monkeypatch):
+    from HELPERS import download_status as ds
+    from COMMANDS import admin_panel as ap
+    monkeypatch.setattr(ds, "active_downloads", {1: False, 2: True, 3: False})
+    assert ap._running_downloads() == 1

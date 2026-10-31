@@ -28,6 +28,8 @@ SERVICES = {
     "instagram": ("Instagram", "image", "5355097780228470775", ("sessionid",)),
     "facebook": ("Facebook", "chat", "5355254460635428635", ("c_user", "xs")),
     "terabox": ("TeraBox", "box", "5976766782763962762", ("ndus",)),
+    "pinterest": ("Pinterest", "image", "5352595631066071365", ("_pinterest_sess",)),
+    "snapchat": ("Snapchat", "chat", "5352719553757466112", ()),   # () = any snapchat.com cookie counts
 }
 
 _lock = threading.RLock()
@@ -90,15 +92,21 @@ def parse(content: str) -> dict:
     return out
 
 
+def _login_names(service, cookies: dict) -> list:
+    """The cookies that make the login; a service without a known login cookie uses all of them."""
+    need = SERVICES[service][3]
+    return [n for n in need if n in cookies] if need else sorted(cookies)
+
+
 def _login_expiry(service, cookies: dict) -> int:
     """Earliest expiry of the login cookies (0 = session cookie / unknown)."""
-    exps = [cookies[n][1] for n in SERVICES[service][3] if n in cookies and cookies[n][1] > 0]
+    exps = [cookies[n][1] for n in _login_names(service, cookies) if cookies[n][1] > 0]
     return min(exps) if exps else 0
 
 
 def _fingerprint(service, cookies: dict) -> str:
     import hashlib
-    key = "|".join(cookies[n][0] for n in SERVICES[service][3] if n in cookies)
+    key = "|".join(cookies[n][0] for n in _login_names(service, cookies))
     return hashlib.sha256(key.encode()).hexdigest()[:16]
 
 
@@ -107,6 +115,8 @@ DOMAINS = {
     "youtube": ("youtube.com", "google.com"),
     "instagram": ("instagram.com",),
     "facebook": ("facebook.com", "fb.com"),
+    "pinterest": ("pinterest.", "pin.it"),
+    "snapchat": ("snapchat.com",),
     "terabox": ("terabox", "1024tera", "teraboxapp", "freeterabox", "4funbox", "mirrobox", "nephobox", "momerybox",
                 "tibibox", "teraboxlink", "terasharelink", "1024terabox"),
 }
@@ -122,7 +132,7 @@ def only_site(service, content: str) -> str:
             continue
         h = host.split("\t", 1)[0].lstrip(".").lower()
         # TeraBox has many mirror domains (terabox.app, 1024terabox.com …): substring match there
-        if any((d in h) if service == "terabox" else (h == d or h.endswith("." + d)) for d in doms):
+        if any((d in h) if service in ("terabox", "pinterest") else (h == d or h.endswith("." + d)) for d in doms):
             keep.append(line)
     return "\n".join(keep) + "\n"
 
@@ -135,7 +145,7 @@ def _add(service, content, data, replace_id=None):
         return False, (f"This file has no {SERVICES[service][0]} cookies. It was exported before logging in "
                        f"(or the extension is not allowed in Incognito). Log in first, then Export again."), None
     need = SERVICES[service][3]
-    if not any(n in cookies for n in need):
+    if need and not any(n in cookies for n in need):
         return False, f"No login cookie ({' / '.join(need)}). Log in to {SERVICES[service][0]} first, then export.", None
     exp = _login_expiry(service, cookies)
     if exp and exp < time.time():
@@ -291,7 +301,7 @@ def test_slot(service, slot_id):
             cookies = parse(f.read())
     except OSError:
         return False, "file missing"
-    if not any(n in cookies for n in SERVICES[service][3]):
+    if not _login_names(service, cookies):
         return False, "login cookie missing"
     exp = _login_expiry(service, cookies)
     if exp and exp < time.time():
