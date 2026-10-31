@@ -101,3 +101,28 @@ def test_tap_selects_tap_again_unselects(monkeypatch):
     tap("pl|tk|q|b")
     tap("pl|tk|go")
     assert "quality" in answers[-1] and "tk" in pl._JOBS
+
+
+def test_done_card_offers_the_next_part(monkeypatch):
+    sent = []
+    monkeypatch.setattr(pl, "send", lambda c, chat, build, **k: sent.append(build()) or NS(delete=lambda: None))
+    monkeypatch.setattr(ui, "_run_choice", lambda c, m, q: None)
+    job = _job(100, sel=[0])
+    pl._run(None, job, NS(delete=lambda: None))
+    text, kb = sent[-1]
+    labels = [b.text for r in kb.inline_keyboard for b in r]
+    assert "Playlist part done" in text and "Next: 11–20 of 100" in text
+    assert "Next 11–20" in labels and "Choose Parts" in labels           # one tap for the next 10
+    nxt = pl._JOBS[kb.inline_keyboard[0][0].callback_data.split("|")[1]]
+    assert nxt["sel"] == [1] and nxt["qs"] == job["qs"]
+    sent.clear()
+    pl._run(None, _job(10, sel=[0]), NS(delete=lambda: None))
+    assert sent[-1][1] is None                                             # last part: no Next button
+
+
+def test_playlist_videos_skip_the_per_minute_limit(monkeypatch):
+    marks = []
+    monkeypatch.setattr(pl, "send", lambda *a, **k: NS(delete=lambda: None))
+    monkeypatch.setattr(ui, "_run_choice", lambda c, m, q: marks.append(getattr(m, "_playlist", False)))
+    pl._run(None, _job(12, sel=[0, 1]), NS(delete=lambda: None))
+    assert marks == [True] * 12                                            # url_distractor skips check_rate_limit

@@ -149,27 +149,54 @@ def stop(chat_id) -> None:
         _STOP.add(int(chat_id))
 
 
+def _status(client, chat, old, text, kb):
+    """The status card stays at the bottom: videos arrive below it, so it is sent again (old one removed)."""
+    try:
+        new = send(client, chat, lambda: (text, kb))
+        if old is not None:
+            old.delete()
+        return new or old
+    except Exception:
+        return old
+
+
+def _next_job(job):
+    """The next part after the chosen ones (same qualities), for one-tap 'Next 11–20'."""
+    b = _batches(job)
+    k = max(job["sel"]) + 1 if job["sel"] else 0
+    if k >= len(b):
+        return None
+    token = secrets.token_hex(4)
+    nxt = {**job, "token": token, "sel": [k], "page": k // PAGE_BATCHES, "qs": list(job["qs"]), "ts": time.time()}
+    with _lock:
+        _JOBS[token] = nxt
+    return nxt
+
+
 def _run(client, job, card) -> None:
     from COMMANDS.simple_ui import _run_choice
     msg = job["msg"]
     target = getattr(msg, "_dm_twin", None) or msg
+    if target is not msg:
+        target._playlist = True   # group request: the DM twin runs the videos
     chat = target.chat.id
     with _lock:
         _STOP.discard(chat)
     urls = chosen_urls(job)
-    done = failed = 0
+    done = 0
     stop_kb = InlineKeyboardMarkup([[btn("ban", "Stop Playlist", cb=f"pl|{job['token']}|stop", style=RED)]])
+    title = html.escape(job["title"][:120])
+    status = None
+    try:
+        card.delete()   # the choice card goes; the status card follows the videos
+    except Exception:
+        pass
     for i, url in enumerate(urls, 1):
         with _lock:
             if chat in _STOP:
                 break
-        try:
-            edit(client, card, lambda i=i: (f"{em('play')} <b>{html.escape(job['title'][:120])}</b>\n"
-                                            f"<blockquote>📃 Video <b>{i}</b> of <b>{len(urls)}</b>"
-                                            f" · ✅ {done} sent" + (f" · ⚠️ {failed} failed" if failed else "")
-                                            + "</blockquote>", stop_kb))
-        except Exception:
-            pass
+        status = _status(client, chat, status, f"{em('play')} <b>{title}</b>\n<blockquote>📃 Video <b>{i}</b> of "
+                                               f"<b>{len(urls)}</b> · {done} done</blockquote>", stop_kb)
         for q in job["qs"]:   # each chosen quality of this video, one after the other
             with _lock:
                 if chat in _STOP:
@@ -177,21 +204,26 @@ def _run(client, job, card) -> None:
             m = copy.copy(msg)
             m.text = url
             m._ui_title = None
+            m._playlist = True
             try:
                 _run_choice(client, m, q)   # waits until this video is sent (or failed)
             except Exception as exc:
-                failed += 1
                 logger.info(f"[playlist] video {i} ({q}): {exc}")
         done += 1
     with _lock:
         stopped = chat in _STOP
         _STOP.discard(chat)
-    head = "⏹ <b>Playlist stopped.</b>" if stopped else f"{em('ok')} <b>Playlist done.</b>"
-    try:
-        edit(client, card, lambda: (f"{head}\n<blockquote>{html.escape(job['title'][:120])}\n"
-                                    f"{done} of {len(urls)} videos handled</blockquote>", None))
-    except Exception:
-        pass
+    nxt = None if stopped else _next_job(job)
+    head = "⏹ <b>Playlist stopped.</b>" if stopped else f"{em('ok')} <b>Playlist part done.</b>"
+    rows = []
+    if nxt:
+        a, b = _batches(nxt)[nxt["sel"][0]]
+        rows.append([btn("next", f"Next {a + 1}–{b}", cb=f"pl|{nxt['token']}|go", style=GREEN),
+                     btn("down", "Choose Parts", cb=f"pl|{nxt['token']}|show", style=PLAIN)])
+    _status(client, chat, status, f"{head}\n<blockquote>{title}\n{done} of {len(urls)} videos handled"
+                                  + (f"\nNext: {_batches(nxt)[nxt['sel'][0]][0] + 1}–{_batches(nxt)[nxt['sel'][0]][1]}"
+                                     f" of {len(job['urls'])}" if nxt else "") + "</blockquote>",
+            InlineKeyboardMarkup(rows) if rows else None)
 
 
 @app.on_callback_query(filters.regex(r"^pl\|"), group=-1)
@@ -218,6 +250,8 @@ def playlist_buttons(client, cq):
                     raise RuntimeError("over the limit")
                 job["sel"].append(k)
             edit(client, cq.message, lambda: _card(job))
+        elif action == "show":   # "Choose Parts" on the done card
+            edit(client, cq.message, lambda: _card(job))
         elif action == "p" and len(parts) == 4 and parts[3].isdigit():
             job["page"] = int(parts[3])
             edit(client, cq.message, lambda: _card(job))
@@ -238,6 +272,15 @@ def playlist_buttons(client, cq):
             with _lock:
                 _JOBS.pop(token, None)   # one run per card
                 _JOBS[f"run-{token}"] = job
+            from HELPERS.rate_limiter import check_rate_limit
+            from COMMANDS.simple_ui import _is_admin
+            ok, why = check_rate_limit(cq.from_user.id, _is_admin(cq.from_user.id))   # the playlist counts once
+            if not ok:
+                with _lock:
+                    _JOBS[token] = job
+                    _JOBS.pop(f"run-{token}", None)
+                cq.answer(why or "Rate limit exceeded. Please wait.", show_alert=True)
+                raise RuntimeError("rate limited")
             cq.answer(f"Starting {len(chosen_urls(job))} videos")
             threading.Thread(target=_run, args=(client, job, cq.message), daemon=True).start()
         elif action == "stop":

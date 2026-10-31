@@ -58,7 +58,9 @@ def url_distractor(app, message):
         if not is_user_blocked(message):
             # Check rate limit before processing URL
             from HELPERS.rate_limiter import check_rate_limit
-            allowed, rate_limit_msg = check_rate_limit(user_id, is_admin)
+            # a playlist counts once (at its Start), not once per video: 5 per minute stopped it after 5 videos
+            allowed, rate_limit_msg = ((True, None) if getattr(message, "_playlist", False)
+                                       else check_rate_limit(user_id, is_admin))
             if not allowed:
                 safe_send_message(
                     user_id,
