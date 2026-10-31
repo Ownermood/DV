@@ -516,37 +516,58 @@ def _ckm_view():
         rows.append([btn(key, f"{label} · {live}/{len(sl)}", cb=f"ap|cks|{svc}", style=PLAIN)])
     rows.append([btn("search", "Test All Now", cb="ap|ckchk", style=PLAIN)])
     text = card("lips", "COOKIE MANAGER", lines,
-                [f"{em('refresh')} A download uses Cookie-1. If it needs login, the bot tries Cookie-2, Cookie-3 … by itself.",
+                [f"{em('refresh')} Rotation: downloads take turns over every working cookie; a failing one falls through to the next.",
                  f"{em('warn')} 5 failures in a row → that cookie is skipped and you get a DM.",
                  f"{em('laptop')} Every {cs.CHECK_EVERY_HOURS}h the bot checks all cookies and DMs you before one expires."],
                 footer=f"{em('down')} <b>Tap a platform:</b>  the number shows working / added cookies")
     return text, _back_kb(rows)
 
 
-def _cks_view(svc):
+CK_PAGE = 10   # cookies per page in the list (30-50 fit in a few pages)
+
+
+def _cks_view(svc, page=0):
     label, key, _cid, need = cs.SERVICES[svc]
     sl = cs.slots(svc)
-    in_use = next((s["id"] for s in sl if cs.usable(s)), None)
+    nxt = cs.next_in_rotation(svc)
+    now = time.time()
+    working = sum(1 for s in sl if cs.usable(s))
+    off = sum(1 for s in sl if not s["on"])
+    expired = sum(1 for s in sl if s["on"] and s.get("exp") and s["exp"] < now)
+    dead = len(sl) - working - off - expired
 
     def _d(ts):
-        return datetime.fromtimestamp(ts, IST).strftime("%d %b, %I:%M %p") if ts else "never"
-    lines = [f"{em('ok' if cs.usable(s) else 'warn')} <b>Cookie-{n}</b>: {_ck_status(s)}"
-             + (" · <b>IN USE</b>" if s["id"] == in_use else "")
-             + f"\n     Added {_d(s.get('added'))} · last worked {_d(s.get('last_ok'))} · {cs.exp_text(s.get('exp'))}"
-             for n, s in enumerate(sl, 1)] or ["<i>No cookie yet. Tap Add Cookie-1.</i>"]
+        return datetime.fromtimestamp(ts, IST).strftime("%d %b") if ts else "never"
+    pages = max(1, -(-len(sl) // CK_PAGE))
+    page = max(0, min(page, pages - 1))
+    first = page * CK_PAGE
+    lines = [f"{em('ok')} <b>{working}</b> working · {em('warn')} <b>{dead}</b> not working · "
+             f"⏳ <b>{expired}</b> expired · ⚪ <b>{off}</b> off  (of {len(sl)}/{cs.MAX_SLOTS})"]
+    lines += [f"{'✅' if cs.usable(s) else '⚪' if not s['on'] else '❌'} <b>Cookie-{n}</b> {_ck_status(s)}"
+              + (" · <b>NEXT</b>" if s["id"] == nxt else "")
+              + f" · ok {_d(s.get('last_ok'))} · {cs.exp_text(s.get('exp'))}"
+              for n, s in enumerate(sl[first:first + CK_PAGE], first + 1)] if sl else ["<i>No cookie yet. Tap Add Cookie-1.</i>"]
     rows, r = [], []
-    for n, s in enumerate(sl, 1):
-        r.append(btn("ok" if cs.usable(s) else "warn", f"Cookie-{n}", cb=f"ap|ckv|{svc}|{s['id']}",
+    for n, s in enumerate(sl[first:first + CK_PAGE], first + 1):
+        r.append(btn("ok" if cs.usable(s) else "warn", f"C-{n}", cb=f"ap|ckv|{svc}|{s['id']}",
                      style=GREEN if cs.usable(s) else RED))
-        if len(r) == 3:
+        if len(r) == 5:
             rows.append(r)
             r = []
     if r:
         rows.append(r)
+    if pages > 1:
+        rows.append([btn("back", "Prev", cb=f"ap|cks|{svc}|{(page - 1) % pages}", style=PLAIN),
+                     btn("memo", f"{page + 1}/{pages}", cb=f"ap|cks|{svc}|{page}", style=PLAIN),
+                     btn("next", "Next", cb=f"ap|cks|{svc}|{(page + 1) % pages}", style=PLAIN)])
     if len(sl) < cs.MAX_SLOTS:
-        rows.append([btn("plus", f"Add Cookie-{len(sl) + 1}", cb=f"ap|cka|{svc}", style=GREEN)])
+        rows.append([btn("plus", f"Add Cookies (Cookie-{len(sl) + 1}…)", cb=f"ap|cka|{svc}", style=GREEN)])
+    if sl:
+        rows.append([btn("search", f"Test All {label}", cb=f"ap|ckst|{svc}", style=PLAIN)]
+                    + ([btn("trash", f"Remove {dead + expired} Dead", cb=f"ap|ckrd|{svc}", style=RED)] if dead + expired else []))
     text = card(key, f"{label.upper()} COOKIES", lines,
-                [f"{em('memo')} Needs a logged-in cookies.txt (login cookie: <code>{' / '.join(need)}</code>).",
+                [f"{em('refresh')} Rotation: each download starts at the NEXT cookie, then tries the others.",
+                 f"{em('memo')} Logged-in cookies.txt (login cookie: <code>{' / '.join(need) or 'any'}</code>). Send many files at once.",
                  f"{em('lips')} Use spare accounts, not your main one."])
     return text, _back_kb(rows, back="ap|ckm")
 
@@ -577,7 +598,7 @@ _CK_SITE = {"youtube": "youtube.com", "instagram": "instagram.com", "facebook": 
 
 
 def _cookie_input(client, message, uid, action):
-    """Files sent after Add Cookies (up to 10 at once, album or one by one) or Replace."""
+    """Files sent after Add Cookies (many at once, album or one by one) or Replace."""
     kind, svc, *rest = action.split(":")
     text = (message.text or "").strip().lower()
     done_kb = InlineKeyboardMarkup([[btn("ok", "Done", cb=f"ap|cks|{svc}", style=GREEN)]])
@@ -1034,6 +1055,26 @@ def admin_callbacks(client, cq):
             edit(client, msg, _ckm_view)
         elif action == "cks" and arg in cs.SERVICES:
             _input.pop(uid, None)
+            page = int(parts[3]) if len(parts) > 3 and parts[3].isdigit() else 0
+            edit(client, msg, lambda: _cks_view(arg, page))
+        elif action == "ckst" and arg in cs.SERVICES:   # test every cookie of one platform
+            cq.answer("Testing…")
+            label = cs.SERVICES[arg][0]
+            edit(client, msg, lambda: (f"{em('search')} <b>Testing all {label} cookies…</b>", None))
+
+            def run_svc(svc=arg):
+                lines = cs.check_all(alert=False, services=[svc])
+                good = sum(1 for l in lines if l.startswith("✅"))
+                text, kb = _cks_view(svc)
+                edit(client, msg, lambda: (f"{em('search')} <b>Test done: {good} of {len(lines)} working.</b>\n\n" + text, kb))
+            threading.Thread(target=run_svc, daemon=True).start()
+        elif action == "ckrd" and arg in cs.SERVICES:
+            edit(client, msg, lambda: (f"{em('warn')} <b>Delete every {cs.SERVICES[arg][0]} cookie that is not working or expired?</b>",
+                                       InlineKeyboardMarkup([[btn("trash", "Yes, Remove", cb=f"ap|ckrdx|{arg}", style=RED),
+                                                              btn("back", "No", cb=f"ap|cks|{arg}", style=PLAIN)]])))
+        elif action == "ckrdx" and arg in cs.SERVICES:
+            n = cs.remove_dead(arg)
+            cq.answer(f"Removed {n}")
             edit(client, msg, lambda: _cks_view(arg))
         elif action in ("ckv", "ckt", "ckd", "ckdx", "ckr", "cktest") and arg in cs.SERVICES and len(parts) == 4:
             sid = parts[3]

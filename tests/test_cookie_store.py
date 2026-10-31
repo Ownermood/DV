@@ -28,25 +28,25 @@ def test_add_validate_and_limit(store):
     assert "No login cookie" in cs.add("instagram", _cookie(name="csrftoken"))[1]
     assert "expired" in cs.add("instagram", _cookie(value="old", exp=int(time.time()) - 10))[1]
     assert "has no Instagram cookies" in cs.add("instagram", "hello")[1]
-    for i in range(9):
+    for i in range(cs.MAX_SLOTS - 1):                         # 50 per platform
         assert cs.add("instagram", _cookie(value=f"x{i}"))[0]
-    assert "Max 10" in cs.add("instagram", _cookie(value="eleven"))[1]
-    assert len(cs.active_paths("instagram")) == 10
+    assert f"Max {cs.MAX_SLOTS}" in cs.add("instagram", _cookie(value="one-too-many"))[1]
+    assert len(cs.active_paths("instagram")) == cs.MAX_SLOTS
 
 
 def test_rotation_order_toggle_and_failures(store):
     for v in ("a", "b", "c"):
         cs.add("instagram", _cookie(value=v))
-    first, second = cs.active_paths("instagram")[:2]
+    first, second = cs.active_paths("instagram", rotate=False)[:2]
     sid1 = cs.slots("instagram")[0]["id"]
     cs.toggle("instagram", sid1)
-    assert cs.active_paths("instagram")[0] == second
+    assert cs.active_paths("instagram", rotate=False)[0] == second
     cs.toggle("instagram", sid1)
     for _ in range(cs.FAIL_ALERT_AT):
         cs.record(first, False, "login required")
-    assert first not in cs.active_paths("instagram") and len(store) == 1 and "stopped working" in store[0]
+    assert first not in cs.active_paths("instagram", rotate=False) and len(store) == 1 and "stopped working" in store[0]
     cs.record(first, True)
-    assert first in cs.active_paths("instagram") and "working again" in store[1]
+    assert first in cs.active_paths("instagram", rotate=False) and "working again" in store[1]
 
 
 def test_expiry_read_from_file_and_legacy_migration(store, tmp_path):
@@ -94,3 +94,38 @@ def test_running_now_counts_only_active(monkeypatch):
     from COMMANDS import admin_panel as ap
     monkeypatch.setattr(ds, "active_downloads", {1: False, 2: True, 3: False})
     assert ap._running_downloads() == 1
+
+
+def test_downloads_take_turns_over_working_cookies(store):
+    for v in ("a", "b", "c"):
+        cs.add("instagram", _cookie(value=v))
+    cs._turn.clear()
+    p = cs.active_paths("instagram", rotate=False)
+    starts = [cs.active_paths("instagram")[0] for _ in range(4)]
+    assert starts == [p[0], p[1], p[2], p[0]]                 # each download starts at the next cookie
+    assert sorted(cs.active_paths("instagram")) == sorted(p)    # and can still fall through all of them
+
+
+def test_remove_dead_keeps_working_and_off(store):
+    for v in ("a", "b", "c", "d"):
+        cs.add("instagram", _cookie(value=v))
+    sl = cs.slots("instagram")
+    for _ in range(cs.FAIL_ALERT_AT):
+        cs.record(cs._path("instagram", sl[1]["id"]), False)   # b stops working
+    cs.toggle("instagram", sl[2]["id"])                       # c is OFF
+    assert cs.remove_dead("instagram") == 1
+    assert [s["id"] for s in cs.slots("instagram")] == [sl[0]["id"], sl[2]["id"], sl[3]["id"]]
+
+
+def test_cookie_list_with_35_cookies_fits_telegram(store, monkeypatch):
+    from types import SimpleNamespace as NS
+    from HELPERS import app_instance
+    app_instance.set_app(NS(on_message=lambda *a, **k: (lambda f: f), on_callback_query=lambda *a, **k: (lambda f: f)))
+    from COMMANDS import admin_panel as ap
+    for i in range(35):
+        cs.add("youtube", "# Netscape HTTP Cookie File\n.youtube.com\tTRUE\t/\tTRUE\t4102444800\tSID\tv%d\n" % i)
+    assert len(cs.slots("youtube")) == 35
+    for page in range(4):
+        text, kb = ap._cks_view("youtube", page)
+        assert len(text) < 4096 and sum(len(r) for r in kb.inline_keyboard) <= 100
+    assert "Cookie-31" in ap._cks_view("youtube", 3)[0] and "4/4" in str(ap._cks_view("youtube", 3)[1])

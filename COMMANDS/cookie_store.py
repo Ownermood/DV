@@ -18,7 +18,7 @@ from HELPERS.logger import logger
 
 IST = timezone(timedelta(hours=5, minutes=30))
 ROOT = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "cookies")
-MAX_SLOTS = 10
+MAX_SLOTS = 50
 FAIL_ALERT_AT = 5
 CHECK_EVERY_HOURS = 6
 
@@ -212,9 +212,34 @@ def usable(s) -> bool:
     return s["on"] and not s.get("down") and not (s.get("exp") and s["exp"] < time.time())
 
 
-def active_paths(service) -> list:
-    """Cookie files to try, in order (ON, not down, not expired)."""
-    return [_path(service, s["id"]) for s in slots(service) if usable(s) and os.path.exists(_path(service, s["id"]))]
+_turn = {}   # service -> where the next download starts in the cookie list (rotation)
+
+
+def active_paths(service, rotate=True) -> list:
+    """Cookie files to try (ON, not down, not expired). Rotation: each download starts at the next cookie and
+    falls through the rest, so the load is spread over every working account instead of always Cookie-1."""
+    paths = [_path(service, s["id"]) for s in slots(service) if usable(s) and os.path.exists(_path(service, s["id"]))]
+    if not rotate or len(paths) < 2:
+        return paths
+    with _lock:
+        k = _turn.get(service, 0) % len(paths)
+        _turn[service] = k + 1
+    return paths[k:] + paths[:k]
+
+
+def next_in_rotation(service):
+    """Slot id the next download starts with (for the admin list)."""
+    live = [s for s in slots(service) if usable(s)]
+    return live[_turn.get(service, 0) % len(live)]["id"] if live else None
+
+
+def remove_dead(service) -> int:
+    """Delete every cookie of this platform that is not working or expired (OFF ones are kept). Returns the count."""
+    dead = [s["id"] for s in slots(service)
+            if s["on"] and (s.get("down") or (s.get("exp") and s["exp"] < time.time()))]
+    for sid in dead:
+        delete(service, sid)
+    return len(dead)
 
 
 def first_active(service):
@@ -362,11 +387,11 @@ def _youtube_live(path):
             pass
 
 
-def check_all(alert=True) -> list:
-    """Test every ON cookie; DM owners about changes and expiry (1 day before / on the day)."""
+def check_all(alert=True, services=None) -> list:
+    """Test every ON cookie (of `services`, default all); alert about changes and expiry (1 day before)."""
     lines, alerts = [], []
     now = time.time()
-    for service in SERVICES:
+    for service in services or SERVICES:
         for n, s in enumerate(slots(service), 1):
             tag = f"{SERVICES[service][0]} Cookie-{n}"
             if not s["on"]:
