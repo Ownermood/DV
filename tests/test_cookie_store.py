@@ -129,3 +129,13 @@ def test_cookie_list_with_35_cookies_fits_telegram(store, monkeypatch):
         text, kb = ap._cks_view("youtube", page)
         assert len(text) < 4096 and sum(len(r) for r in kb.inline_keyboard) <= 100
     assert "Cookie-31" in ap._cks_view("youtube", 3)[0] and "4/4" in str(ap._cks_view("youtube", 3)[1])
+
+
+def test_cookie_manager_platforms_two_per_row(store):
+    from types import SimpleNamespace as NS
+    from HELPERS import app_instance
+    app_instance.set_app(NS(on_message=lambda *a, **k: (lambda f: f), on_callback_query=lambda *a, **k: (lambda f: f)))
+    from COMMANDS import admin_panel as ap
+    rows = ap._ckm_view()[1].inline_keyboard
+    platform_rows = [r for r in rows if any((b.callback_data or "").startswith("ap|cks|") for b in r)]
+    assert [len(r) for r in platform_rows] == [2, 2, 2]          # 6 platforms in 3 rows of two

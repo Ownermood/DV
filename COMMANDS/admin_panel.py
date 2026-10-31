@@ -513,7 +513,11 @@ def _ckm_view():
         sl = cs.slots(svc)
         live = sum(1 for s in sl if cs.usable(s))
         lines.append(row(key, label, f"{live} working / {len(sl)} added"))
-        rows.append([btn(key, f"{label} · {live}/{len(sl)}", cb=f"ap|cks|{svc}", style=PLAIN)])
+        b = btn(key, f"{label} · {live}/{len(sl)}", cb=f"ap|cks|{svc}", style=PLAIN)
+        if rows and len(rows[-1]) < 2:   # two platforms side by side
+            rows[-1].append(b)
+        else:
+            rows.append([b])
     rows.append([btn("search", "Test All Now", cb="ap|ckchk", style=PLAIN)])
     text = card("lips", "COOKIE MANAGER", lines,
                 [f"{em('refresh')} Rotation: downloads take turns over every working cookie; a failing one falls through to the next.",
