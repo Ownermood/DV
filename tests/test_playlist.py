@@ -22,7 +22,7 @@ def test_playlist_links():
 
 def _job(n, total=None):
     return {"token": "tk", "msg": NS(id=1, chat=NS(id=7), from_user=NS(id=7)), "title": "Mix", "uploader": "Music",
-            "total": total or n, "urls": [f"https://youtu.be/v{i}" for i in range(n)], "count": n, "q": "b", "ts": 0}
+            "total": total or n, "urls": [f"https://youtu.be/v{i}" for i in range(n)], "count": n, "qs": ["b"], "ts": 0}
 
 
 def test_card_counts_quality_and_start():
@@ -46,7 +46,7 @@ def test_videos_run_one_by_one_and_stop(monkeypatch):
 
     monkeypatch.setattr(ui, "_run_choice", fake_choice)
     job = _job(10)
-    job["count"], job["q"] = 5, "720"
+    job["count"], job["qs"] = 5, ["720"]
     pl._run(None, job, NS())
     assert ran == [(f"https://youtu.be/v{i}", "720") for i in range(3)]   # stopped after video 3
     assert 7 not in pl._STOP                                              # next playlist starts clean
@@ -58,4 +58,18 @@ def test_card_colours_only_on_start_and_close():
     assert [len(r) for r in rows] == [2, 3, 3, 2]                     # counts / 3 qualities / 3 qualities / Start+Close
     start, close = rows[-1]
     assert start.style == enums.ButtonStyle.SUCCESS and close.style == enums.ButtonStyle.DANGER
-    assert all(b.style == enums.ButtonStyle.DEFAULT for r in rows[:-1] for b in r)
+    chosen = [b for r in rows[:-1] for b in r if b.style == enums.ButtonStyle.SUCCESS]
+    assert len(chosen) == 2                                             # All 13 + Best are green, the rest plain
+    assert all(b.style in (enums.ButtonStyle.DEFAULT, enums.ButtonStyle.SUCCESS) for r in rows[:-1] for b in r)
+
+
+def test_several_qualities_each_video_in_each(monkeypatch):
+    ran = []
+    monkeypatch.setattr(pl, "edit", lambda *a, **k: None)
+    monkeypatch.setattr(ui, "_run_choice", lambda c, m, q: ran.append((m.text, q)))
+    job = _job(2)
+    job["qs"] = ["720", "a"]
+    assert "× 2" in str(pl._card(job)[1])
+    pl._run(None, job, NS())
+    assert ran == [("https://youtu.be/v0", "720"), ("https://youtu.be/v0", "a"),
+                   ("https://youtu.be/v1", "720"), ("https://youtu.be/v1", "a")]

@@ -27,7 +27,7 @@ app = get_app()
 PLAIN = enums.ButtonStyle.DEFAULT
 QUALITIES = (("b", "Best"), ("1080", "1080p"), ("720", "720p"), ("480", "480p"), ("360", "360p"), ("a", "MP3"))
 COUNTS = (10, 25)
-_JOBS = {}            # token -> {"msg", "title", "urls", "count", "q", "ts"}
+_JOBS = {}            # token -> {"msg", "title", "urls", "count", "qs" (chosen qualities), "ts"}
 _STOP = set()         # chats whose running playlist must stop
 _lock = threading.Lock()
 TTL = 3600
@@ -73,16 +73,17 @@ def _card(job):
     text = (f"{em('play')} <b>{html.escape(job['title'][:150])}</b>\n"
             f"<blockquote>📃 <b>{job['total']}</b> videos" + (f" · {html.escape(job['uploader'][:60])}" if job["uploader"] else "")
             + (f"\nUp to {max_count()} per playlist." if job["total"] > n else "") + "</blockquote>\n"
-            f"{em('down')} <b>How many and which quality?</b>")
+            f"{em('down')} <b>How many and which qualities?</b> (tap several qualities to get each)")
     tok = job["token"]
     counts = [c for c in COUNTS if c < n] + [n]
 
-    def pick(selected, icon, label, cb):   # chosen = ✔ icon, every option button plain (colour only on Start / Close)
-        return btn("ok" if selected else icon, label, cb=cb, style=PLAIN)
+    def pick(selected, icon, label, cb):   # chosen = green with ✔, the rest plain
+        return btn("ok" if selected else icon, label, cb=cb, style=GREEN if selected else PLAIN)
     rows = [[pick(job["count"] == c, "down", f"{'All ' if c == n else 'First '}{c}", f"pl|{tok}|c|{c}") for c in counts]]
-    qs = [pick(job["q"] == k, "music" if k == "a" else "play", label, f"pl|{tok}|q|{k}") for k, label in QUALITIES]
+    qs = [pick(k in job["qs"], "music" if k == "a" else "play", label, f"pl|{tok}|q|{k}") for k, label in QUALITIES]
     rows += [qs[:3], qs[3:]]   # 3 + 3, side by side
-    rows.append([btn("bolt", f"Start · {job['count']} videos", cb=f"pl|{tok}|go", style=GREEN),
+    times = f" × {len(job['qs'])}" if len(job["qs"]) > 1 else ""   # several qualities: every video in each
+    rows.append([btn("bolt", f"Start · {job['count']} videos{times}", cb=f"pl|{tok}|go", style=GREEN),
                  btn("trash", "Close", cb=f"pl|{tok}|x", style=RED)])
     return text, InlineKeyboardMarkup(rows)
 
@@ -106,7 +107,7 @@ def show(client, message, url) -> None:
     except Exception:
         q = "b"
     token = secrets.token_hex(4)
-    job = {"token": token, "msg": message, "count": len(data["urls"]), "q": q, "ts": time.time(), **data}
+    job = {"token": token, "msg": message, "count": len(data["urls"]), "qs": [q], "ts": time.time(), **data}
     with _lock:
         for k in [k for k, v in _JOBS.items() if time.time() - v["ts"] > TTL]:
             _JOBS.pop(k, None)
@@ -140,15 +141,19 @@ def _run(client, job, card) -> None:
                                             + "</blockquote>", stop_kb))
         except Exception:
             pass
-        m = copy.copy(msg)
-        m.text = url
-        m._ui_title = None
-        try:
-            _run_choice(client, m, job["q"])   # waits until this video is sent (or failed)
-            done += 1
-        except Exception as exc:
-            failed += 1
-            logger.info(f"[playlist] video {i}: {exc}")
+        for q in job["qs"]:   # each chosen quality of this video, one after the other
+            with _lock:
+                if chat in _STOP:
+                    break
+            m = copy.copy(msg)
+            m.text = url
+            m._ui_title = None
+            try:
+                _run_choice(client, m, q)   # waits until this video is sent (or failed)
+            except Exception as exc:
+                failed += 1
+                logger.info(f"[playlist] video {i} ({q}): {exc}")
+        done += 1
     with _lock:
         stopped = chat in _STOP
         _STOP.discard(chat)
@@ -177,7 +182,11 @@ def playlist_buttons(client, cq):
             job["count"] = max(1, min(int(parts[3]), len(job["urls"])))
             edit(client, cq.message, lambda: _card(job))
         elif action == "q" and len(parts) == 4 and parts[3] in dict(QUALITIES):
-            job["q"] = parts[3]
+            k = parts[3]   # multi-select: tap toggles; at least one stays
+            if k in job["qs"] and len(job["qs"]) > 1:
+                job["qs"].remove(k)
+            elif k not in job["qs"]:
+                job["qs"].append(k)
             edit(client, cq.message, lambda: _card(job))
         elif action == "go":
             if token not in _JOBS:
