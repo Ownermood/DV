@@ -667,7 +667,9 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
             nonlocal current_total_process, error_message, did_cookie_retry, did_proxy_retry, is_hls, error_message_sent, is_reverse_order, use_range_download, current_playlist_items_override, range_entries_metadata
             
             # Use original filename for first attempt
-            original_outtmpl = os.path.join(user_dir_name, "%(title)s.%(ext)s")
+            # title capped at 100 bytes: Facebook / Instagram "titles" are whole posts, and a file name over
+            # 255 bytes can't be created (aria2c exit code 16, "File name too long")
+            original_outtmpl = os.path.join(user_dir_name, "%(title).100B.%(ext)s")
             
             # First try with original filename
             # For negative indices, use the whole range at once
@@ -1108,6 +1110,10 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                     return "STOP"
                 error_message = str(e)
                 logger.error(f"DownloadError: {error_message}")
+                if "aria2c exited" in error_message and ytdl_opts.get("external_downloader"):
+                    # aria2c failed (e.g. code 16: can't create the file): once more with yt-dlp's own downloader
+                    logger.warning("aria2c failed, retrying with yt-dlp's own downloader")
+                    return try_download(url, {**attempt_opts, "external_downloader": {}, "external_downloader_args": {}})
                 
                 # Check for live stream detection (only if detection is enabled)
                 if "LIVE_STREAM_DETECTED" in error_message:

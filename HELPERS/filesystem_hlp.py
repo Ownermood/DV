@@ -293,6 +293,16 @@ def remove_media(message, only=None, force_clean=False):
     logger.info(LoggerMsg.FILESYSTEM_MEDIA_CLEANUP_COMPLETED_LOG_MSG.format(user_id=message.chat.id))
 
 # Helper function to sanitize and shorten filenames
+def _fit_bytes(name: str, limit: int = 200) -> str:
+    """Shorten a file name (keeping its extension) to at most `limit` bytes in UTF-8."""
+    if len(name.encode("utf-8")) <= limit:
+        return name
+    stem, ext = os.path.splitext(name)
+    room = limit - len(ext.encode("utf-8"))
+    cut = stem.encode("utf-8")[:max(room, 1)].decode("utf-8", "ignore")
+    return (cut or "file") + ext
+
+
 def sanitize_filename(filename, max_length=150):
     """
     Sanitize filename by removing invalid characters and shortening if needed
@@ -366,6 +376,7 @@ def sanitize_filename(filename, max_length=150):
           name = name[:max_name_length]
        full_name = name + ext
     
+    full_name = _fit_bytes(full_name)   # Linux: a file name can't pass 255 bytes (Hindi = 3 bytes a letter)
     return full_name
 
 def sanitize_filename_strict(filename, max_length=150):
@@ -418,6 +429,7 @@ def sanitize_filename_strict(filename, max_length=150):
             name = name[:max_name_length]
         full_name = name + ext
     
+    full_name = _fit_bytes(full_name)   # Linux: a file name can't pass 255 bytes (Hindi = 3 bytes a letter)
     return full_name
 
 def is_parallel_download_allowed(message):
