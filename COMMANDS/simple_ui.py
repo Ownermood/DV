@@ -502,8 +502,17 @@ def _show_link_menu(client, message, key, label) -> None:
                     except Exception:
                         pass
                     try:
-                        image_command(client, fake_message(f"/img {extract_url(message.text)}", _owner_of(message),
-                                                           original_chat_id=target.chat.id, original_message=target))
+                        link = extract_url(message.text)
+                        done = False
+                        if key == "instagram":   # photo / carousel post: yt-dlp gives every item at once
+                            from COMMANDS.ig_post import send_post
+                            from HELPERS.caption import build_quoted_caption
+                            me = (getattr(Config, "BOT_NAME", "") or "").lstrip("@")
+                            cap = build_quoted_caption("", "", "", "", f'<a href="{html.escape(link)}">🌐 Instagram</a> @{me}')
+                            done = send_post(client, target, link, cap)
+                        if not done:
+                            image_command(client, fake_message(f"/img {link}", _owner_of(message),
+                                                               original_chat_id=target.chat.id, original_message=target))
                     finally:
                         if twin:
                             group_mirror.stop(client, twin.chat.id)
