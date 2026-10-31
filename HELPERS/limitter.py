@@ -36,18 +36,32 @@ def TimeFormatter(milliseconds: int) -> str:
 
 # Check the USAGE of the BOT
 
-def is_member(app, user_id) -> bool:
-    """The person is in the force-join channel (or no channel is configured)."""
-    if not getattr(Config, 'SUBSCRIBE_CHANNEL', 0):
-        return True
+def force_chats() -> list:
+    """[(chat id, invite link)] the person must be in (channels and groups)."""
+    return list(getattr(Config, "FORCE_JOIN", None) or
+                ([(int(Config.SUBSCRIBE_CHANNEL), getattr(Config, "SUBSCRIBE_CHANNEL_URL", ""))]
+                 if getattr(Config, "SUBSCRIBE_CHANNEL", 0) else []))
+
+
+def _in_chat(app, chat_id, user_id) -> bool:
     try:
-        member = app.get_chat_member(Config.SUBSCRIBE_CHANNEL, user_id)   # live every time: a leaver is caught at once
+        member = app.get_chat_member(chat_id, user_id)   # live every time: a leaver is caught at once
         if member.status == ChatMemberStatus.RESTRICTED:   # restricted people who LEFT are still listed as restricted
             return bool(getattr(member, "is_member", False))
         return member.status in (ChatMemberStatus.MEMBER, ChatMemberStatus.OWNER, ChatMemberStatus.ADMINISTRATOR)
-    except Exception as e:  # not a participant (or the bot can't see the channel)
+    except Exception as e:  # not a participant (or the bot can't see the chat: make it an admin there)
         logger.info(LoggerMsg.LIMITTER_CHANNEL_CHECK_ERROR_LOG_MSG.format(user_id=user_id, error=e))
         return False
+
+
+def missing_chats(app, user_id) -> list:
+    """The force-join chats this person is not in right now."""
+    return [(cid, url) for cid, url in force_chats() if not _in_chat(app, cid, user_id)]
+
+
+def is_member(app, user_id) -> bool:
+    """In every force-join chat (or none is configured)."""
+    return not missing_chats(app, user_id)
 
 
 def is_user_in_channel(app, message):

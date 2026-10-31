@@ -46,6 +46,15 @@ Config.ALLOWED_GROUP = _int_list("ALLOWED_GROUP_IDS", Config.ALLOWED_GROUP)
 for _name in ("LOGS_ID", "LOGS_VIDEO_ID", "LOGS_NSFW_ID", "LOGS_IMG_ID", "LOGS_PAID_ID", "LOG_EXCEPTION", "SUBSCRIBE_CHANNEL"):
     setattr(Config, _name, _int(_name, getattr(Config, _name, 0)))
 Config.SUBSCRIBE_CHANNEL_URL = os.getenv("SUBSCRIBE_CHANNEL_URL", Config.SUBSCRIBE_CHANNEL_URL).strip()
+# Force-join chats (channels and groups): FORCE_JOIN=-100111|https://t.me/Channel,-100222|https://t.me/Group
+# Without it the single SUBSCRIBE_CHANNEL (+ _URL) is used.
+Config.FORCE_JOIN = []
+for _item in os.getenv("FORCE_JOIN", "").split(","):
+    _cid, _, _url = _item.strip().partition("|")
+    if _cid.strip().lstrip("-").isdigit():
+        Config.FORCE_JOIN.append((int(_cid), _url.strip()))
+if not Config.FORCE_JOIN and Config.SUBSCRIBE_CHANNEL:
+    Config.FORCE_JOIN = [(int(Config.SUBSCRIBE_CHANNEL), Config.SUBSCRIBE_CHANNEL_URL)]
 Config.BOT_NAME = os.getenv("BOT_NAME", Config.BOT_NAME).strip()
 Config.BOT_NAME_FOR_USERS = os.getenv("BOT_NAME_FOR_USERS", Config.BOT_NAME).strip()
 

@@ -507,7 +507,9 @@ def test_channel_join_update_verifies_at_once(monkeypatch):
     from pyrogram import enums
     runs = []
     monkeypatch.setattr(ui, "_run_link", lambda c, m, u: runs.append(u))
-    monkeypatch.setattr(ui.Config, "SUBSCRIBE_CHANNEL", -100555, raising=False)
+    from HELPERS import limitter
+    monkeypatch.setattr(ui.Config, "FORCE_JOIN", [(-100555, "https://t.me/VillanCommunity")], raising=False)
+    monkeypatch.setattr(limitter, "is_member", lambda c, uid: True)       # joined every force-join chat
     msg = NS(id=3, chat=NS(id=43), from_user=NS(id=43), text="x")
     ui._JOIN["tk"] = (msg, "https://pin.it/4abcd", __import__("time").time(), None)
     upd = NS(chat=NS(id=-100555), new_chat_member=NS(status=enums.ChatMemberStatus.MEMBER, user=NS(id=43)))
@@ -537,3 +539,26 @@ def test_who_left_the_channel_gets_the_join_card_not_the_menu(monkeypatch):
     msg = NS(id=1, chat=NS(id=7), from_user=NS(id=7), text="https://pin.it/4abcd")
     ui._show_link_menu(None, msg, "pinterest", "Pinterest")
     assert cards == [7] and sent == []                                          # no preview menu for a leaver
+
+
+def test_several_force_join_chats(monkeypatch):
+    from types import SimpleNamespace as NS
+    from pyrogram import enums
+    from HELPERS import limitter
+    monkeypatch.setattr(limitter.Config, "FORCE_JOIN",
+                        [(-1001, "https://t.me/VillanCommunity"), (-1002, "https://t.me/VillanSupport")], raising=False)
+    inside = {-1001}
+    app = NS(get_chat_member=lambda chat, uid: NS(status=enums.ChatMemberStatus.MEMBER if chat in inside
+                                                  else enums.ChatMemberStatus.LEFT))
+    assert limitter.missing_chats(app, 5) == [(-1002, "https://t.me/VillanSupport")]
+    assert not limitter.is_member(app, 5)               # left the group: blocked even though in the channel
+    sent = []
+    monkeypatch.setattr(ui, "send", lambda c, chat, build, **k: sent.append(build()))
+    monkeypatch.setattr(ui, "_watch_join", lambda *a: None)
+    ui.join_card(app, NS(id=1, chat=NS(id=5), from_user=NS(id=5), text="https://pin.it/4abcd"))
+    text, kb = sent[0]
+    buttons = [b.text for row in kb.inline_keyboard for b in row]
+    assert "@VillanSupport" in text and any("VillanSupport" in b for b in buttons)
+    assert not any("VillanCommunity" in b for b in buttons)    # only the chat still to join
+    inside.add(-1002)
+    assert limitter.is_member(app, 5)

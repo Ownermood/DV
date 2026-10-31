@@ -985,16 +985,21 @@ def _resume_from_group(client, user, token) -> bool:
 def join_card(client, message) -> None:
     """Force-join: Join Channel + I've Joined (re-checks and starts the same link)."""
     uid = message.chat.id
-    url = getattr(Config, "SUBSCRIBE_CHANNEL_URL", "") or ""
-    m = re.search(r"t\.me/([A-Za-z0-9_]{4,})/?$", url)
-    channel = f"<b>@{m.group(1)}</b>" if m else "<b>our channel</b>"
+    from HELPERS.limitter import missing_chats, force_chats
+    todo = missing_chats(client, _owner_of(message)) or force_chats()
+
+    def _name(link):
+        m = re.search(r"t\.me/([A-Za-z0-9_]{4,})/?$", link or "")
+        return f"@{m.group(1)}" if m else None
+    names = [_name(u) for _, u in todo]
+    channel = " and ".join(f"<b>{n}</b>" for n in names if n) or "<b>our channel</b>"
     token = secrets.token_hex(4)
     with _pending_lock:
         now = time.time()
         for k in [k for k, v in _JOIN.items() if now - v[2] > _DM_WAIT_TTL]:
             _JOIN.pop(k, None)
         _JOIN[token] = (message, extract_url(getattr(message, "text", "") or ""), now, None)
-    rows = [[btn("plus", "Join Channel", url=url, style=BLUE)]] if url else []
+    rows = [[btn("plus", f"Join {n or 'Channel'}", url=u, style=BLUE)] for (_, u), n in zip(todo, names) if u]
     rows.append([btn("ok", "I've Joined", cb=f"ui|fj|{token}", style=GREEN)])
     card_msg = send(client, uid, lambda: (t(uid, "join_needed", channel=channel), InlineKeyboardMarkup(rows)))
     with _pending_lock:
@@ -1043,10 +1048,11 @@ def _watch_join(client, token, person) -> None:
             logger.info(f"[join] check {person}: {exc}")
 
 
-@app.on_chat_member_updated(filters.channel)
+@app.on_chat_member_updated(group=1)   # channels and groups (group 1: the bot's own group handler stays in 0)
 def channel_joined(client, update):
     """Instant auto-verify when the bot is an admin of the force-join channel (Telegram tells it about joins)."""
-    if int(getattr(update.chat, "id", 0)) != int(getattr(Config, "SUBSCRIBE_CHANNEL", 0) or 0):
+    from HELPERS.limitter import force_chats, is_member
+    if int(getattr(update.chat, "id", 0)) not in {cid for cid, _ in force_chats()}:
         return
     new = getattr(update, "new_chat_member", None)
     if not new or new.status not in (enums.ChatMemberStatus.MEMBER, enums.ChatMemberStatus.ADMINISTRATOR,
@@ -1055,8 +1061,9 @@ def channel_joined(client, update):
     person = getattr(getattr(new, "user", None), "id", None)
     with _pending_lock:
         tokens = [k for k, v in _JOIN.items() if _owner_of(v[0]) == person]
-    for k in tokens:
-        _join_done(client, k)
+    if tokens and is_member(client, person):   # several force-join chats: only when all are joined
+        for k in tokens:
+            _join_done(client, k)
 
 
 @app.on_message(filters.group & filters.new_chat_members, group=-1)
