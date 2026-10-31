@@ -460,6 +460,7 @@ def _show_link_menu(client, message, key, label) -> None:
         if picks:
             _SIZES[token] = picks
         title = html.escape((info or {}).get("title") or label)[:200]
+        message._ui_title = (info or {}).get("title")   # for the download-log card
         auto = _pref_choice(pref, picks) if pref and (info or key == "youtube") else None
         if auto:  # ⚙️ the person's default quality: no menu, start right away
             try:
@@ -489,6 +490,11 @@ def _show_link_menu(client, message, key, label) -> None:
                     target = twin or message
                     if twin:
                         group_mirror.start(twin.chat.id, message)
+                    try:
+                        from HELPERS.logger import log_download
+                        log_download(target, None, f"{label} · photos", extract_url(message.text))
+                    except Exception:
+                        pass
                     try:
                         image_command(client, fake_message(f"/img {extract_url(message.text)}", _owner_of(message),
                                                            original_chat_id=target.chat.id, original_message=target))
@@ -621,6 +627,14 @@ def _run_choice(client, message, choice, picks=None) -> None:
         group_mirror.start(twin.chat.id, group_msg)   # progress + file shown in the group too
     cancel.clear(message.chat.id)  # a new download: an old Cancel tap must not stop it
     cancel.set_owner(message.chat.id, _owner_of(message))
+    try:
+        from HELPERS.logger import log_download
+        found = detect_platform(message.text or "")
+        what = {"a": "MP3", "b": "Best quality"}.get(choice) or f"{choice}p"
+        log_download(message, getattr(group_msg, "_ui_title", None) or getattr(message, "_ui_title", None),
+                     f"{found[1] if found else 'Link'} · {what}" + (" · group" if twin else ""), extract_url(message.text or ""))
+    except Exception as exc:
+        logger.info(f"[ui] download log failed: {exc}")
     original = message.text
     try:
         message._ui_format = None

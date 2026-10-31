@@ -103,7 +103,7 @@ def _log_kind(msg):
     plain = re.sub(r"<[^>]+>", "", str(msg or "")).strip()
     low = plain.lower()
     if "entered a url" in low or "entered a link" in low:
-        return "📥", "New download", ""
+        return None   # log_download() writes the card, with the video title
     if any(k in low for k in _SENT):
         short = re.sub(r"\s*to user\s*\d+", "", plain.split("\n")[0])
         short = re.sub(r"https?://\S+", "", short).strip(" :·-")
@@ -158,6 +158,19 @@ def log_card(message, icon: str, title: str, msg, url: str = None) -> str:
                      if l.strip() and not re.match(r"\s*(user'?s name|url|user id|name)\s*:", l, re.I))
     return (f"{icon} <b>{title}</b>\n<blockquote>👤 {who}{site_line}</blockquote>"
             + (f"\n{body}" if body else "") + f"\n🕐 <i>{when} IST</i>")
+
+
+def log_download(message, title=None, detail="", url=None):
+    """'Downloading' card in the download-log channel: who, which video (title), quality, link."""
+    from html import escape
+    if not get_log_channel("general"):
+        return
+    body = (f"🎬 <b>{escape(str(title)[:200])}</b>" if title else "") + (f"\n{escape(detail)}" if detail else "")
+    try:
+        safe_send_message(get_log_channel("general"), log_card(message, "📥", "Downloading", body, url),
+                          parse_mode=enums.ParseMode.HTML, disable_web_page_preview=True)
+    except Exception as exc:
+        logger.info(f"[log] download card failed: {exc}")
 
 
 def send_to_logger(message, msg):

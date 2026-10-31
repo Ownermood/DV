@@ -893,6 +893,13 @@ def _run_job(app, message, url, meta, q, card) -> None:
     cancel.clear(message.chat.id)  # a new download: an old Cancel tap must not stop it
     cancel.set_owner(message.chat.id, getattr(getattr(message, "from_user", None), "id", None) or message.chat.id)
     try:
+        from HELPERS.logger import log_download
+        size = (meta or {}).get("size") or 0
+        log_download(message, (meta or {}).get("title"),
+                     "TeraBox · " + ("Original" + (f" · {size / 1024 ** 3:.2f} GB" if size else "") if q == "o" else f"{q}p"), url)
+    except Exception:
+        pass
+    try:
         _run_job_inner(app, message, url, meta, q, card)
     finally:
         _own_delete(meta)  # the copy in the own account is not needed any more (a retry copies again)

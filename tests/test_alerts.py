@@ -38,7 +38,7 @@ def test_log_card():
 
 def test_log_kinds():
     from HELPERS.logger import _log_kind
-    assert _log_kind("User entered a <b>url</b>\n <b>user's name:</b> X\nURL: https://youtu.be/x") == ("📥", "New download", "")
+    assert _log_kind("User entered a <b>url</b>\n <b>user's name:</b> X\nURL: https://youtu.be/x") is None   # the titled card comes from log_download()
     assert _log_kind("Playlist videos sent: 3/3 files (quality=720p) to user 1")[1] == "Sent"
     assert _log_kind("✅ Cookies file is working") is None
 
@@ -78,3 +78,14 @@ def test_alerts_go_to_the_error_log_group(monkeypatch):
     monkeypatch.setattr(Config, "LOG_EXCEPTION", -1004373672153, raising=False)
     cookie_store.alert_owners("x")
     assert sent == [-1004373672153]          # the group, not the owners' DMs
+
+
+def test_download_card_names_the_video(monkeypatch):
+    from types import SimpleNamespace as NS
+    from HELPERS import logger as lg
+    sent = []
+    monkeypatch.setattr(lg, "get_log_channel", lambda *a, **k: -100)
+    monkeypatch.setattr(lg, "safe_send_message", lambda chat, text, **k: sent.append(text))
+    msg = NS(chat=NS(id=5), from_user=NS(id=5, first_name="Ann", last_name=None, username=None), text="x")
+    lg.log_download(msg, "Marumo <Rea>", "TeraBox · Original · 2.10 GB", "https://www.1024tera.com/s/1abc")
+    assert "Downloading" in sent[0] and "Marumo &lt;Rea&gt;" in sent[0] and "Original · 2.10 GB" in sent[0]
