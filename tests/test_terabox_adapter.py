@@ -105,7 +105,7 @@ def test_cache_roundtrip(monkeypatch):
     monkeypatch.setattr(kit, "state_get", lambda k, d=None: store.get(k, d))
     monkeypatch.setattr(kit, "state_set", lambda k, v: store.__setitem__(k, v))
     url = "https://terasharelink.com/s/18KnaRqYo1qA8Smga-tgQUQ"
-    assert tb._share_key(url) == "v2:8KnaRqYo1qA8Smga-tgQUQ"
+    assert tb._share_key(url) == "v3:8KnaRqYo1qA8Smga-tgQUQ"
     vid = types.SimpleNamespace(video=types.SimpleNamespace(file_id="F1"), document=None)
     tb._cache_put(url, [vid], "Movie.mkv")
     assert tb._cache_get("https://www.1024terabox.com/s/18KnaRqYo1qA8Smga-tgQUQ") == {"t": "Movie.mkv", "f": [("F1", "v")]}

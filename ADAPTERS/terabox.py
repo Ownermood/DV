@@ -502,8 +502,8 @@ def _share_key(url):
     """Share code (+ '#720' etc. for a streaming copy), same for every mirror domain."""
     m = re.search(r"(?:/s/|surl=)1?([\w-]+)", url or "")
     q = (url or "").partition("#")[2]
-    # v2: files sent before the size-based split fix were cut wrong (parts of a few minutes): never reuse them
-    return ("v2:" + m.group(1) + (f"#{q}" if q else "")) if m else None
+    # v3: files sent before the split fixes were cut wrong (a few minutes, or one 75 MB piece): never reuse them
+    return ("v3:" + m.group(1) + (f"#{q}" if q else "")) if m else None
 
 
 def _cache_get(url):
@@ -1103,7 +1103,11 @@ def _run_job_inner(app, message, url, meta, q, card) -> None:
             sent = _send_file(app, message, filepath, title, url, thumb_path, upload_progress, cover=own_cover) or []
             if cancel.is_set(uid):  # upload stopped by ❌ Cancel: keep the "cancelled" card
                 return
-            if not own_thumb:
+            got = sum(getattr(m.video or m.document, "file_size", 0) or 0 for m in sent if m and (m.video or m.document))
+            whole = got >= filepath.stat().st_size * 0.8 if filepath.exists() else True
+            if not whole:   # the parts lost much of the file: never serve them again from the cache
+                print(f"[terabox] sent {got / 1024 ** 2:.0f} of {filepath.stat().st_size / 1024 ** 2:.0f} MB: not cached", flush=True)
+            if not own_thumb and whole:
                 _cache_put(key, sent, title)
             _to_log_channel(app, message.chat.id, sent)
         app.delete_messages(card.chat.id, card.id)  # the file itself is the success signal (card may be in a group)
