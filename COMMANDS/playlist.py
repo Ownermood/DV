@@ -1,7 +1,7 @@
 """YouTube playlists: one card (count + quality), then the videos one by one.
 
-A youtube.com/playlist?list=… link gets a card with the playlist name and size. The person picks how many
-(first 10 / 25 / all, at most MAX_PLAYLIST_COUNT) and the quality, taps Start, and every video goes through
+A youtube.com/playlist?list=… link gets a card with the playlist name and size. The person picks parts of
+10 (1–10, 11–20 …, at most MAX_PLAYLIST_COUNT videos at once) and qualities, taps Start, and every video goes through
 the normal single-video pipeline (_run_choice), so limits, Cancel, groups (DM twin) and logs work as usual.
 A status card shows "Video i of N"; Cancel on a video card or Stop on the status card ends the playlist.
 """
@@ -26,8 +26,10 @@ from HELPERS.logger import logger
 app = get_app()
 PLAIN = enums.ButtonStyle.DEFAULT
 QUALITIES = (("b", "Best"), ("1080", "1080p"), ("720", "720p"), ("480", "480p"), ("360", "360p"), ("a", "MP3"))
-COUNTS = (10, 25)
-_JOBS = {}            # token -> {"msg", "title", "urls", "count", "qs" (chosen qualities), "ts"}
+BATCH = 10            # the playlist is offered in parts of 10 videos: 1–10, 11–20 …
+PAGE_BATCHES = 12     # parts per card page (3 rows of 4)
+READ_MAX = 500        # videos read from a playlist
+_JOBS = {}            # token -> {"msg", "title", "urls", "sel" (chosen parts), "page", "qs" (chosen qualities), "ts"}
 _STOP = set()         # chats whose running playlist must stop
 _lock = threading.Lock()
 TTL = 3600
@@ -49,7 +51,7 @@ def _read(url) -> dict:
     import yt_dlp
     from HELPERS.pot_helper import add_pot_to_ytdl_opts
     opts = {"quiet": True, "no_warnings": True, "skip_download": True, "extract_flat": "in_playlist",
-            "playlistend": max_count(), "socket_timeout": 20}
+            "playlistend": READ_MAX, "socket_timeout": 20}
     try:
         from COMMANDS import cookie_store
         ck = cookie_store.first_active("youtube")
@@ -68,22 +70,48 @@ def _read(url) -> dict:
             "total": int(info.get("playlist_count") or len(urls)), "urls": urls}
 
 
-def _card(job):
+def _batches(job) -> list:
     n = len(job["urls"])
+    return [(a, min(n, a + BATCH)) for a in range(0, n, BATCH)]
+
+
+def chosen_urls(job) -> list:
+    """Videos of the chosen parts, in playlist order."""
+    b = _batches(job)
+    return [u for k in sorted(job["sel"]) if k < len(b) for u in job["urls"][b[k][0]:b[k][1]]]
+
+
+def _card(job):
+    batches, chosen = _batches(job), chosen_urls(job)
+    pages = max(1, -(-len(batches) // PAGE_BATCHES))
+    page = max(0, min(job.get("page", 0), pages - 1))
+    parts = ", ".join(f"{batches[k][0] + 1}–{batches[k][1]}" for k in sorted(job["sel"]))
     text = (f"{em('play')} <b>{html.escape(job['title'][:150])}</b>\n"
             f"<blockquote>📃 <b>{job['total']}</b> videos" + (f" · {html.escape(job['uploader'][:60])}" if job["uploader"] else "")
-            + (f"\nUp to {max_count()} per playlist." if job["total"] > n else "") + "</blockquote>\n"
-            f"{em('down')} <b>How many and which qualities?</b> (tap several qualities to get each)")
+            + (f"\nThe first {len(job['urls'])} are offered." if job["total"] > len(job["urls"]) else "")
+            + (f"\n✅ Chosen: {parts} ({len(chosen)} videos)" if chosen else "") + "</blockquote>\n"
+            f"{em('down')} <b>Pick the videos (max {max_count()} at once) and the qualities.</b>")
     tok = job["token"]
-    counts = [c for c in COUNTS if c < n] + [n]
 
     def pick(selected, icon, label, cb):   # chosen = green with ✔, the rest plain
         return btn("ok" if selected else icon, label, cb=cb, style=GREEN if selected else PLAIN)
-    rows = [[pick(job["count"] == c, "down", f"{'All ' if c == n else 'First '}{c}", f"pl|{tok}|c|{c}") for c in counts]]
+    rows, row = [], []
+    for k in range(page * PAGE_BATCHES, min(len(batches), (page + 1) * PAGE_BATCHES)):
+        a, b = batches[k]
+        row.append(pick(k in job["sel"], "down", f"{a + 1}–{b}", f"pl|{tok}|b|{k}"))
+        if len(row) == 4:
+            rows.append(row)
+            row = []
+    if row:
+        rows.append(row)
+    if pages > 1:
+        rows.append([btn("back", "Prev", cb=f"pl|{tok}|p|{(page - 1) % pages}", style=PLAIN),
+                     btn("memo", f"{page + 1}/{pages}", cb=f"pl|{tok}|p|{page}", style=PLAIN),
+                     btn("next", "Next", cb=f"pl|{tok}|p|{(page + 1) % pages}", style=PLAIN)])
     qs = [pick(k in job["qs"], "music" if k == "a" else "play", label, f"pl|{tok}|q|{k}") for k, label in QUALITIES]
     rows += [qs[:3], qs[3:]]   # 3 + 3, side by side
     times = f" × {len(job['qs'])}" if len(job["qs"]) > 1 else ""   # several qualities: every video in each
-    what = f" · {job['count']} videos{times}" if job["count"] else ""
+    what = f" · {len(chosen)} videos{times}" if chosen else ""
     rows.append([btn("bolt", f"Start{what}", cb=f"pl|{tok}|go", style=GREEN),
                  btn("trash", "Close", cb=f"pl|{tok}|x", style=RED)])
     return text, InlineKeyboardMarkup(rows)
@@ -108,7 +136,7 @@ def show(client, message, url) -> None:
     except Exception:
         q = "b"
     token = secrets.token_hex(4)
-    job = {"token": token, "msg": message, "count": 0, "qs": [q], "ts": time.time(), **data}   # only the quality is preset
+    job = {"token": token, "msg": message, "sel": [], "page": 0, "qs": [q], "ts": time.time(), **data}   # only the quality is preset
     with _lock:
         for k in [k for k, v in _JOBS.items() if time.time() - v["ts"] > TTL]:
             _JOBS.pop(k, None)
@@ -128,7 +156,7 @@ def _run(client, job, card) -> None:
     chat = target.chat.id
     with _lock:
         _STOP.discard(chat)
-    urls = job["urls"][:job["count"]]
+    urls = chosen_urls(job)
     done = failed = 0
     stop_kb = InlineKeyboardMarkup([[btn("ban", "Stop Playlist", cb=f"pl|{job['token']}|stop", style=RED)]])
     for i, url in enumerate(urls, 1):
@@ -179,9 +207,19 @@ def playlist_buttons(client, cq):
         finally:
             cq.stop_propagation()
     try:
-        if action == "c" and len(parts) == 4 and parts[3].isdigit():
-            c = max(1, min(int(parts[3]), len(job["urls"])))
-            job["count"] = 0 if job["count"] == c else c   # tap again: back to not chosen
+        if action == "b" and len(parts) == 4 and parts[3].isdigit():   # a part (1–10, 11–20 …): tap / tap again
+            k = int(parts[3])
+            if k in job["sel"]:
+                job["sel"].remove(k)
+            elif k < len(_batches(job)):
+                b = _batches(job)[k]
+                if len(chosen_urls(job)) + (b[1] - b[0]) > max_count():
+                    cq.answer(f"Max {max_count()} videos at once. Untick a part first.", show_alert=True)
+                    raise RuntimeError("over the limit")
+                job["sel"].append(k)
+            edit(client, cq.message, lambda: _card(job))
+        elif action == "p" and len(parts) == 4 and parts[3].isdigit():
+            job["page"] = int(parts[3])
             edit(client, cq.message, lambda: _card(job))
         elif action == "q" and len(parts) == 4 and parts[3] in dict(QUALITIES):
             k = parts[3]   # multi-select: tap = green, tap again = plain
@@ -193,14 +231,14 @@ def playlist_buttons(client, cq):
         elif action == "go":
             if token not in _JOBS:
                 raise RuntimeError("already started")
-            if not job["count"] or not job["qs"]:
-                cq.answer("Choose how many videos first." if not job["count"] else "Choose at least one quality.",
+            if not job["sel"] or not job["qs"]:
+                cq.answer("Choose the videos first (1–10, 11–20 …)." if not job["sel"] else "Choose at least one quality.",
                           show_alert=True)
                 raise RuntimeError("nothing chosen")
             with _lock:
                 _JOBS.pop(token, None)   # one run per card
                 _JOBS[f"run-{token}"] = job
-            cq.answer(f"Starting {job['count']} videos")
+            cq.answer(f"Starting {len(chosen_urls(job))} videos")
             threading.Thread(target=_run, args=(client, job, cq.message), daemon=True).start()
         elif action == "stop":
             target = getattr(job["msg"], "_dm_twin", None) or job["msg"]
