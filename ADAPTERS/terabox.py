@@ -502,7 +502,8 @@ def _share_key(url):
     """Share code (+ '#720' etc. for a streaming copy), same for every mirror domain."""
     m = re.search(r"(?:/s/|surl=)1?([\w-]+)", url or "")
     q = (url or "").partition("#")[2]
-    return (m.group(1) + (f"#{q}" if q else "")) if m else None
+    # v2: files sent before the size-based split fix were cut wrong (parts of a few minutes): never reuse them
+    return ("v2:" + m.group(1) + (f"#{q}" if q else "")) if m else None
 
 
 def _cache_get(url):

@@ -262,3 +262,11 @@ def test_stream_size_from_segments(monkeypatch):
     monkeypatch.setattr(tb.requests, "Session", S)
     pl = "#EXTM3U\n" + "\n".join(f"#EXTINF:6,\nhttps://s/{i}.ts" for i in range(30))
     assert tb._stream_size({"base": "https://x"}, pl) == 30000
+
+
+def test_old_wrong_parts_are_not_reused_from_cache(monkeypatch):
+    from ADAPTERS import terabox as tb
+    from COMMANDS import ui_kit
+    state = {"terabox_cache": {"1wO1UGR4EP09Vwar9futoA": {"t": "old", "f": [["x", "v"]]}}}   # before the fix
+    monkeypatch.setattr(ui_kit, "state_get", lambda k, d=None: state.get(k, d))
+    assert tb._cache_get("https://www.1024tera.com/wap/share/filelist?surl=1wO1UGR4EP09Vwar9futoA") is None
