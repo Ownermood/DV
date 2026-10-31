@@ -550,17 +550,32 @@ def _send_cached(app, message, url, entry) -> bool:
 
 
 def _split_by_size(src: Path, limit: int) -> list:
-    """Cut a too-big video into parts of at most `limit` bytes, each starting where the last one ended.
-    Needs no total duration: TeraBox .ts recordings often report a wrong one (a 2h38m video read as ~15 min,
-    so time-based parts covered only the start)."""
+    """Cut a too-big video into parts of at most `limit` bytes that together hold the whole file.
+    1) ffmpeg, part after part by size (no total duration needed: .ts recordings report a wrong one);
+    2) if those parts miss a lot of the file (broken .ts timestamps stop ffmpeg early: one 75 MB "part"
+       out of 2 GB), a .ts is cut by bytes instead: MPEG-TS plays from any 188-byte packet."""
+    total = src.stat().st_size
+    paths = _split_ffmpeg(src, limit)
+    covered = sum(os.path.getsize(p) for p in paths)
+    if covered >= total * 0.85 or src.suffix.lower() != ".ts":
+        return paths
+    print(f"[terabox] ffmpeg parts hold only {covered / 1024 ** 2:.0f} of {total / 1024 ** 2:.0f} MB: byte split", flush=True)
+    for p in paths:
+        os.remove(p)
+    return _split_ts_bytes(src, limit)
+
+
+def _split_ffmpeg(src: Path, limit: int) -> list:
     import subprocess
     paths, start = [], 0.0
     for n in range(1, 30):
         out = src.parent / f"part{n}.mp4"
-        subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-fflags", "+genpts", "-i", str(src), "-ss", f"{start:.3f}",
-                        "-map", "0:v:0", "-map", "0:a?", "-c", "copy", "-fs", str(limit),
-                        "-avoid_negative_ts", "make_zero", "-movflags", "+faststart", str(out)],
-                       check=False, timeout=3600)
+        r = subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-fflags", "+genpts", "-i", str(src), "-ss", f"{start:.3f}",
+                            "-map", "0:v:0", "-map", "0:a?", "-c", "copy", "-fs", str(limit),
+                            "-avoid_negative_ts", "make_zero", "-movflags", "+faststart", str(out)],
+                           capture_output=True, text=True, timeout=3600)
+        if r.stderr.strip():
+            print(f"[terabox] ffmpeg part {n}: {r.stderr.strip()[-300:]}", flush=True)
         size = out.stat().st_size if out.exists() else 0
         dur = _duration(str(out)) if size else 0
         if size < 1024 or dur <= 1:
@@ -570,6 +585,42 @@ def _split_by_size(src: Path, limit: int) -> list:
         if size < limit * 0.9:   # this part reached the end of the video
             break
         start += dur
+    return paths
+
+
+def _split_ts_bytes(src: Path, limit: int) -> list:
+    """Byte cut of an MPEG-TS at 188-byte packet borders; each piece is remuxed to mp4 when that keeps it whole."""
+    import subprocess
+    step = limit - limit % 188
+    paths = []
+    with src.open("rb") as f:
+        for n in range(1, 30):
+            raw = src.parent / f"part{n}.ts"
+            left = step
+            with raw.open("wb") as w:
+                while left:
+                    buf = f.read(min(8 * 1024 * 1024, left))
+                    if not buf:
+                        break
+                    w.write(buf)
+                    left -= len(buf)
+            size = raw.stat().st_size
+            if not size:
+                raw.unlink()
+                break
+            mp4 = raw.with_suffix(".mp4")
+            subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-fflags", "+genpts+igndts+discardcorrupt",
+                            "-err_detect", "ignore_err", "-i", str(raw), "-map", "0:v:0", "-map", "0:a?", "-c", "copy",
+                            "-movflags", "+faststart", str(mp4)], capture_output=True, timeout=3600)
+            # mp4 is ~5-15 % smaller than the same .ts (no packet overhead); much less = it lost video
+            if mp4.exists() and mp4.stat().st_size >= size * 0.75 and _duration(str(mp4)) > 1:
+                raw.unlink()
+                paths.append(str(mp4))
+            else:   # mp4 would lose part of it: send the .ts piece itself
+                mp4.unlink(missing_ok=True)
+                paths.append(str(raw))
+            if size < step:
+                break
     return paths
 
 

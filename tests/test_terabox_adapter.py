@@ -270,3 +270,23 @@ def test_old_wrong_parts_are_not_reused_from_cache(monkeypatch):
     state = {"terabox_cache": {"1wO1UGR4EP09Vwar9futoA": {"t": "old", "f": [["x", "v"]]}}}   # before the fix
     monkeypatch.setattr(ui_kit, "state_get", lambda k, d=None: state.get(k, d))
     assert tb._cache_get("https://www.1024tera.com/wap/share/filelist?surl=1wO1UGR4EP09Vwar9futoA") is None
+
+
+def test_broken_ts_falls_back_to_byte_parts(monkeypatch, tmp_path):
+    import shutil, subprocess
+    import pytest
+    from ADAPTERS import terabox as tb
+    if not shutil.which("ffmpeg"):
+        pytest.skip("ffmpeg not installed")
+    src = tmp_path / "in.ts"
+    subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "testsrc=size=320x180:rate=25",
+                    "-t", "60", "-c:v", "libx264", "-preset", "ultrafast", "-b:v", "1M", "-g", "25", "-f", "mpegts",
+                    str(src)], check=True)
+    small = tmp_path / "part1.mp4"
+    small.write_bytes(b"x" * 2048)
+    monkeypatch.setattr(tb, "_split_ffmpeg", lambda s, l: [str(small)])   # ffmpeg stopped early (75 MB of 2 GB)
+    limit = int(src.stat().st_size / 2.5)
+    parts = tb._split_by_size(src, limit)
+    assert len(parts) == 3 and all(p.endswith(".mp4") for p in parts)   # fake 2 KB part replaced, all playable mp4
+    assert all(tb.Path(p).stat().st_size <= limit for p in parts)
+    assert sum(tb._duration(p) for p in parts) > 55                     # the whole video is in the parts
