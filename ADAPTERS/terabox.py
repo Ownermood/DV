@@ -141,9 +141,16 @@ def _max_bytes() -> int:
 
 
 def _load_cookies(path: str = COOKIE_FILE) -> dict:
+    rows = []
     try:
         with open(path, "r", encoding="utf-8", errors="ignore") as f:
-            rows = [l.rstrip("\n").split("\t") for l in f if l.strip() and not l.startswith("#")]
+            for line in f:
+                line = line.rstrip("\r\n")
+                if line.startswith("#HttpOnly_"):   # HttpOnly cookies (TeraBox's login "ndus" is one) are real rows
+                    line = line[len("#HttpOnly_"):]
+                elif not line.strip() or line.startswith("#"):
+                    continue
+                rows.append(line.split("\t"))
     except OSError:
         return {}
     return {r[5]: r[6] for r in rows if len(r) == 7}

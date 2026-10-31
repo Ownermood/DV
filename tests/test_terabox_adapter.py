@@ -384,3 +384,13 @@ def test_own_copy_gives_the_original_link(monkeypatch):
     meta = {"sess": NS(cookies=NS(get_dict=lambda: {"ndus": "x"})), "base": "https://www.1024tera.com", "common": {},
             "title": "Movie.mp4", "size": 123, "thumb": None, "bdstoken": "b"}
     assert tb._own_dlink(meta) == ("https://d/own", None, "Movie.mp4", 123, {"ndus": "x"})
+
+
+def test_httponly_login_cookie_is_read(tmp_path):
+    from ADAPTERS import terabox as tb
+    f = tmp_path / "terabox.txt"
+    f.write_text("# Netscape HTTP Cookie File\n"
+                 "#HttpOnly_.1024terabox.com\tTRUE\t/\tTRUE\t1830000000\tndus\tLOGIN\n"
+                 ".1024terabox.com\tTRUE\t/\tFALSE\t1830000000\tlang\ten\n"
+                 "# a real comment\n")
+    assert tb._load_cookies(str(f)) == {"ndus": "LOGIN", "lang": "en"}   # was {"lang": "en"}: looked logged out
