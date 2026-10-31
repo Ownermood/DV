@@ -452,6 +452,10 @@ def _show_link_menu(client, message, key, label) -> None:
         from HELPERS.limitter import is_user_in_channel
         if not is_user_in_channel(client, getattr(message, "_dm_twin", None) or message):
             return
+    from COMMANDS import playlist
+    if key == "youtube" and playlist.is_playlist_url(extract_url(message.text)):   # a whole playlist: its own card
+        threading.Thread(target=playlist.show, args=(client, message, extract_url(message.text)), daemon=True).start()
+        return
     from HELPERS import cancel
     cancel.clear(uid)  # a new link: an old Cancel tap must not stop it
     from COMMANDS.user_prefs import quality as _default_quality
@@ -1168,6 +1172,8 @@ def cancel_download(client, cq):
             cancel.request(uid)
             with _queue_lock:  # a running link queue stops too
                 _queues.pop(uid, None)
+            from COMMANDS import playlist
+            playlist.stop(uid)   # and a running playlist
             cq.answer("Cancelled")
             edit(client, cq.message, lambda: (f"{em('ban')} <b>Download cancelled.</b>", None))
     except Exception as exc:
