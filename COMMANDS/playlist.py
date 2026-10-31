@@ -151,7 +151,7 @@ def show(client, message, url) -> None:
     except Exception:
         q = "b"
     token = secrets.token_hex(4)
-    job = {"token": token, "msg": message, "sel": [], "page": 0, "qs": [q], "ts": time.time(), **data}   # only the quality is preset
+    job = {"token": token, "msg": message, "url": url, "sel": [], "page": 0, "qs": [q], "ts": time.time(), **data}   # only the quality is preset
     with _lock:
         for k in [k for k, v in _JOBS.items() if time.time() - v["ts"] > TTL]:
             _JOBS.pop(k, None)
@@ -212,6 +212,10 @@ def _run(client, job, card) -> None:
         _STOP.discard(chat)
     urls = chosen_urls(job)
     done = 0
+    errors = []                 # one reason per failed video: shown once at the end, not a message per video
+    for o in {id(msg): msg, id(target): target}.values():
+        o._pl_errors = errors
+    failed = {}                 # reason -> how many videos
     stop_kb = InlineKeyboardMarkup([[btn("ban", "Stop Playlist", cb=f"pl|{job['token']}|stop", style=RED)]])
     title = html.escape(job["title"][:120])
     status = None
@@ -225,6 +229,7 @@ def _run(client, job, card) -> None:
                 break
         status = _status(client, chat, status, f"{em('play')} <b>{title}</b>\n<blockquote>📃 Video <b>{i}</b> of "
                                                f"<b>{len(urls)}</b> · {done} done</blockquote>", stop_kb)
+        before = len(errors)
         for q in job["qs"]:   # each chosen quality of this video, one after the other
             with _lock:
                 if chat in _STOP:
@@ -233,11 +238,19 @@ def _run(client, job, card) -> None:
             m.text = url
             m._ui_title = None
             m._playlist = True
+            m._pl_errors = errors
             try:
                 _run_choice(client, m, q)   # waits until this video is sent (or failed)
             except Exception as exc:
                 logger.info(f"[playlist] video {i} ({q}): {exc}")
+        if len(errors) > before:   # the layers may report one failure twice: one count per video
+            failed[errors[before]] = failed.get(errors[before], 0) + 1
         done += 1
+    for o in (msg, target):
+        try:
+            del o._pl_errors   # later single downloads report their errors normally again
+        except AttributeError:
+            pass
     with _lock:
         stopped = chat in _STOP
         _STOP.discard(chat)
@@ -248,7 +261,17 @@ def _run(client, job, card) -> None:
         a, b = _batches(nxt)[nxt["sel"][0]]
         rows.append([btn("next", f"Next {a + 1}–{b}", cb=f"pl|{nxt['token']}|go", style=GREEN),
                      btn("down", "Choose Parts", cb=f"pl|{nxt['token']}|show", style=PLAIN)])
-    _status(client, chat, status, f"{head}\n<blockquote>{title}\n{done} of {len(urls)} videos handled"
+    bad = sum(failed.values())
+    why = "".join(f"\n⚠️ {n} × {html.escape(r, quote=False)}" for r, n in sorted(failed.items(), key=lambda x: -x[1]))
+    if bad:   # one card in the error log for the whole playlist (not one per video)
+        try:
+            from HELPERS.logger import log_summary_to_channel
+            log_summary_to_channel(msg, f"Playlist {html.escape(job['title'][:80], quote=False)}: "
+                                        f"{bad} of {done} videos failed{why}", job.get("url"))
+        except Exception as exc:
+            logger.info(f"[playlist] summary log failed: {exc}")
+    _status(client, chat, status, f"{head}\n<blockquote>{title}\n✅ {done - bad} sent"
+                                  + (f" · ❌ {bad} not downloaded{why}" if bad else "")
                                   + (f"\nNext: {_batches(nxt)[nxt['sel'][0]][0] + 1}–{_batches(nxt)[nxt['sel'][0]][1]}"
                                      f" of {len(job['urls'])}" if nxt else "") + "</blockquote>",
             InlineKeyboardMarkup(rows) if rows else None)

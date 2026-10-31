@@ -192,3 +192,40 @@ def test_close_only_by_the_asker_in_groups(monkeypatch):
     assert deleted == [] and "Only the person" in answers[0]            # someone else: refused
     tap(7)
     assert deleted == [7]                                              # the asker: closed
+
+
+def test_playlist_errors_become_one_summary(monkeypatch):
+    from HELPERS import logger as lg
+    user_msgs, cards, statuses = [], [], []
+    monkeypatch.setattr(lg, "safe_send_message", lambda chat, text, **k: (cards if chat == -999 else user_msgs).append(text))
+    monkeypatch.setattr(lg.Config, "LOG_EXCEPTION", -999, raising=False)
+    monkeypatch.setattr(pl, "send", lambda c, chat, build, **k: statuses.append(build()[0]) or NS(delete=lambda: None))
+    region = "ERROR: [youtube] x: The uploader has not made this video available in your country"
+
+    def fake_choice(client, m, q):
+        if m.text != "https://youtu.be/v0":           # every video but the first is region-locked
+            lg.send_error_to_user(m, region)          # two layers report the same failure
+            lg.log_error_to_channel(m, region)
+    monkeypatch.setattr(ui, "_run_choice", fake_choice)
+    job = _job(13, sel=[0, 1])
+    job["url"] = "https://www.youtube.com/playlist?list=PLx"
+    pl._run(None, job, NS(delete=lambda: None))
+    assert user_msgs == []                                            # no message per video
+    assert len(cards) == 1 and "12 of 13 videos failed" in cards[0]   # one log card for the playlist
+    assert "✅ 1 sent" in statuses[-1] and "❌ 12 not downloaded" in statuses[-1]
+    assert "12 × 🌐 This video is blocked in the bot's region" in statuses[-1]
+    assert not hasattr(job["msg"], "_pl_errors")                      # single downloads report normally again
+
+
+def test_same_error_reported_once(monkeypatch):
+    from HELPERS import logger as lg
+    sent = []
+    monkeypatch.setattr(lg, "safe_send_message", lambda chat, text, **k: sent.append(chat))
+    monkeypatch.setattr(lg.Config, "LOG_EXCEPTION", -999, raising=False)
+    lg._recent_errors.clear()
+    m = NS(chat=NS(id=5), from_user=NS(id=5, first_name="A", last_name=None, username=None), text="https://youtu.be/x")
+    err = "ERROR: [youtube] x: Private video"
+    lg.send_error_to_user(m, err)
+    lg.send_error_to_user(m, err)       # a second layer
+    lg.log_error_to_channel(m, err)
+    assert sent.count(-999) == 1 and sent.count(5) == 1                # one card, one user message

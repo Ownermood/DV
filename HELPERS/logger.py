@@ -267,6 +267,46 @@ def _extract_url_from_message(message) -> str:
         return ""
 
 # Send Error Message to User and LOG_EXCEPTION channel
+_recent_errors = {}   # (chat, link, kind, error line) -> time: one error is reported once, not by every layer
+ERROR_REPEAT_WINDOW = 120
+
+
+def _first_time(message, msg, url, kind) -> bool:
+    import time as _t
+    raw = re.sub(r"<[^>]+>", "", str(msg or "")).strip().split("\n")[-1][:200]
+    key = (getattr(getattr(message, "chat", None), "id", None), url or _extract_url_from_message(message) or "", kind, raw)
+    now = _t.time()
+    for k in [k for k, ts in _recent_errors.items() if now - ts > ERROR_REPEAT_WINDOW]:
+        _recent_errors.pop(k, None)
+    if key in _recent_errors:
+        return False
+    _recent_errors[key] = now
+    return True
+
+
+def _playlist_collect(message, msg) -> bool:
+    """A playlist video failed: keep the reason for the playlist's one summary instead of a message per video."""
+    bucket = getattr(message, "_pl_errors", None)
+    if bucket is None:
+        return False
+    reason = re.sub(r"<[^>]+>", "", friendly_error(msg)).strip().split("\n")[0][:120] or "Download failed"
+    bucket.append(reason)
+    return True
+
+
+def _error_card(message, msg, url) -> None:
+    if getattr(Config, "LOG_EXCEPTION", 0) and _first_time(message, msg, url, "card"):  # 0 = no log channel set
+        safe_send_message(Config.LOG_EXCEPTION, log_card(message, "⚠️", "Error", _short_error(msg), url),
+                          parse_mode=enums.ParseMode.HTML, disable_web_page_preview=True)
+
+
+def log_summary_to_channel(message, text, url=None) -> None:
+    """One error-log card with a ready summary (plain text lines), e.g. a whole playlist's failures."""
+    if getattr(Config, "LOG_EXCEPTION", 0):
+        safe_send_message(Config.LOG_EXCEPTION, log_card(message, "⚠️", "Error", text, url),
+                          parse_mode=enums.ParseMode.HTML, disable_web_page_preview=True)
+
+
 def send_error_to_user(message, msg, url: str = None):
     capture_message_context(message)
     """Send error message to user and log it to LOG_EXCEPTION channel.
@@ -275,10 +315,9 @@ def send_error_to_user(message, msg, url: str = None):
          extracted from the user's message text/caption when possible.
     """
     user_id = message.chat.id
-    # Send to LOG_EXCEPTION channel for error tracking
-    if getattr(Config, "LOG_EXCEPTION", 0):  # 0 = no log channel set
-        safe_send_message(Config.LOG_EXCEPTION, log_card(message, "⚠️", "Error", _short_error(msg), url),
-                          parse_mode=enums.ParseMode.HTML, disable_web_page_preview=True)
+    if _playlist_collect(message, msg):
+        return   # the playlist sends one summary (user + log) at the end
+    _error_card(message, msg, url)
     # Send to user: short message; full details stay in LOG_EXCEPTION / logs
     friendly = friendly_error(msg)
     if friendly != msg:
@@ -288,7 +327,8 @@ def send_error_to_user(message, msg, url: str = None):
             download_failed(user_id, _extract_url_from_message(message) or "", str(msg))
         except Exception:
             pass
-    safe_send_message(user_id, friendly, parse_mode=enums.ParseMode.HTML, message=message)
+    if _first_time(message, friendly, url, "user"):   # the same error once, not once per layer
+        safe_send_message(user_id, friendly, parse_mode=enums.ParseMode.HTML, message=message)
 
 # Log error message to LOG_EXCEPTION channel (without sending to user)
 def log_error_to_channel(message, msg, url: str = None):
@@ -298,7 +338,6 @@ def log_error_to_channel(message, msg, url: str = None):
     url: optional explicit URL that caused the error; if not provided, will be
          extracted from the user's message text/caption when possible.
     """
-    # Send to LOG_EXCEPTION channel for error tracking
-    if getattr(Config, "LOG_EXCEPTION", 0):  # 0 = no log channel set
-        safe_send_message(Config.LOG_EXCEPTION, log_card(message, "⚠️", "Error", _short_error(msg), url),
-                          parse_mode=enums.ParseMode.HTML, disable_web_page_preview=True)
+    if getattr(message, "_pl_errors", None) is not None:
+        return   # playlist video: in the playlist's summary
+    _error_card(message, msg, url)
