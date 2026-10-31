@@ -392,6 +392,8 @@ def _caption(title: str, url: str, part: str = "") -> str:
     from html import escape
     from HELPERS.caption import build_quoted_caption
     bot = os.getenv("BOT_NAME", "Downloader_Villanbot")
+    if Path(title).suffix.lower() in VIDEO_EXT | {".mp4", ".mkv"}:
+        title = Path(title).stem   # "Movie.ts" -> "Movie": the file is an mp4 now, the old extension only confuses
     cap = build_quoted_caption(f"<b>{escape(title[:300])}</b>", "", "", "", f'<a href="{escape(url)}">🔗 TeraBox</a> @{bot}')
     return f"<b>🎞 {part}</b>\n{cap}" if part else cap  # parts: bold on top, outside the quotes
 

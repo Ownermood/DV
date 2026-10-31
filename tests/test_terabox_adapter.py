@@ -335,3 +335,10 @@ def test_parts_are_sent_with_duration_size_and_small_thumb(tmp_path):
     with Image.open(t) as im:
         assert max(im.size) <= 320
     assert tb._safe_thumb(None, v)                                   # no TeraBox thumb: a frame of the video
+
+
+def test_caption_drops_the_file_extension():
+    from ADAPTERS import terabox as tb
+    cap = tb._caption("Marumo Rea - SMOK 041.ts", "https://t/s/1x", "Part 1/2")
+    assert "SMOK 041</b>" in cap and ".ts" not in cap
+    assert "Notes v1.2" in tb._caption("Notes v1.2", "https://t/s/1x")   # not an extension: kept
